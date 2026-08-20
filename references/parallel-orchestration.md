@@ -1,96 +1,34 @@
-# Parallel Orchestration V5.10
+# Parallel Orchestration V5.11 — Latency-Aware
 
-## Goal
-Use OpenCode subagents as trusted job workers. Parallelize all independent work, including end-to-end external ATS applications. Keep LinkedIn Easy Apply under the primary coordinator because Easy Apply shares one LinkedIn surface/session and benefits from centralized dedupe/resume-selection control.
+Parallelism is useful only when it does not delay the first useful result.
 
-## Workers
+## Fast lane
 
-### job-autopilot-assessor
-One queued job per child session. Reads captured source data and canonical facts; writes assessment + fit map.
+Fast/local operations:
+- assessor without web
+- coordinator adjudication
+- promotion
+- resume worker
+- application routing
 
-### job-autopilot-eligibility
-One unclear job per child session. Researches official eligibility/relocation evidence; writes eligibility-research.json.
+Act on each completed fast result immediately.
 
-### job-autopilot-evidence
-One queued job per child session, only when assessment returns `needs-evidence`. Dynamically verifies current first-party GitHub/deployment/portfolio/candidate-authored public evidence for requested technical gaps and writes `candidate-evidence-research.json`. It never edits the shared evidence cache.
+## Slow lane
 
-### job-autopilot-resume
-One approved job per child session. Tailors and compiles the fresh canonical LaTeX resume in that job's unique generated folder.
+Potentially slow/web-heavy:
+- eligibility research
+- candidate public-evidence research
+- relocation research
 
-### job-autopilot-external-apply
-One approved external-ATS job per child session. Owns its BrowserOS tabs and completes the external application end to end, including OAuth/login, form filling, unique resume-artifact upload, screening questions, final Submit, and confirmation. Writes `application-progress.json` checkpoints and `application-result.json` in its job folder.
+Never put slow-lane tasks in the same waiting wave as a ready/likely fast-lane job when the harness waits for all calls in the turn.
 
-## Coordinator-owned operations
-The primary agent owns:
-- discovery and dedupe,
-- queue creation and source capture,
-- final gate adjudication,
-- sequential merge of completed candidate-evidence reports into the shared evidence cache,
-- promotion to generated folders,
-- LinkedIn Easy Apply submissions,
-- dispatch of external ATS applicators,
-- reconciliation of per-job `application-result.json` files into global ledgers,
-- global reporting.
+Preferred order:
+1. process ready generated applications;
+2. process passed/assessment-pending jobs likely to yield an application;
+3. route/promote/resume those results;
+4. then run slow research for ambiguous jobs;
+5. discovery continues whenever no ready fast work exists.
 
-The coordinator is NOT the bottleneck for external ATS applications.
+External ATS workers are uncapped by skill policy. LinkedIn Easy Apply remains coordinator-owned.
 
-## Concurrency policy
-There is **no skill-imposed numeric concurrency limit for external ATS applications**.
-
-When multiple approved external jobs have valid tailored resumes, dispatch one `job-autopilot-external-apply` task for **every ready job** without waiting for earlier external tasks to finish. Actual concurrency is limited only by OpenCode/runtime/system resources.
-
-Assessment, eligibility, candidate-evidence, and resume stages may also be fanned out aggressively across independent jobs. Avoid assigning two workers to the same job directory at the same time.
-
-LinkedIn Easy Apply remains coordinator-owned and may be processed sequentially **only when the LinkedIn activity governor allows it**, while external ATS subagents run concurrently in the background/task pool. LinkedIn pacing never reduces external ATS concurrency or count.
-
-## Domain circuit breakers under parallel load
-Unlimited fan-out does not waive anti-automation rules.
-
-- Every external worker owns its job and must stop on its first spam/automation/429/security signal.
-- Before final Submit, each external worker checks `.job-apply-autopilot/domain-circuit-breakers/` for an existing marker for its ATS domain.
-- A worker that encounters a domain-wide resistance signal should best-effort create the domain marker immediately.
-- Concurrent workers already active on the same domain should check again immediately before their own Submit and stop if the marker is present.
-- Do not serialize all jobs merely because they share an ATS domain; the circuit breaker is reactive, not a pre-emptive per-domain concurrency cap.
-
-## Batch pipeline
-1. Coordinator harvests credible jobs and creates one queue directory per job.
-2. Fan out assessors across all complete work items.
-3. Fan out eligibility researchers for all `UNCLEAR` jobs that remain otherwise viable.
-4. Fan out `job-autopilot-evidence` for all otherwise-viable `needs-evidence` jobs. Each evidence worker writes only its per-job report.
-5. As each evidence report completes, coordinator merges it sequentially with `scripts/merge-candidate-evidence.ps1`, then re-runs the assessor on that job.
-6. Re-assess researched jobs and perform coordinator final adjudication.
-7. Promote every accepted work item.
-8. Fan out resume workers across all promoted jobs.
-9. As soon as a resume is ready:
-   - LinkedIn Easy Apply -> coordinator queue; submit only when `linkedin-governor.ps1 -Action Status` allows it.
-   - External ATS/company site -> immediately dispatch `job-autopilot-external-apply` with no numeric limit.
-10. External applicators run concurrently with each other and with ongoing assessment/evidence/resume preparation.
-11. Coordinator periodically reads completed `application-result.json` files and safely merges them into `applications.jsonl`, then refreshes `campaign-stats.json`.
-12. Continue discovering/preparing while external application tasks are in flight. If LinkedIn Easy Apply is cooling down or paused, continue external ATS work and preparation rather than ending the campaign.
-
-## Task-prompt hygiene
-Pass one directory path, not a pre-baked verdict. Example external applicator Task prompt:
-
-```text
-Handle exactly one approved external job-apply-autopilot generated directory: <path>.
-Load the currently installed job-apply-autopilot skill and follow its current policies.
-Own this external ATS application end to end and write application-result.json in the supplied directory.
-Do not handle LinkedIn Easy Apply; hand it back if the route resolves to Easy Apply.
-Do not touch any other job.
-```
-
-Do not inject headquarters claims, eligibility conclusions, fit conclusions, passwords, or stale policy summaries into child prompts. Persist sourced evidence in the job files instead.
-
-## File ownership
-Never run two workers on the same job directory concurrently.
-
-Safe independent job paths:
-- `.job-apply-autopilot/queue/<job-a>/`
-- `.job-apply-autopilot/queue/<job-b>/`
-- `.job-apply-autopilot/generated/<job-a>/`
-- `.job-apply-autopilot/generated/<job-b>/`
-
-External applicators write only their assigned `application-result.json` plus the shared per-domain circuit-breaker marker when necessary. They do not append shared JSONL ledgers.
-
-## Fallback
-If custom Task/subagents are unavailable, perform the same logic serially. Correctness rules do not change.
+Workers get exactly one absolute job directory. Do not paste long policy summaries into Task prompts. Packaged agent instructions are authoritative.

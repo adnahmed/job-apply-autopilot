@@ -1,4 +1,4 @@
-# Autonomous Application Policy V5.10
+# Autonomous Application Policy V5.11
 
 ## Principle
 Quality and eligibility beat volume. Requested application count is a maximum target, never a quota.
@@ -39,8 +39,8 @@ Use conservative score bands:
 - 85-100: rare near-exact fit
 - 78-84: strong fit
 - 72-77: reasonable fit
-- 65-71: stretch
-- below 65: skip
+- 68-71: opportunistic stretch
+- below 68: usually skip
 
 Default auto-apply threshold: 72 after every true hard blocker/gate passes. A few learnable technical stretches are scoring penalties, not automatic hard failures.
 

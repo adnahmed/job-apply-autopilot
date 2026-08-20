@@ -34,10 +34,8 @@ if (-not (Test-Path -LiteralPath $statsPath)) {
 }
 if (-not (Test-Path -LiteralPath $candidateEvidencePath)) {
     [ordered]@{
-        version = 1
+        version = 2
         refreshed_at = $null
-        refresh_reason = 'not-yet-refreshed'
-        sources = @()
         claims = @()
     } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $candidateEvidencePath -Encoding UTF8
 }
@@ -60,6 +58,12 @@ if (-not (Test-Path -LiteralPath $linkedinStatePath)) {
     }
     [ordered]@{ version = 1; easy_apply_submissions = @($easyApplySeed | Sort-Object -Unique); pause_until = $null; pause_reason = $null; manual_block = $false; last_signal_at = $null; last_signal_type = $null; updated_at = (Get-Date).ToUniversalTime().ToString('o') } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $linkedinStatePath -Encoding UTF8
 }
+$compactScript = Join-Path $PSScriptRoot 'compact-candidate-evidence.ps1'
+if (Test-Path -LiteralPath $compactScript) {
+    $pwsh = (Get-Command pwsh -ErrorAction Stop).Source
+    & $pwsh -NoProfile -ExecutionPolicy Bypass -File $compactScript -Workspace $Workspace | Out-Null
+}
+
 Write-Output "Workspace initialized: $root"
 Write-Output "Applications: $appLog"
 Write-Output "Relocation watchlist: $relocLog"

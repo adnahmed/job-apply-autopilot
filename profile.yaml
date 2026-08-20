@@ -1,4 +1,4 @@
-profile_version: 7
+profile_version: 8
 candidate:
   full_name: "Adnan Ahmed Khan"
   location:
@@ -35,6 +35,20 @@ public_evidence:
   refresh_before_technical_hard_fail: true
   discovery_mode: "dynamic-first-party"
   source_policy: "discover current first-party GitHub repositories, deployments, portfolio material, and attributable candidate-authored LinkedIn material from the identities stored in canonical facts; do not maintain a hardcoded project list"
+
+fast_path:
+  enabled: true
+  no_todowrite_for_routine_campaign: true
+  no_auto_reopen_historical_skips: true
+  fast_and_slow_workers_separate_waves: true
+  obvious_skip_without_workitem: true
+  rejection_artifacts_minimal: true
+  max_fit_map_requirements: 8
+  public_evidence_max_repos_per_job: 5
+  public_evidence_max_deployments_per_job: 2
+  public_evidence_no_full_repo_inventory: true
+  eligibility_max_authoritative_sources: 2
+  analytics_refresh_after_meaningful_batch: true
 
 resume_generation:
   source_policy: "immutable-canonical-per-job"

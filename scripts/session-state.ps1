@@ -100,8 +100,14 @@ if (Test-Path -LiteralPath $ledgerPath) {
             $ledgerCount++
             $isSubmitted = ($row.status -eq 'submitted' -or $row.submitted -eq $true)
             if ($isSubmitted) { $submittedCount++ }
-            if ($isSubmitted -and ([string]$row.source) -match 'linkedin.*easy.*apply' -and $row.timestamp) { $ledgerEasyApplySubmissions += [string]$row.timestamp }
-            if ($null -ne $row.job_id) { $jid = [string]$row.job_id; $ledgerIds[$jid] = $true; $ledgerLastStatus[$jid] = [string]$row.status }
+            if ($isSubmitted -and ([string]$row.source) -match 'linkedin.*easy.*apply' -and $row.timestamp) {
+                $ledgerEasyApplySubmissions += [string]$row.timestamp
+            }
+            if ($null -ne $row.job_id) {
+                $jid = [string]$row.job_id
+                $ledgerIds[$jid] = $true
+                $ledgerLastStatus[$jid] = [string]$row.status
+            }
         } catch {}
     }
 }
@@ -113,53 +119,45 @@ if (Test-Path -LiteralPath $queueRoot) {
         $job = Read-JsonSafe (Join-Path $dir.FullName 'job.json')
         $assessment = Read-JsonSafe (Join-Path $dir.FullName 'assessment.json')
         $fit = Read-JsonSafe (Join-Path $dir.FullName 'fit-map.json')
-        $eligibilityPath = Join-Path $dir.FullName 'eligibility-research.json'
-        $hasEligibilityResearch = Test-Path -LiteralPath $eligibilityPath
-        $candidateEvidencePath = Join-Path $dir.FullName 'candidate-evidence-research.json'
-        $hasCandidateEvidence = Test-Path -LiteralPath $candidateEvidencePath
         $id = if ($job -and $job.job_id) { [string]$job.job_id } else { $dir.Name.Split('-')[0] }
         $status = if ($assessment -and $assessment.status) { [string]$assessment.status } else { 'unassessed' }
         $already = $ledgerIds.ContainsKey($id)
         $priorLedgerStatus = if ($ledgerLastStatus.ContainsKey($id)) { [string]$ledgerLastStatus[$id] } else { $null }
         $policyVersion = if ($assessment -and ($assessment.PSObject.Properties.Name -contains 'policy_version')) { [string]$assessment.policy_version } else { '' }
-        $oldPolicy = ($policyVersion -ne '5.10')
-        $integrityPassed = ($assessment -and [bool]$assessment.hard_gates.integrity)
-        $eligibilityPassed = ($assessment -and [bool]$assessment.hard_gates.eligibility)
-        $technicalGateFailed = ($assessment -and ((-not [bool]$assessment.hard_gates.mandatory_requirements) -or (-not [bool]$assessment.hard_gates.truth_feasibility) -or (-not [bool]$assessment.hard_gates.role_family)))
-        $technicalLedgerStatuses = @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family')
-        $ledgerAllowsPolicyReassessment = (-not $already -or $priorLedgerStatus -in $technicalLedgerStatuses)
-        $policyReassessment = ($status -in @('failed','rejected','skipped') -and $oldPolicy -and $integrityPassed -and $eligibilityPassed -and $technicalGateFailed -and $ledgerAllowsPolicyReassessment)
-        $terminal = ($status -in @('failed','rejected','skipped','submitted','blocked') -and -not $policyReassessment)
-        $actionable = ($policyReassessment -or (-not $already -and -not $terminal))
+        $technicalPriorSkips = @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family')
+        # Do not reopen an old failed skip just because policy changed. But if a reassessment was already
+        # explicitly started under 5.10/5.11, allow that in-progress/passed item to finish after restart.
+        $reassessmentInProgress = ($priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11') -and $status -in @('needs-evidence','needs-research','passed'))
+        $ledgerBlocks = ($already -and -not $reassessmentInProgress)
+        $terminal = $status -in @('failed','rejected','skipped','submitted','blocked')
+        $actionable = (-not $ledgerBlocks -and -not $terminal)
         $stage = $null
+        $speed = $null
         if ($actionable) {
-            if ($policyReassessment) {
-                $stage = 'policy_reassessment_pending'
-            } elseif ($status -in @('pending','unassessed','captured-awaiting-source-and-assessment')) {
-                $stage = 'assessment_pending'
+            if ($status -in @('pending','unassessed','captured-awaiting-source-and-assessment')) {
+                $stage = 'assessment_pending'; $speed = 'fast'
             } elseif ($status -eq 'needs-evidence') {
-                $stage = if ($hasCandidateEvidence) { 'reassessment_pending' } else { 'candidate_evidence_pending' }
+                $candidateEvidencePath = Join-Path $dir.FullName 'candidate-evidence-research.json'
+                if (Test-Path -LiteralPath $candidateEvidencePath) { $stage = 'reassessment_pending'; $speed = 'fast' }
+                else { $stage = 'candidate_evidence_pending'; $speed = 'slow' }
             } elseif ($status -eq 'needs-research') {
-                $stage = if ($hasEligibilityResearch) { 'reassessment_pending' } else { 'eligibility_research_pending' }
+                $eligibilityPath = Join-Path $dir.FullName 'eligibility-research.json'
+                if (Test-Path -LiteralPath $eligibilityPath) { $stage = 'reassessment_pending'; $speed = 'fast' }
+                else { $stage = 'eligibility_research_pending'; $speed = 'slow' }
             } elseif ($status -eq 'passed') {
-                $stage = 'coordinator_adjudication_pending'
+                $stage = 'coordinator_adjudication_pending'; $speed = 'fast'
             } else {
-                $stage = 'queue_review_pending'
+                $stage = 'assessment_pending'; $speed = 'fast'
             }
         }
         $queue += [ordered]@{
             job_id = $id
             company = if ($job) { $job.company } else { $null }
             title = if ($job) { $job.title } else { $null }
-            assessment_status = $status
-            score = if ($fit) { $fit.score } else { $null }
-            already_in_ledger = $already
-            prior_ledger_status = $priorLedgerStatus
-            assessment_policy_version = $policyVersion
-            policy_reassessment = $policyReassessment
+            score = if ($fit) { $fit.score } elseif ($assessment) { $assessment.score } else { $null }
             actionable = $actionable
             stage = $stage
-            has_candidate_evidence = $hasCandidateEvidence
+            speed = $speed
             path = $dir.FullName
         }
     }
@@ -183,29 +181,19 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $resumeReady = ($null -ne $artifact)
         $actionable = (-not $already -and -not $needsReconcile -and -not $terminalResult)
         $stage = $null
-        if ($needsReconcile) {
-            $stage = 'reconcile_result'
-        } elseif ($actionable -and -not $resumeReady) {
-            $stage = 'resume_pending'
-        } elseif ($actionable -and $null -ne $progress) {
-            $stage = 'application_resume'
-        } elseif ($actionable -and $resumeReady) {
-            $stage = 'application_ready'
-        }
+        if ($needsReconcile) { $stage = 'reconcile_result' }
+        elseif ($actionable -and -not $resumeReady) { $stage = 'resume_pending' }
+        elseif ($actionable -and $null -ne $progress) { $stage = 'application_resume' }
+        elseif ($actionable -and $resumeReady) { $stage = 'application_ready' }
         $generated += [ordered]@{
             job_id = $id
             company = if ($job) { $job.company } else { $null }
             title = if ($job) { $job.title } else { $null }
             source = if ($job) { $job.source } else { $null }
-            resume_ready = $resumeReady
-            application_status = $resultStatus
-            progress_stage = if ($progress -and $progress.stage) { [string]$progress.stage } elseif ($progress -and $progress.last_confirmed_stage) { [string]$progress.last_confirmed_stage } else { $null }
-            already_in_ledger = $already
-            prior_ledger_status = $priorLedgerStatus
-            allow_after_prior_skip = $allowAfterPriorSkip
-            needs_reconcile = $needsReconcile
             actionable = $actionable
+            needs_reconcile = $needsReconcile
             stage = $stage
+            speed = 'fast'
             path = $dir.FullName
         }
     }
@@ -213,58 +201,57 @@ if (Test-Path -LiteralPath $generatedRoot) {
 
 $reconcile = @($generated | Where-Object { $_.needs_reconcile })
 $generatedActionable = @($generated | Where-Object { $_.actionable })
-$queueActionable = @($queue | Where-Object { $_.actionable })
+$queueActionable = @($queue | Where-Object { $_.actionable } | Sort-Object @{Expression={ if ($_.speed -eq 'fast') {0} else {1} }}, @{Expression={ $_.job_id }})
 
 if ($reconcile.Count -gt 0) {
-    $nextAction = 'reconcile'
-    $selected = $reconcile
+    $nextAction = 'reconcile'; $selected = $reconcile
 } elseif ($generatedActionable.Count -gt 0) {
-    $nextAction = 'resume-generated'
-    $selected = $generatedActionable
+    $nextAction = 'resume-generated'; $selected = $generatedActionable
 } elseif ($queueActionable.Count -gt 0) {
-    $nextAction = 'process-queue'
-    $selected = $queueActionable
+    $nextAction = 'process-queue'; $selected = $queueActionable
 } else {
-    $nextAction = 'discover'
-    $selected = @()
+    $nextAction = 'discover'; $selected = @()
 }
-$actionPaths = @($selected | ForEach-Object { $_.path })
-$actions = @($selected | ForEach-Object { [ordered]@{ job_id=$_.job_id; company=$_.company; title=$_.title; path=$_.path; stage=$_.stage } })
+
+$actions = @($selected | ForEach-Object {
+    [ordered]@{
+        job_id = $_.job_id
+        company = $_.company
+        title = $_.title
+        stage = $_.stage
+        speed = $_.speed
+        path = $_.path
+    }
+})
 
 $circuitPath = Join-Path $root 'domain-circuit-breakers.jsonl'
 $circuitCount = 0
 if (Test-Path -LiteralPath $circuitPath) {
     $circuitCount = @((Get-Content -LiteralPath $circuitPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })).Count
 }
-$markerRoot = Join-Path $root 'domain-circuit-breakers'
-$activeMarkers = @()
-if (Test-Path -LiteralPath $markerRoot) {
-    $activeMarkers = @(Get-ChildItem -LiteralPath $markerRoot -File | Select-Object -ExpandProperty Name)
-}
-
-$stats = Read-JsonSafe (Join-Path $root 'campaign-stats.json')
 $linkedinStatus = Get-LinkedInGovernorStatus -BootstrapSubmissions $ledgerEasyApplySubmissions
 
 $out = [ordered]@{
     workspace = $Workspace
-    runtime_root = $root
     next_action = $nextAction
     actions = $actions
-    action_paths = $actionPaths
     summary = [ordered]@{
-        ledger_decisions = $ledgerCount
-        ledger_submitted = $submittedCount
-        queue_total = $queue.Count
+        decisions = $ledgerCount
+        submitted = $submittedCount
         queue_actionable = $queueActionable.Count
-        generated_total = $generated.Count
+        queue_fast = @($queueActionable | Where-Object { $_.speed -eq 'fast' }).Count
+        queue_slow = @($queueActionable | Where-Object { $_.speed -eq 'slow' }).Count
         generated_actionable = $generatedActionable.Count
-        results_needing_reconcile = $reconcile.Count
-        domain_circuit_breaker_events = $circuitCount
+        reconcile = $reconcile.Count
+        circuit_breaker_events = $circuitCount
     }
-    linkedin_governor = $linkedinStatus
-    active_domain_markers = $activeMarkers
-    campaign_stats = $stats
-    snapshot_authoritative = $true
-    instruction = if ($nextAction -eq 'discover') { 'No existing actionable work. Begin discovery immediately; do not rescan queue/generated/ledger.' } else { 'Follow each actions[].stage directly. Do not inspect directories merely to rediscover their stage; read job files only when the indicated stage requires their contents.' }
+    linkedin = [ordered]@{
+        easy_apply_allowed = $linkedinStatus.easy_apply_allowed
+        last_hour = $linkedinStatus.submissions_last_hour
+        last_24h = $linkedinStatus.submissions_last_24h
+        next_at = $linkedinStatus.next_easy_apply_at
+        blocked = @($linkedinStatus.block_reasons).Count -gt 0
+    }
+    instruction = if ($nextAction -eq 'discover') { 'Discover now.' } else { 'Do fast actions first. Do not batch slow research with ready/fast work.' }
 }
-$out | ConvertTo-Json -Depth 8
+$out | ConvertTo-Json -Depth 6

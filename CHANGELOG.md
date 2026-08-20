@@ -1,3 +1,19 @@
+# V5.11 — Fast Path Edition
+
+- Reworked orchestration around **first useful application latency**: ready/resume/assessment work runs before web-heavy eligibility/evidence research. Fast and slow workers must not share one blocking wave.
+- Main `SKILL.md` reduced from ~33 KB to ~12 KB. Packaged subagents no longer load the main skill on every task; each worker has a compact bounded policy.
+- Removed routine TodoWrite/checklist mirroring and tool-call narration from campaign policy. Snapshot state is the checklist.
+- `session-state.ps1` output is compact: no full `campaign-stats.json`, no duplicate `action_paths`, and actions are tagged `fast`/`slow`.
+- Historical technical skips are no longer automatically reopened on every startup/policy upgrade. Fresh applications win.
+- Added discovery fast triage: obvious closed/location/agency/identity/specialist rejects can be logged directly without creating a queue directory, assessment, or fit map.
+- Added `scripts/log-decision.ps1` for compact safe skip logging.
+- Assessors write detailed fit maps only for passed jobs; rejects use short reason codes instead of long JSON case files.
+- Candidate evidence is now strictly bounded: max 5 relevant repos + 2 deployments per job, no full-account inventory, no exhaustive proof of absence, stop as soon as decision-changing evidence is found.
+- Added `compact-candidate-evidence.ps1`; workspace upgrade removes giant source-check histories and keeps positive reusable claims only.
+- Eligibility research now follows first-decisive-evidence semantics and normally stops after at most 2 authoritative sources.
+- Resume/external workers lazy-load only files needed for the current stage and return terse status lines.
+- Preserves V5.10 global-tenure + capability matching, live public evidence, LinkedIn Easy Apply governor, truth boundaries, and completely uncapped external ATS throughput.
+
 # V5.10 — Live Evidence + Interview-Likelihood Edition
 
 - Added hidden `job-autopilot-evidence` worker for targeted first-party GitHub/deployment/portfolio/candidate-authored LinkedIn verification whenever a technical gap would otherwise cause a false hard rejection.

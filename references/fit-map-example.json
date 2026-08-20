@@ -1,62 +1,10 @@
 {
-  "policy_version": "5.10",
-  "job_id": "example-123",
+  "policy_version": "5.11",
+  "job_id": "example",
+  "status": "complete",
+  "score": 78,
   "requirements": [
-    {
-      "requirement": "Python backend services",
-      "importance": "central",
-      "evidence_class": "EXACT",
-      "evidence_scope": "professional",
-      "canonical_ids": [
-        "skills:Python",
-        "H1"
-      ],
-      "public_evidence_ids": [],
-      "ats_keyword_allowed": true
-    },
-    {
-      "requirement": "React UI implementation",
-      "importance": "central",
-      "evidence_class": "DIRECT",
-      "evidence_scope": "verified_project",
-      "canonical_ids": [],
-      "public_evidence_ids": [
-        "pub-example-react"
-      ],
-      "public_evidence_urls": [
-        "https://github.com/example/repo"
-      ],
-      "ats_keyword_allowed": true,
-      "notes": "Substantial first-party project evidence; do not imply employer association."
-    },
-    {
-      "requirement": "3+ years React",
-      "importance": "central",
-      "evidence_class": "DIRECT",
-      "evidence_scope": "mixed",
-      "canonical_ids": [
-        "experience:employment-dates"
-      ],
-      "public_evidence_ids": [
-        "pub-example-react"
-      ],
-      "ats_keyword_allowed": true,
-      "notes": "Fit uses global engineering-tenure band plus verified React capability. Do not claim an exact React duration unless independently supported."
-    },
-    {
-      "requirement": "Django",
-      "importance": "non-central",
-      "evidence_class": "ADJACENT",
-      "evidence_scope": "professional",
-      "canonical_ids": [
-        "skills:Python",
-        "skills:FastAPI"
-      ],
-      "public_evidence_ids": [],
-      "ats_keyword_allowed": false,
-      "notes": "Learnable framework gap; score penalty, not automatic failure unless Django defines the role."
-    }
-  ],
-  "score": 76,
-  "status": "passed"
+    {"requirement":"Python backend","evidence_class":"EXACT","evidence_scope":"professional","support":["H1","C1"],"ats_keyword_allowed":true},
+    {"requirement":"Cloud deployment","evidence_class":"DIRECT","evidence_scope":"professional","support":["H2","H6"],"ats_keyword_allowed":true}
+  ]
 }

@@ -1,597 +1,280 @@
 ---
 name: job-apply-autopilot
-description: Autonomously discover, verify, parallel-assess, tailor fresh canonical-LaTeX resumes, and submit credible high-fit software-engineering job applications through BrowserOS neo. Uses trusted OpenCode subagents for independent assessment, eligibility research, resume generation, and unlimited-concurrency external ATS application submission while keeping LinkedIn Easy Apply coordinator-owned. Covers backend/software, backend-platform, Python/Node, practical applied-AI roles, verified relocation/sponsorship opportunities, OAuth-first ATS authentication, live public-evidence scoring, anti-ghost checks, deduplication, a persistent LinkedIn Easy Apply activity governor, and automation circuit-breakers.
-compatibility: opencode
-metadata:
-  audience: job-seeker
-  browser: browseros-neo
-  mode: autonomous
-  version: 5.10
+description: "Fast autonomous job discovery, truthful fit triage, tailored resumes, and submission using BrowserOS. Optimized for low first-application latency: fast path first, research only when decision-changing."
+version: 5.11
 ---
 
-# Job Apply Autopilot V5.10 — Live Evidence + Interview-Likelihood Edition
+# Job Apply Autopilot V5.11 — Fast Path Edition
 
-You are an autonomous job-search and application agent using the user's already authenticated BrowserOS neo browser session.
+Goal: **maximize credible interview opportunities per unit time**. Preserve truth, eligibility, anti-automation safety, and job-specific resumes. Everything else is subordinate to speed.
 
-The objective is **credible, eligible applications with a job-specific resume**, not impressive-sounding scoring and not volume. A requested count is a maximum target, never a quota.
+## 1. Action-first operating rule
 
-## Fast bootstrap and lazy loading
+Do the next useful campaign action. Do not narrate plans, mirror state into TodoWrite, create prose case files, or inspect state that a script already resolved.
 
-Do **not** load every policy/reference file at session start. The coordinator must become operational quickly and load stage-specific references only when they are needed.
+Default pattern:
 
-### Authoritative workspace contract
+`discover -> fast triage -> resume -> apply`
 
-The **coordinator's initial current working directory is the workspace the user chose for this campaign**. Capture it once at skill start:
+Escalate to research only when uncertainty would actually change `apply` vs `skip`.
+
+### No bookkeeping theatre
+
+During a normal autonomous run:
+- do **not** use TodoWrite/task checklists to mirror queue state;
+- do **not** announce every tool call;
+- do **not** write long rejection explanations;
+- do **not** read scripts merely to learn their parameters when this skill already gives the invocation;
+- do **not** scan directories to verify a successful snapshot;
+- do **not** wait for slow research jobs before routing a job that is already ready.
+
+Persist concise machine state; keep reasoning ephemeral.
+
+## 2. Workspace + continuation
+
+Coordinator initial CWD is the campaign workspace. Capture once:
 
 ```powershell
 $workspace = (Get-Location).Path
 ```
 
-That value is authoritative for the entire coordinator session. Do not discover, infer, search for, or fall back to another workspace. Do not substitute `$HOME\job-search` or any other conventional path. Do not switch workspace merely because another `.job-apply-autopilot` directory exists elsewhere.
+Runtime root: `$workspace\.job-apply-autopilot`.
 
-The runtime root is always `$workspace\.job-apply-autopilot`; generated jobs are always under `$workspace\.job-apply-autopilot\generated`, **not** `$workspace\generated`.
-
-Subagents must **not** infer their workspace from their own current directory. The coordinator passes an absolute queue/generated directory path in every Task prompt; that path is the job's authority boundary. When a worker needs the campaign root, derive it from the supplied job directory or use the explicit workspace value persisted in the work item's metadata—never from the worker's CWD and never from `$HOME`.
-
-### Coordinator startup contract
-
-At startup or when the user says `continue`, the runtime snapshot is authoritative. Do exactly this:
-
-1. Capture `$workspace = (Get-Location).Path` once.
-2. Run `scripts/session-state.ps1 -Workspace "$workspace"` exactly once.
-3. Read the returned `next_action` and follow it immediately.
-
-The snapshot returns one of:
-
-- `reconcile`: reconcile only the paths in `action_paths`, then run normal dispatch/discovery logic from the updated per-job results.
-- `resume-generated`: resume/re-dispatch only the generated-job paths in `action_paths`.
-- `process-queue`: dispatch the worker/action specified by each item in `actions`; do not reopen directories merely to rediscover whether assessment/research is pending.
-- `discover`: there is no actionable existing campaign work; begin fresh job discovery immediately.
-
-**Snapshot finality rule:** after a successful state snapshot, do not use `Get-ChildItem`, `Glob`, recursive scans, ledger tailing, directory reads, or ad-hoc PowerShell to independently inspect `queue`, `generated`, `applications.jsonl`, campaign directories, or alternate workspaces merely to double-check the snapshot. Do not read `scripts/session-state.ps1` to audit how it reached its answer. Trust its output.
-
-Only inspect a queue/generated directory when its absolute path appears in `action_paths`, or when a newly discovered/promoted job creates that path later in the session. Prefer the returned `actions[].stage` over directory enumeration. For `assessment_pending`, dispatch the assessor directly; for `eligibility_research_pending`, dispatch eligibility research directly; for `candidate_evidence_pending`, dispatch `job-autopilot-evidence`, merge its report through `scripts/merge-candidate-evidence.ps1`, then dispatch the assessor again; for `reassessment_pending`, dispatch the assessor again; for `resume_pending`, dispatch the resume worker; for `application_ready` / `application_resume`, route the application. If `next_action` is `discover`, the next campaign operation should be discovery—not state archaeology.
-
-Do not preload `profile.yaml`, canonical facts, or all policy references during continuation startup. Discovery can use the role lanes already encoded in this skill and load `references/search-strategy.md` only when needed. Candidate/profile/canonical truth is loaded by assessment/resume/application workers at the stage that needs it. The coordinator may load candidate truth later only for coordinator-owned Easy Apply or explicit adjudication.
-
-Do not run exploratory scans to rediscover paths already defined by the workspace contract. Do not read the application ledger merely to learn counts/state when `session-state.ps1` already summarizes it.
-
-Continuation priority is encoded by `next_action`; do not invent a second priority pass. Terminal/ledgered historical jobs are context, not work.
-
-### Lazy reference loading
-
-Load references just in time:
-
-- discovery: `references/search-strategy.md` and `references/job-integrity.md` as needed,
-- assessment adjudication: `references/eligibility-policy.md`, `references/scoring-calibration.md`, and `references/candidate-evidence-policy.md` only when reviewing worker output,
-- unclear geography/relocation: `references/eligibility-policy.md` and `references/relocation-policy.md`,
-- Easy Apply browser work: `references/linkedin-activity-governor.md`, `references/browseros-playbook.md`, `references/authentication-policy.md`, `references/application-policy.md`, and `references/answer-bank.md` only if prose/screening answers are required,
-- anti-automation signal: `references/anti-automation.md`,
-- analytics refresh: `references/campaign-analytics.md`,
-- resume details: leave primarily to `job-autopilot-resume`; coordinator need not preload `references/resume-tailoring.md`,
-- external ATS details: leave to `job-autopilot-external-apply`; coordinator need not preload authentication/browser/application references for those jobs.
-
-`references/parallel-orchestration.md` may be read when dispatch/reconciliation behavior is ambiguous, but it is not a mandatory startup read.
-
-## Non-negotiable principles
-
-### 1. Positive eligibility evidence is required
-`Remote` does **not** mean worldwide. A missing work-authorization question does **not** prove eligibility. A site accepting a Pakistan address does **not** prove eligibility. A globally distributed team does **not** prove eligibility by itself.
-
-Auto-apply when the exact role has reasonable positive Pakistan eligibility evidence under `references/eligibility-policy.md` — including a Pakistan job location, a verified Pakistan employer/entity tied to the role, or an explicit Asia/APAC/APJ scope with no conflicting restriction — **or** the employer explicitly offers international hiring / sponsorship / relocation that bridges the location gap.
-
-If eligibility remains unclear after reasonable verification, put the role on the watchlist and continue. Do not submit merely because the form allows it.
-
-### 2. Live evidence + interview-likelihood interpretation
-Canonical resumes are curated employment documents, not the complete skill inventory. Resolve current overall engineering tenure from canonical employment history, and resolve technical/project capability from canonical facts plus verified first-party public evidence under `references/candidate-evidence-policy.md`.
-
-Do not count years separately for every technology. For JD fit, combine the global engineering-tenure band with verified capability. A few learnable/adjacent stack gaps are acceptable when the overall role identity is credible. Hard-skip only true blockers under `references/scoring-calibration.md`. Do not infer people management, regulated ownership, work authorization, or specialist research/model-training identity from unrelated evidence.
-
-### 3. Resume tailoring is selection-first
-For each accepted job, start again from an immutable canonical `.tex` file. Prefer reordering, selecting, deleting, and lightly adapting canonical material over inventing new market identities or highly specialized phrasing.
-
-### 4. OAuth first
-Before creating a password-based ATS account, look for existing-session login and OAuth/import options. Prefer, in order:
-
-1. already authenticated ATS session,
-2. `Continue/Sign in/Apply with LinkedIn`,
-3. `Import profile/resume from LinkedIn`,
-4. another already-authenticated OAuth option if clearly appropriate,
-5. password account creation only when needed.
-
-The user explicitly permits autonomous password generation/autofill when OAuth is unavailable. Do not waste time avoiding password flows, but do not prefer them over LinkedIn OAuth.
-
-### 5. Resistance means stop, not retry harder
-The first explicit spam/automation/rate-limit/security signal creates a domain circuit breaker for the rest of the run. Never repeat a submission after an ATS says the application looks automated/spammy. Do not bypass CAPTCHA/MFA/security challenges.
-
-### 6. Parallelize independent jobs, including external submission
-When OpenCode's Task tool and packaged `job-autopilot-*` subagents are available, use them aggressively. The user trusts these packaged subagents to write their assigned artifacts and, for external ATS jobs, to complete and submit the application end to end.
-
-- coordinator/browser discovery: primary agent,
-- job assessment: fan out across independent jobs,
-- external eligibility/relocation research: fan out across all viable unclear jobs,
-- canonical-LaTeX resume tailoring/compilation: fan out across all approved jobs,
-- external ATS/company-site applications: dispatch one `job-autopilot-external-apply` subagent for every ready external job with **no skill-imposed numeric concurrency cap**,
-- LinkedIn Easy Apply: coordinator-owned.
-
-Actual parallelism is limited only by OpenCode/runtime/system resources. Never assign two workers to the same job directory at once. External applicators may click final Submit, use BrowserOS, OAuth/login, upload resumes, and answer forms for their assigned external job. They write `application-result.json`; the coordinator reconciles those per-job results into global ledgers.
-
-### 7. LinkedIn pacing never throttles external ATS
-LinkedIn Easy Apply has its own persistent rolling activity governor. External ATS/company-site applications have **no skill-imposed per-run, per-day, or concurrency maximum**. A LinkedIn cooldown, rolling Easy Apply limit, or LinkedIn security pause must never stop unaffected external application workers.
-
-Before starting Easy Apply, query `scripts/linkedin-governor.ps1 -Action Status -Workspace "$workspace"`. After a **confirmed** Easy Apply success, record it with `-Action RecordEasyApply`. If Easy Apply is not allowed yet, queue that Easy Apply job and continue discovery/external work.
-
-# Default job-search scope
-
-Unless the user explicitly narrows the campaign, search across these primary lanes:
-
-- Backend Engineer / Senior Backend Engineer
-- Software Engineer / Senior Software Engineer, backend-heavy
-- Full Stack Software Engineer / Full Stack Engineer when current public evidence supports the frontend side
-- Python Engineer / Python Backend Engineer
-- Node.js / TypeScript Backend Engineer
-- Backend & Platform Engineer
-- practical Platform / Cloud Software Engineer roles with strong coding overlap
-- Applied AI Engineer
-- AI Application Engineer
-- practical AI/LLM/Agent Engineer roles centered on applications, APIs, retrieval, agents, backend systems, or production integration
-
-Selective lanes require stronger evidence and are not default high-volume targets:
-
-- Forward Deployed Engineer
-- Technical Solutions / Solutions Engineer
-- Developer Infrastructure / Developer Platform
-- Distributed Systems Engineer
-- SRE/DevOps-heavy roles
-- Staff/Principal roles
-
-Generally avoid unless the JD is unusually aligned:
-
-- pure ML research / research scientist
-- deep-learning training specialist
-- CUDA/GPU/vLLM/Triton/model-serving specialist
-- pure data science/statistics roles
-- frontend/mobile-first roles
-- people-management roles
-- roles whose core stack is unrelated (for example Java/.NET/C++-first with little transferable scope)
-
-# Required pipeline
-
-Use `references/parallel-orchestration.md`. The logical order for every job is unchanged even when independent jobs are processed concurrently:
-
-1. `DISCOVER`
-2. `DEDUPE`
-3. `QUEUE_WORK_ITEM`
-4. `SOURCE_IDENTITY_CAPTURE`
-5. `CHEAP_OFFICIAL_ATS_ELIGIBILITY_PROBE` when applicable
-6. `PARALLEL_ASSESSMENT`
-7. `JOB_INTEGRITY_GATE`
-8. `ELIGIBILITY_EVIDENCE_GATE`
-9. `OPTIONAL_PARALLEL_ELIGIBILITY_RESEARCH`
-10. `CAMPAIGN_ROLE_FAMILY_GATE`
-11. `INITIAL_MANDATORY_REQUIREMENTS_MAP`
-12. `TARGETED_PUBLIC_EVIDENCE_REFRESH` when a technical gap would otherwise reject the job
-13. `MANDATORY_REQUIREMENTS_GATE` using refreshed evidence and global-tenure + capability model
-14. `KNOWN_SCREENING_FEASIBILITY_GATE`
-15. `FIT_MAP`
-16. `CALIBRATED_SCORE`
-17. `COORDINATOR_FINAL_GATE_ADJUDICATION`
-18. `PROMOTE_TO_GENERATED_JOB`
-19. `PARALLEL_CANONICAL_RESUME_TAILOR_AND_COMPILE`
-20. `AUTH_FLOW_PRECHECK`
-21. `ROUTE_APPLICATION` — Easy Apply to coordinator; external ATS to external-applicator subagent
-22. `POST_REDIRECT_IDENTITY_AND_ELIGIBILITY_RECHECK`
-23. `SUBMISSION_VERIFICATION`
-24. `COORDINATOR_SAFE_LOG_AND_ANALYTICS`
-
-A failed hard gate means **do not score and do not apply**. Never let salary, brand, recency, an exciting relocation destination, or an easy form compensate for a failed gate. Parallel execution never relaxes ordering within a single job.
-
-## Queue work items
-
-For discovery dedupe, do not scan campaign directories or grep the whole ledger ad hoc. Batch newly discovered job IDs through:
+At start/continue run exactly once:
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\dedupe-jobs.ps1" `
-  -JobIdsCsv "<job-id-1>,<job-id-2>,..." `
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\session-state.ps1" -Workspace "$workspace"
+```
+
+Trust its `next_action` and `actions`. Never rescan queue/generated/ledger to double-check it.
+
+Stage handling:
+- `application_ready` / `application_resume`: route now.
+- `resume_pending`: dispatch resume worker now.
+- `coordinator_adjudication_pending`: adjudicate/promote now.
+- `assessment_pending` / `reassessment_pending`: quick assessor wave.
+- `eligibility_research_pending` / `candidate_evidence_pending`: slow lane; process **after** any ready/fast work.
+- `discover`: discover immediately.
+
+**Latency rule:** never place fast assess/resume/application work in the same waiting wave as web-heavy eligibility/evidence research. Route completed jobs before starting slow research.
+
+Historical technical skips from older policy versions are **not automatically reopened at startup**. New work wins. Revisit old skips only when explicitly requested or when the coordinator is otherwise idle and has no fresh discovery/applications to process.
+
+## 3. Fast triage before queue creation
+
+During discovery, classify directly from the job page/JD before creating a work item.
+
+### Obvious skip — log one compact row, no queue directory
+
+Skip immediately when decisive evidence shows:
+- closed/removed job;
+- country/work-authorization lock with no bridge;
+- agency with unknown client / talent pool / expert marketplace / material redirect identity mismatch;
+- fundamentally unrelated role identity (research scientist, CUDA/model-training specialist, frontend/mobile-first, people manager, etc.);
+- clear required licence/clearance/credential not held.
+
+Use:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\log-decision.ps1" `
+  -JobId "<id>" -Status "<skip-status>" -ReasonCode "<short-code>" `
+  -Company "<company>" -Title "<title>" -JobUrl "<url>" -Source "<source>" `
   -Workspace "$workspace"
 ```
 
-Only create work items for IDs reported unseen.
+No assessment.json. No fit-map.json. No research proving what is already decisive.
 
-Before invoking an assessor, create a queue item:
+### Viable / plausible job — queue
+
+Create a work item only when the role is plausibly worth applying to:
 
 ```powershell
 $workItem = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\new-workitem.ps1" `
-  -JobId "<job-id>" `
-  -Company "<company>" `
-  -Title "<title>" `
-  -JobUrl "<url>" `
-  -Location "<location>" `
-  -Source "<linkedin|official-ats|other>" `
-  -DiscoveryLane "<pakistan|worldwide|relocation|broader|other>" `
-  -SearchQuery "<query if known>" `
-  -Workspace "$workspace"
+  -JobId "<id>" -Company "<company>" -Title "<title>" -JobUrl "<url>" `
+  -Location "<location>" -Source "<source>" -DiscoveryLane "<lane>" `
+  -SearchQuery "<query>" -Workspace "$workspace"
 ```
 
-Replace the generated `source.md` placeholder with the complete JD plus relevant source/location/relocation evidence. Do not invoke an assessor on a partial JD.
+`source.md` should contain concise metadata plus the complete JD. Do not duplicate the JD into extra narrative notes.
 
-## Cheap ATS eligibility probe
+Batch dedupe newly discovered IDs with `scripts/dedupe-jobs.ps1`; do not grep the whole runtime.
 
-Before creating accounts or opening application forms for a foreign/ambiguous role, use `references/ats-eligibility-adapters.md`. Official structured requisition data can settle eligibility earlier than a form. In particular, a closed official ATS country list excluding Pakistan is decisive negative evidence; do not open Easy Apply merely to rediscover the same restriction. Adapter failure is not evidence—fall back to the normal eligibility worker.
+## 4. Interview-likelihood fit model
 
-## Subagent fan-out
+Canonical facts are the authority for employment history, overall professional tenure, employer ownership, metrics, education, and titles. Public first-party artifacts are valid evidence of technical/project capability.
 
-When Task is available, launch independent workers together rather than waiting for each job serially:
+### Years
 
-- `job-autopilot-assessor`: one queue directory per task; fan out across complete work items.
-- `job-autopilot-eligibility`: only for viable work items whose eligibility remains `UNCLEAR`; fan out as needed. After research completes, re-run the assessor once on that work item.
-- `job-autopilot-evidence`: for every otherwise-viable `needs-evidence` work item; dynamically verify requested technical capabilities from candidate identities in canonical facts. Evidence workers write only per-job reports. Coordinator merges each completed report with `scripts/merge-candidate-evidence.ps1`, then re-runs the assessor. If the report marks `linkedin_followup_needed: true` and that evidence could change a rejection, the coordinator may do one narrow candidate-authored LinkedIn profile/activity lookup in its own browser session before final reassessment; do not give LinkedIn BrowserOS access to evidence workers.
-- `job-autopilot-resume`: only after coordinator marks all hard gates passed and promotes the work item; fan out across approved jobs.
-- `job-autopilot-external-apply`: after a generated external job has a validated tailored resume, dispatch one task per ready job immediately. There is no skill-level maximum number of concurrent external application workers.
+Derive overall software-engineering tenure from `canonical/canonical-facts.yaml` at runtime. **Never maintain years-per-technology counters.**
 
-Each Task prompt must include exactly one work-item/generated directory path and tell the worker to load the **currently installed** `job-apply-autopilot` skill and follow its current policies. Keep Task prompts minimal and evidence-neutral. **Do not paste a coordinator-written assessment, eligibility conclusion, headquarters/office claim, scoring rule summary, or other “important context” into the worker prompt.** If a fact matters, persist its source in `job.json`, `source.md`, or `eligibility-research.json` so the worker can inspect it independently. This prevents stale-policy prompts and coordinator anchoring/hallucinations.
+`N+ years React` is internally evaluated as:
+- overall engineering tenure plausibly satisfies `N+`; and
+- React capability is supported or reasonably plausible.
 
-Workers are trusted to write their own per-job outputs directly. External applicators are additionally trusted to use BrowserOS and click final Submit for external ATS jobs. Do not ask workers to append `applications.jsonl` or other shared JSONL ledgers; external applicators write `application-result.json` and may create/read shared per-domain circuit-breaker marker files.
+Do not invent a precise per-technology duration on a resume/form unless dated evidence supports it.
 
-After a queue work item passes final adjudication, promote it:
+### Stretch tolerance
+
+A few learnable/adjacent gaps are normal. Missing documentation is uncertainty, not proof of inability.
+
+Hard-skip only:
+- legal/work-auth/credential blockers;
+- fundamentally different specialist identity;
+- role-defining management/leadership requirement with no support;
+- several defining capabilities clearly absent after a **bounded** decision-changing check.
+
+Otherwise score and apply when interview likelihood is credible.
+
+Default threshold: 72. Scores 68–71 may still apply opportunistically when eligibility and role identity are strong.
+
+## 5. Assessment fast path
+
+`job-autopilot-assessor` is for viable queued jobs. It must be quick and local: no web, no reading canonical `.tex` resumes, no exhaustive requirement matrix.
+
+It reads:
+- `job.json`, `source.md`;
+- `canonical/canonical-facts.yaml`;
+- runtime `candidate-evidence.json` if useful;
+- existing per-job research only when present.
+
+Outputs must be compact:
+- `assessment.json`: decision, score, gates, at most 2 short reasons, next stage;
+- `fit-map.json`: **passed jobs only**, max 8 central requirements, compact evidence/provenance fields.
+- failed jobs may use a minimal fit map or none; one reason code is enough.
+
+Do not request public evidence merely to improve a score. Request it only when one narrow artifact-verifiable capability is genuinely decision-changing.
+
+## 6. Bounded public evidence — depth on demand
+
+Use `job-autopilot-evidence` only for an otherwise viable job whose decision hinges on a technical capability not already covered by canonical facts/cache.
+
+Hard budget:
+- targeted capability search only;
+- inspect at most 5 relevant first-party repos and 2 tied deployments;
+- no full GitHub account inventory;
+- no exhaustive proof-of-absence crawl;
+- stop as soon as enough evidence exists to make the decision;
+- unresolved within budget = `UNRESOLVED`, not fabricated `NONE`.
+
+Evidence worker writes only `<job>/candidate-evidence-research.json`. Coordinator merges positive reusable findings:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\merge-candidate-evidence.ps1" `
+  -EvidenceFile "<job>\candidate-evidence-research.json" -Workspace "$workspace"
+```
+
+Then reassess once. No repeated evidence loop.
+
+For common engineering stack gaps, unresolved evidence normally reduces score rather than killing the application. Specialist-role identity can still hard-fail.
+
+## 7. Eligibility — decisive evidence wins
+
+Positive Pakistan eligibility is required before submit. Valid states include exact Pakistan location, explicit worldwide/international hiring, Pakistan in country list, explicit Asia/APAC/APJ scope without conflict, global contractor wording, sponsorship, or relocation support.
+
+`Remote`, worldwide search placement, global company, international team, address-form acceptance, or absence of a work-auth question are not enough alone.
+
+Do not call eligibility research when `source.md` already contains decisive exact-role evidence.
+
+When research is needed, `job-autopilot-eligibility` uses **first decisive evidence**:
+- prefer exact official requisition/JD;
+- normally max 2 authoritative sources;
+- explicit country lock/no sponsorship = stop immediately and return ineligible;
+- explicit eligible country/region/international-hiring language = stop when sufficient;
+- if still unclear after bounded check, watchlist and move on.
+
+Do not collect five supporting sources after the decision is settled.
+
+## 8. Scheduling: fastest useful result first
+
+Priority:
+1. reconcile confirmed application results;
+2. route generated ready jobs;
+3. generate resumes for approved jobs;
+4. adjudicate/pass quick assessments;
+5. assess fresh viable jobs;
+6. fresh discovery;
+7. slow eligibility/evidence research;
+8. historical/reassessment cleanup.
+
+As soon as one job passes, promote/resume/route it. Do **not** wait for every job in the batch.
+
+Use parallel workers only when their expected latency is similar. Never bundle a quick local assessor with web-heavy evidence/eligibility workers if the harness will wait for the whole wave.
+
+## 9. Promotion + resume
+
+After all hard gates pass and score is viable:
 
 ```powershell
 $jobDir = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\promote-workitem.ps1" `
-  -WorkItemDir $workItem `
-  -Canonical <ai|backend> `
-  -Workspace "$workspace"
+  -WorkItemDir $workItem -Canonical <ai|backend> -Workspace "$workspace"
 ```
 
-Then dispatch `$jobDir` to one `job-autopilot-resume` worker.
+Dispatch `job-autopilot-resume` immediately.
 
-If custom subagents or Task are unavailable, execute the exact same stages serially. Do not weaken any gate.
+Resume rules:
+- fresh immutable canonical scaffold per job;
+- selection/reordering/deletion first;
+- supported public-project claims allowed only with provenance;
+- no invented employer association, metrics, management, specialist title, or precise technology duration;
+- compile one-page PDF through `compile-resume.ps1`;
+- output summary should be only status + artifact path.
 
-# Application routing and ownership
+## 10. Application routing
 
-After resume validation, classify the application route:
+### LinkedIn Easy Apply
 
-- **LinkedIn Easy Apply:** keep with the coordinator. Read `references/linkedin-activity-governor.md` and `references/browseros-playbook.md`. Before starting the application, run the LinkedIn governor `Status`. If `easy_apply_allowed` is false, leave the job ready/queued and continue other work. If allowed, upload the exact PDF from `resume-artifact.json`, verify the exact unique filename is selected, answer the flow, submit once, verify, log, then call `RecordEasyApply` only after confirmed success. If LinkedIn has an in-progress Draft/Continue flow, recover that draft and re-upload the current artifact rather than trusting a previously selected resume.
-- **External ATS / company website:** immediately dispatch `job-autopilot-external-apply` with the single generated job directory. Do not wait for other external jobs. Dispatch every ready external job concurrently.
-
-If an external worker discovers that the route actually resolves to Easy Apply, it must not submit; it writes `handoff-easy-apply` and returns the job to the coordinator.
-
-The coordinator should continue discovery/Easy Apply work while external applicators are running, then merge completed `application-result.json` files into the global application ledger and refresh campaign analytics. If Easy Apply is cooling down, continue all unaffected external ATS work instead of ending the run.
-
-# Windows PowerShell invocation contract
-
-On Windows, **never invoke packaged `.ps1` files directly with `& path\script.ps1`**. Downloaded/extracted skill files may carry Mark-of-the-Web metadata and PowerShell can reject them with `AuthorizationManager check failed` before the script starts.
-
-Always launch packaged scripts through a fresh PowerShell process:
+Coordinator-owned only. Check governor before starting:
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "<script.ps1>" <arguments>
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\linkedin-governor.ps1" -Action Status -Workspace "$workspace"
 ```
 
-`-ExecutionPolicy Bypass` is an option to `pwsh`, not a script parameter. Never write `& script.ps1 -ExecutionPolicy Bypass`.
+After confirmed success record `RecordEasyApply`. Respect rolling pacing and first security/rate-limit signal. Easy Apply cooldown never blocks external ATS work.
 
-If the skill was installed from a downloaded ZIP, the installer should also unblock the installed tree once with `Get-ChildItem -Recurse -File | Unblock-File`, but the `pwsh ... -File` form remains the required runtime invocation.
+### External ATS/company site
 
-# Source identity capture
+Dispatch one `job-autopilot-external-apply` per ready job immediately. **No skill-imposed numeric per-run/day/concurrency limit.** Worker may authenticate, upload, fill, click final Submit, verify success, and write `application-result.json`.
 
-Before assessment, capture the complete source into `.job-apply-autopilot/queue/<job-id>-<slug>/source.md` and metadata into `job.json`. The assessor writes `assessment.json` and `fit-map.json` in that queue directory. Record:
+OAuth/existing session first; password generation/autofill allowed when needed.
 
-- source URL / job ID,
-- company and named client if applicable,
-- exact title,
-- exact location / workplace type,
-- employment type,
-- posting age,
-- salary when shown,
-- defining responsibilities,
-- mandatory requirements,
-- remote-country restrictions,
-- sponsorship / relocation wording,
-- trust class,
-- eligibility evidence and its source.
+## 11. Anti-automation
 
-# Job integrity gate
+First explicit `possible spam`, automation detection, suspicious activity, account restriction, attributable 429, CAPTCHA, or MFA requiring human interaction:
+- stop submit attempts on that domain/run;
+- zero security retries;
+- record circuit breaker;
+- continue unaffected domains.
 
-Use `references/job-integrity.md`.
+Ordinary field validation: max 1 corrective retry.
 
-Auto-eligible trust classes:
+Never bypass CAPTCHA/MFA/security controls.
 
-- `DIRECT_VERIFIED`
-- `DIRECT_REASONABLE`
-- `AGENCY_NAMED_CLIENT` only when the role and named client stay coherent
+## 12. Truth boundaries
 
-Skip by default:
+Optimize for interviews, not perfect documentation. Still never fabricate:
+- employer/work history;
+- degree/licence/clearance;
+- work authorization;
+- people management;
+- production scale/metrics;
+- a technology the evidence actually contradicts.
 
-- `AGENCY_UNKNOWN_CLIENT`
-- `TALENT_POOL`
-- `EXPERT_MARKETPLACE`
-- `JOB_AGGREGATOR_ONLY`
-- `IDENTITY_MISMATCH`
-- `SUSPICIOUS_REPOST_NETWORK`
-- `UNVERIFIABLE`
+A reasonable stretch is allowed. A false factual answer is not.
 
-External redirect identity must match the source posting. If the role turns into a generic evaluator/expert-network/talent-pool workflow, stop before entering substantial data.
+## 13. Minimal logging
 
-# Eligibility evidence gate
+Rejected/obvious-skip jobs need only one compact ledger row with `job_id`, status, reason code, and essential identity metadata.
 
-Use `references/eligibility-policy.md`.
+Detailed per-job artifacts exist **only when they serve a later action** (resume/application/recovery). Do not write essays into JSON.
 
-Auto-apply eligibility states:
+Update campaign analytics after a meaningful batch, not after every single skip.
 
-- `PAKISTAN_ELIGIBLE`
-- `WORLDWIDE_EXPLICIT`
-- `COUNTRY_LIST_INCLUDES_PAKISTAN`
-- `REGION_INCLUDES_PAKISTAN`
-- `GLOBAL_CONTRACTOR_EXPLICIT`
-- `INTERNATIONAL_HIRING_EXPLICIT`
-- `SPONSORSHIP_EXPLICIT`
-- `RELOCATION_EXPLICIT`
+## 14. Worker prompt contract
 
-Not sufficient by themselves:
+Task prompts contain only:
+- exact one job directory path;
+- requested stage/action.
 
-- LinkedIn's `Remote` label,
-- `Worldwide` search result placement,
-- employer is global,
-- team spans several countries,
-- application form accepts Pakistan contact/address,
-- absence of a work-auth question,
-- no exclusion statement found,
-- generic company office presence in Pakistan or nearby regions, when unrelated to the exact role.
+Do **not** tell packaged workers to load the main skill. Their installed agent files contain their bounded policy and point to the exact reference they need. This avoids repeatedly loading this coordinator document into every subagent.
 
-Do not confuse the above with stronger contextual evidence: an exact Pakistan job location, a verified Pakistan employer/entity tied to the role, or explicit Asia/APAC/APJ role scope can establish eligibility under `eligibility-policy.md`. A direct-employer LinkedIn/Easy Apply posting does not require a separate ATS duplicate.
-
-If state is `UNCLEAR`, watchlist instead of submit.
-
-# Campaign role-family gate
-
-The user's explicit campaign overrides defaults. If the user says only backend, do not silently apply to AI roles. If the user says only AI, do not submit a generic Django/backend job.
-
-When the user gives no narrow role family, the default broad engineering lanes above are allowed.
-
-# Mandatory requirements gate
-
-Use evidence classes from `references/scoring-calibration.md`:
-
-- `EXACT`
-- `DIRECT`
-- `ADJACENT`
-- `WEAK`
-- `NONE`
-
-Use interview-likelihood mode, not a mechanical one-gap rule. The majority of role-defining central requirements should be `EXACT`/`DIRECT`, but a few learnable stretches are allowed and normally reduce score instead of killing the job. Before a technical `WEAK`/`NONE` can contribute to rejection, apply the targeted public-evidence freshness guard.
-
-Derive the candidate's overall engineering-tenure band from canonical employment history at runtime. Do **not** match years separately for each skill. An `N+ years <technology>` requirement is evaluated as global tenure + verified capability, not a per-technology chronology.
-
-Hard-skip only clear blockers described in `references/scoring-calibration.md`: fundamentally different specialist identity, unmet legal/credential/work-auth condition, unsupported role-defining management, or multiple defining capabilities still missing after evidence refresh.
-
-Never treat:
-
-- FastAPI as Django,
-- AWS/Kubernetes as CUDA/vLLM/Triton,
-- LLM application work as model pretraining,
-- project ownership as people management,
-- a multimodal semantic check as proof of formal ML-evaluation/statistical methodology,
-- client work as proof of FDE/consulting depth.
-
-# Fit map and score
-
-Create `fit-map.json` before resume generation. Every important requirement must include evidence class, evidence scope/provenance, canonical IDs and/or verified public evidence URLs/IDs, and whether the exact ATS term may be used.
-
-Score only after all gates pass.
-
-Use `references/scoring-calibration.md`. Default auto-apply threshold: **72**.
-
-Interpret scores:
-
-- `85-100`: rare near-exact fit; use sparingly
-- `78-84`: strong fit
-- `72-77`: credible / apply; a few learnable stretches are acceptable
-- `68-71`: opportunistic stretch; may apply when role identity and eligibility are strong
-- `<68`: usually skip unless evidence refresh is still outstanding
-
-A score of 88 should be unusual, not routine.
-
-# Coordinator scheduling loop
-
-Operate in batches of roughly 4-8 discovered candidates. Do not wait for all workers in a batch before using completed outputs: as soon as a job has a passed assessment and completed resume, it may enter application routing while other workers continue preparing later jobs. External ATS jobs dispatch immediately without numeric cap; Easy Apply jobs enter the coordinator queue and submit only when the LinkedIn governor allows.
-
-The coordinator remains responsible for final gate adjudication, discovery, LinkedIn Easy Apply, and all global logging/analytics. External ATS workers own their own OAuth/account actions, BrowserOS navigation, upload, form completion, final Submit, and per-job verification.
-
-# Authentication precheck
-
-Use `references/authentication-policy.md` before creating an ATS account.
-
-Search the visible page for:
-
-- Continue with LinkedIn
-- Sign in with LinkedIn
-- Apply with LinkedIn
-- Import from LinkedIn
-- Use LinkedIn profile
-- OAuth buttons tied to an already-authenticated account
-
-If LinkedIn OAuth exists, use it first. Follow normal OAuth consent when it requests ordinary identity/profile/email access needed for the application. If it requests unusual permissions unrelated to applying, use password flow instead.
-
-If no suitable OAuth path exists, password account creation is allowed. Generate/autofill a strong password and proceed. Password handling must never become a blocker to an otherwise valid application.
-
-# Fresh canonical resume
-
-Canonical sources:
-
-- `canonical/ai-applied-canonical.tex`
-- `canonical/backend-platform-canonical.tex`
-
-Never modify these during a campaign.
-
-Choose the canonical base by the actual role:
-
-- backend/software/platform/Python/Node -> backend canonical
-- applied AI / AI application / practical LLM-agent role -> AI canonical
-- mixed role -> choose the base supported by the majority of central requirements, not the more glamorous title
-
-Run:
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\scaffold-resume.ps1" `
-  -JobId "<job-id>" `
-  -Company "<company>" `
-  -Title "<title>" `
-  -Canonical <ai|backend> `
-  -JobUrl "<url>" `
-  -Location "<location>" `
-  -Workspace "$workspace"
-```
-
-# Resume tailoring
-
-Follow `references/resume-tailoring.md`.
-
-Default preference order:
-
-1. select canonical bullets,
-2. reorder canonical bullets/skills/projects,
-3. delete irrelevant material,
-4. use exact supported JD aliases,
-5. lightly shorten or adapt wording,
-6. only rewrite substantially when needed for clarity and the resulting claim is fully canonical-supported.
-
-Do not manufacture specialized personal branding such as `LLM Evaluation & Production Infrastructure` merely because the JD contains those concepts.
-
-Use restrained headings such as:
-
-- `Senior Backend Engineer`
-- `Backend & Platform Engineer`
-- `Software Engineer — Backend & Platform`
-- `Software Engineer — Applied AI`
-- `Applied AI Engineer`
-- `AI Application Engineer`
-
-Do not mirror `Staff`, `Principal`, `Lead`, `Research`, `ML Infrastructure`, or similar prestige/specialist titles unless canonical evidence genuinely supports that identity.
-
-# Compile and verify
-
-Run:
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\compile-resume.ps1" `
-  -TexPath "<job-dir>\resume.tex" `
-  -StrictOnePage `
-  -AutoCompact
-```
-
-Do not submit if compilation fails. Do not fall back to a stale generic PDF.
-
-Verify:
-
-- PDF exists,
-- candidate name/contact remain intact,
-- PDF is one page when tooling is available,
-- no unsupported claims,
-- no inflated title/seniority/domain depth,
-- mapped direct requirements are represented naturally,
-- generated resume was created from the current job's canonical scaffold,
-- `resume-artifact.json` exists and points to a unique professional PDF filename,
-- upload consumers use that artifact PDF rather than generic `resume.pdf`.
-
-# Application behavior
-
-- Prefer official employer ATS over proprietary aggregator quick-apply flows.
-- Use LinkedIn Easy Apply when the job itself passes all gates **and** the LinkedIn governor currently allows another Easy Apply submission.
-- OAuth-first for employer ATS.
-- Re-check identity and eligibility after redirects.
-- Optional EEO questions: decline/prefer not to answer.
-- Unknown mandatory factual field with no truthful fallback: skip and continue.
-- A screening question that exposes country/work-auth mismatch overrides all prior scoring and stops the application.
-- Verify the exact resume artifact filename before final Submit.
-- Verify a success message/state before logging `submitted`.
-
-# Anti-automation circuit breaker
-
-Use `references/anti-automation.md`.
-
-Immediate circuit-breaker triggers include:
-
-- `possible spam`
-- `automation detected`
-- suspicious activity / unusual traffic
-- LinkedIn/ATS rate-limit response
-- account restriction warning
-- repeated HTTP 429 attributable to the campaign
-- CAPTCHA/MFA challenge requiring human interaction
-
-On the first trigger:
-
-1. stop submitting on that domain for the run,
-2. if the signal is on LinkedIn, record it with `scripts/linkedin-governor.ps1 -Action RecordSignal -SignalType <type> -Workspace "$workspace"`,
-3. log `manual-needed` or `blocked-automation`,
-4. never retry the submit button on the same application,
-5. continue with other unaffected domains when safe. A LinkedIn pause does not restrict external ATS/company-site applications.
-
-Ordinary field-validation errors may receive one corrective retry. Anti-bot/security errors receive zero retries.
-
-# Logging
-
-`applications.jsonl` stores application metadata and reasoning outcomes. Passwords may be generated/autofilled during the browser flow but are not needed in the application ledger.
-
-Recommended fields:
-
-- timestamp
-- status
-- source
-- company
-- title
-- location
-- job_url
-- job_id
-- score
-- trust_class
-- eligibility_state
-- relocation_status
-- canonical_source
-- generated_resume
-- generated_resume_sha256
-- discovery_lane
-- search_query
-- ats_domain when known
-- notes
-
-# Campaign analytics
-
-After meaningful new outcomes, run:
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\update-campaign-stats.ps1" -Workspace "$workspace"
-```
-
-Read `.job-apply-autopilot/campaign-stats.json` before allocating the next discovery batch. Use yield data to shift search effort away from repeatedly unproductive agency/region-locked lanes and toward lanes producing credible eligible employers. Never use analytics to weaken hard gates or force submission volume.
-
-# Relocation
-
-Relocation remains a first-class lane.
-
-Auto-apply when the campaign permits relocation and evidence is explicit:
-
-- visa sponsorship,
-- work-permit/immigration support,
-- relocation assistance/package,
-- international candidates welcome,
-- global mobility / overseas hiring.
-
-If a foreign role is attractive but sponsorship is merely possible or unstated, put it on `relocation-watchlist.jsonl`; do not infer sponsorship from company size, global offices, or a remote label.
-
-# Completion report
-
-Report:
-
-- confirmed submissions,
-- skips by hard-gate category,
-- manual-needed / automation-blocked roles,
-- generated resume paths,
-- top relocation submissions and watchlist items,
-- identity/ghost mismatches avoided,
-- domains circuit-broken during the run,
-- any OAuth flows successfully used,
-- campaign yield by source/discovery lane when enough data exists,
-- external ATS domains with confirmed successful submissions vs run-scoped circuit breakers,
-- LinkedIn Easy Apply governor counts/pause state when relevant.
-
-Do not call a filled form a submission unless a success state was confirmed.
+Workers return terse results: status, score/state if relevant, next action. No markdown tables or long explanations unless a failure cannot be understood from a reason code.

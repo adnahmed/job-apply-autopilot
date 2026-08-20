@@ -50,7 +50,7 @@ if (Test-Path -LiteralPath $generatedJobPath) {
             $generatedJob | Add-Member -NotePropertyName $name -NotePropertyValue $job.$name -Force
         }
     }
-    # V5.10 policy migrations may legitimately reopen a prior technical/fit skip.
+    # A deliberately reassessed technical/fit skip may legitimately be reopened.
     # Carry an override only for those non-submission technical skip statuses so a restart
     # after promotion does not hide the newly approved generated job.
     $ledgerPath = Join-Path (Join-Path $Workspace '.job-apply-autopilot') 'applications.jsonl'
@@ -65,7 +65,7 @@ if (Test-Path -LiteralPath $generatedJobPath) {
         }
     }
     $technicalPriorSkips = @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family')
-    if (($assessment.PSObject.Properties.Name -contains 'policy_version') -and [string]$assessment.policy_version -eq '5.10' -and $lastLedgerStatus -in $technicalPriorSkips) {
+    if (($assessment.PSObject.Properties.Name -contains 'policy_version') -and [string]$assessment.policy_version -in @('5.10','5.11') -and $lastLedgerStatus -in $technicalPriorSkips) {
         $generatedJob | Add-Member -NotePropertyName 'allow_after_prior_skip' -NotePropertyValue $true -Force
         $generatedJob | Add-Member -NotePropertyName 'prior_ledger_status' -NotePropertyValue $lastLedgerStatus -Force
     }

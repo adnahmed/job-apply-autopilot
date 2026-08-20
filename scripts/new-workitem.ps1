@@ -48,14 +48,15 @@ $job = [ordered]@{
 $job | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $workDir 'job.json') -Encoding UTF8
 
 $assessment = [ordered]@{
+    policy_version = '5.11'
     job_id = $JobId
+    status = 'pending'
+    score = $null
     trust_class = ''
     role_family = ''
     eligibility_state = 'UNCLEAR'
-    eligibility_evidence = @()
     needs_external_research = $false
     needs_candidate_evidence = $false
-    candidate_evidence_requirements = @()
     hard_gates = [ordered]@{
         integrity = $false
         eligibility = $false
@@ -63,18 +64,8 @@ $assessment = [ordered]@{
         mandatory_requirements = $false
         truth_feasibility = $false
     }
-    failure_reason = ''
-    status = 'pending'
 }
-$assessment | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $workDir 'assessment.json') -Encoding UTF8
-
-$fitMap = [ordered]@{
-    job_id = $JobId
-    requirements = @()
-    score = $null
-    status = 'pending'
-}
-$fitMap | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $workDir 'fit-map.json') -Encoding UTF8
+$assessment | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $workDir 'assessment.json') -Encoding UTF8
 
 $sourcePath = Join-Path $workDir 'source.md'
 if (-not (Test-Path -LiteralPath $sourcePath)) {

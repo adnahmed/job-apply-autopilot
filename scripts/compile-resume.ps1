@@ -19,6 +19,15 @@ $jobMetaPath = Join-Path $workDir 'job.json'
 $canonicalAuditPath = Join-Path $workDir 'canonical-source.tex'
 $artifactPath = Join-Path $workDir 'resume-artifact.json'
 
+$skillRoot = Split-Path -Parent $PSScriptRoot
+$profilePath = Join-Path $skillRoot 'profile.yaml'
+if (-not (Test-Path -LiteralPath $profilePath)) { throw "Candidate profile not found: $profilePath" }
+$profileText = Get-Content -LiteralPath $profilePath -Raw
+if ($profileText -notmatch '(?m)^\s*full_name:\s*["'']?([^"''\r\n]+)') { throw 'candidate.full_name missing from profile.yaml.' }
+$candidateName = $Matches[1].Trim()
+if ($profileText -notmatch '(?m)^\s*email:\s*["'']?([^"''\r\n]+)') { throw 'candidate.email missing from profile.yaml.' }
+$candidateEmail = $Matches[1].Trim()
+
 function Convert-ToFilenamePart([string]$Text, [int]$Max = 60) {
     $part = $Text -replace '[^A-Za-z0-9]+','_'
     $part = $part.Trim('_')
@@ -86,8 +95,8 @@ function Invoke-ControlledCompaction {
 }
 
 $source = Get-Content -LiteralPath $TexPath -Raw
-if ($source -notmatch 'Adnan Ahmed Khan') { throw 'Candidate name is missing from resume.tex.' }
-if ($source -notmatch 'khanadnanahmed01@gmail\.com') { throw 'Candidate email is missing from resume.tex.' }
+if ($source -notmatch [regex]::Escape($candidateName)) { throw 'Candidate name from profile.yaml is missing from resume.tex.' }
+if ($source -notmatch [regex]::Escape($candidateEmail)) { throw 'Candidate email from profile.yaml is missing from resume.tex.' }
 
 foreach ($required in @($assessmentPath, $fitMapPath, $tailoringAuditPath, $jobMetaPath, $canonicalAuditPath)) {
     if (-not (Test-Path -LiteralPath $required)) { throw "Required audit artifact missing: $required" }
@@ -143,14 +152,15 @@ try {
         & pdftotext -layout $pdfPath $txtPath 2>$null
         if (Test-Path -LiteralPath $txtPath) {
             $txt = Get-Content -LiteralPath $txtPath -Raw
-            if ($txt -notmatch 'Adnan Ahmed Khan') { throw 'PDF text extraction did not contain candidate name.' }
-            if ($txt -notmatch 'khanadnanahmed01@gmail\.com') { throw 'PDF text extraction did not contain candidate email.' }
+            if ($txt -notmatch [regex]::Escape($candidateName)) { throw 'PDF text extraction did not contain candidate name.' }
+            if ($txt -notmatch [regex]::Escape($candidateEmail)) { throw 'PDF text extraction did not contain candidate email.' }
         }
     }
 
     $companyPart = Convert-ToFilenamePart ([string]$jobMeta.company) 40
     $rolePart = Convert-ToFilenamePart ([string]$jobMeta.title) 65
-    $applicationFilename = "Adnan_Ahmed_Khan_${companyPart}_${rolePart}.pdf"
+    $candidatePart = Convert-ToFilenamePart $candidateName 50
+    $applicationFilename = "${candidatePart}_${companyPart}_${rolePart}.pdf"
     $applicationPdf = Join-Path $workDir $applicationFilename
     Copy-Item -LiteralPath $pdfPath -Destination $applicationPdf -Force
     $artifactHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $applicationPdf).Hash.ToLowerInvariant()

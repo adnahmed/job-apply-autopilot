@@ -1,90 +1,21 @@
-# Search Strategy V5.7 — Broad Engineering, Eligibility-Aware, Adaptive
+# Search Strategy V5.11 — Find and Move
 
-## Objective
-Search the candidate's realistic engineering market rather than over-indexing on AI titles or LinkedIn's noisy `Worldwide` location.
+Search for credible interview opportunities, not exhaustive cataloguing.
 
-## Primary lanes
-Run separate searches across:
+Primary lanes come from `profile.yaml`. Prefer recent direct-employer jobs with clear location and concrete responsibilities.
 
-### Backend/software
-- Backend Engineer
-- Senior Backend Engineer
-- Software Engineer backend
-- Senior Software Engineer backend
-- Python Engineer / Python Backend Engineer
-- Node.js Backend Engineer
-- TypeScript Backend Engineer
+## Fast discovery loop
 
-### Backend/platform
-- Backend Platform Engineer
-- Platform Software Engineer
-- Cloud Software Engineer where coding/backend work is central
+For each visible result:
+1. obvious hard reject? log compact skip and move on;
+2. plausible? read full JD once;
+3. strong eligibility + in-lane? queue for quick assessment;
+4. ambiguous geography or specialist gap? defer to slow lane; do not let it block strong jobs.
 
-### Practical applied AI
-- Applied AI Engineer
-- AI Application Engineer
-- AI Engineer with product/backend/agent/RAG/API responsibilities
-- LLM Application Engineer
-- AI Agent Engineer
+Do not create queue directories for obvious country locks, closed roles, unknown-client agencies, talent pools, expert marketplaces, or unrelated role identities.
 
-## Selective lanes
-Use stricter evidence thresholds for:
-- FDE / Solutions Engineer,
-- Developer Platform/Infrastructure,
-- Distributed Systems,
-- SRE/DevOps-heavy roles,
-- Staff/Principal/Lead.
+Use LinkedIn Pakistan/local, explicit worldwide, APAC/Asia, and sponsorship/relocation lanes. `Remote`/Worldwide search placement alone is not eligibility.
 
-## Location lanes
-Do not use `Worldwide` as the only search strategy.
+Operate in small rolling batches, but act on a passed job immediately. Do not wait to finish browsing the entire result page before routing an obviously strong job.
 
-### Lane A — Pakistan
-Search Pakistan/Islamabad plus remote/hybrid variants.
-
-### Lane B — explicit worldwide
-Search title combinations with terms such as:
-- worldwide remote
-- remote anywhere
-- work from anywhere
-- global remote
-- international contractor
-
-Still verify on the actual employer posting.
-
-### Lane C — relocation
-Search title +:
-- visa sponsorship
-- relocation assistance
-- immigration support
-- international candidates
-- work permit support
-
-### Lane D — broader discovery
-LinkedIn `Worldwide` may be used for discovery only. Every foreign result still needs positive eligibility evidence before auto-apply.
-
-## Search quality
-Prioritize:
-- official employer postings,
-- verified companies,
-- direct ATS links,
-- recent jobs,
-- clear location policy,
-- named teams/products,
-- concrete responsibilities.
-
-Deprioritize:
-- agencies with unknown clients,
-- repeated repost networks,
-- generic talent pools,
-- expert marketplaces,
-- vague recruiter posts,
-- jobs whose location/title changes after redirect.
-
-## Do not force quota
-If a lane is low-yield, switch lanes. Do not lower role or eligibility standards just because the current LinkedIn result set is poor.
-
-
-## Campaign-yield feedback
-After several resolved jobs, run `scripts/update-campaign-stats.ps1` and read `.job-apply-autopilot/campaign-stats.json`. Use it to allocate discovery effort, not to relax gates.
-
-Persist `discovery_lane` and `search_query` when creating work items whenever known. Prefer lanes that produce direct eligible employers; reduce repeated low-yield searches dominated by agencies, talent pools, or region locks. Keep exploratory and relocation lanes active even when their volume is lower.
+Use campaign analytics only when selecting the next search lane, not after every decision.
