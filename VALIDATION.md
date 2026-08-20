@@ -1,7 +1,7 @@
-# V5.7 validation
+# V5.8 validation
 
 ## Package invariants
-- Skill metadata version is 5.7.
+- Skill metadata version is 5.8.
 - Canonical `.tex` files are unchanged from the prior validated canonical sources.
 - Four trusted hidden subagents are packaged.
 - External ATS applicator retains BrowserOS + final-submit authority and no skill-imposed concurrency cap.
@@ -38,7 +38,7 @@
 - Stats script tolerates legacy ledger entries without discovery-lane metadata.
 - Analytics changes search allocation only; it never lowers job gates or forces quota completion.
 
-## V5.7 bootstrap checks
+## V5.8 bootstrap checks
 
 - `SKILL.md` contains deterministic workspace resolution and forbids home-directory scanning during bootstrap.
 - Generated runtime path is explicitly `<workspace>/.job-apply-autopilot/generated`.
@@ -53,3 +53,12 @@
 - No executable script, agent prompt, or skill orchestration rule contains a candidate-specific `C:\Users\...` path.
 - No orchestration rule falls back to `$HOME\job-search`.
 - Subagents receive absolute per-job paths and do not use their own CWD as campaign workspace authority.
+
+## Snapshot-authoritative checks
+
+- `session-state.ps1` emits `snapshot_authoritative: true`.
+- It emits exactly one `next_action` from `reconcile`, `resume-generated`, `process-queue`, `discover`.
+- It emits only `action_paths` for existing work that should be touched next.
+- When there is no actionable existing work, `next_action` is `discover` and `action_paths` is empty.
+- `SKILL.md` forbids post-snapshot `Get-ChildItem`, Glob, recursive scans, ledger tailing, and reading `session-state.ps1` merely to double-check state.
+- Profile/canonical truth are no longer mandatory coordinator startup reads.

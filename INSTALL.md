@@ -1,13 +1,13 @@
-# Install Job Apply Autopilot V5.7
+# Install Job Apply Autopilot V5.8
 
-V5.7 keeps the trusted parallel/external-apply architecture and V5.5 operational learning, while fixing continuation startup thrash: deterministic workspace resolution, one compact session-state snapshot, and lazy stage-specific policy loading.
+V5.8 keeps the trusted parallel/external-apply architecture and V5.5 operational learning, while fixing continuation startup thrash: deterministic workspace resolution, one authoritative session-state decision, no post-snapshot state archaeology, and lazy stage-specific policy loading.
 
 ## 1. Replace the installed skill
 
-Extract `job-apply-autopilot-v5.7.zip`, then run PowerShell from the extracted folder:
+Extract `job-apply-autopilot-v5.8.zip`, then run PowerShell from the extracted folder:
 
 ```powershell
-$src = ".\job-apply-autopilot-v5.7"
+$src = ".\job-apply-autopilot-v5.8"
 $dst = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 if (Test-Path $dst) {
@@ -76,16 +76,18 @@ $workspace = (Get-Location).Path
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\init-workspace.ps1" -Workspace "$workspace"
 ```
 
-For continuation sessions, V5.7 uses one compact state snapshot instead of scanning home folders or reading every policy up front:
+For continuation sessions, V5.8 uses one authoritative state decision instead of reconstructing campaign state manually:
 
 ```powershell
 $workspace = (Get-Location).Path
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\session-state.ps1" -Workspace "$workspace"
 ```
 
+The JSON returns one `next_action` (`reconcile`, `resume-generated`, `process-queue`, or `discover`) and `action_paths`. The coordinator follows that decision directly. In particular, `next_action: "discover"` means it must begin job discovery immediately—no queue/generated enumeration, ledger tailing, Glob search, alternate-path probing, or inspection of `session-state.ps1`.
+
 The coordinator treats `<current-directory>\.job-apply-autopilot` as the single runtime tree. The current directory at skill start is authoritative; it must not scan home directories or guess alternate workspace locations.
 
-V5.7 runtime structure:
+V5.8 runtime structure:
 
 ```text
 .job-apply-autopilot/
@@ -119,7 +121,7 @@ V5.7 runtime structure:
 
 ## 6. Resume compilation
 
-MiKTeX CLI should expose `pdflatex`; `latexmk` is optional. V5.7 automatically falls back to two direct `pdflatex` passes if `latexmk` exists but fails.
+MiKTeX CLI should expose `pdflatex`; `latexmk` is optional. V5.8 automatically falls back to two direct `pdflatex` passes if `latexmk` exists but fails.
 
 ```powershell
 pdflatex --version

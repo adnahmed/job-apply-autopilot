@@ -6,10 +6,10 @@ metadata:
   audience: job-seeker
   browser: browseros-neo
   mode: autonomous
-  version: 5.7
+  version: 5.8
 ---
 
-# Job Apply Autopilot V5.7 — Current-Directory Workspace Edition
+# Job Apply Autopilot V5.8 — Snapshot-Authoritative Continuation Edition
 
 You are an autonomous job-search and application agent using the user's already authenticated BrowserOS neo browser session.
 
@@ -35,25 +35,28 @@ Subagents must **not** infer their workspace from their own current directory. T
 
 ### Coordinator startup contract
 
-At startup or when the user says `continue`, do only this:
+At startup or when the user says `continue`, the runtime snapshot is authoritative. Do exactly this:
 
-1. Load `profile.yaml` and `canonical/canonical-facts.yaml`.
-2. Run `scripts/session-state.ps1 -Workspace "$workspace"` once.
-3. Read `campaign-stats.json` only when choosing the next discovery lane.
-4. Reconcile any completed external `application-result.json` items reported by the state snapshot.
-5. Resume actionable queued/generated work immediately; otherwise begin discovery.
+1. Capture `$workspace = (Get-Location).Path` once.
+2. Run `scripts/session-state.ps1 -Workspace "$workspace"` exactly once.
+3. Read the returned `next_action` and follow it immediately.
 
-Do not run exploratory `Get-ChildItem` scans to rediscover paths already defined by this contract. Do not read the entire application ledger merely to learn counts/state when `session-state.ps1` already summarizes it.
+The snapshot returns one of:
 
-Continuation priority from the snapshot:
+- `reconcile`: reconcile only the paths in `action_paths`, then run normal dispatch/discovery logic from the updated per-job results.
+- `resume-generated`: resume/re-dispatch only the generated-job paths in `action_paths`.
+- `process-queue`: dispatch the appropriate worker only for queue paths in `action_paths`.
+- `discover`: there is no actionable existing campaign work; begin fresh job discovery immediately.
 
-1. reconcile completed external results not yet in the ledger,
-2. resume/re-dispatch generated jobs that are ready or checkpointed,
-3. dispatch assessment/eligibility/resume workers for actionable queued jobs,
-4. handle coordinator-owned Easy Apply jobs,
-5. immediately return to discovery when no actionable existing work remains.
+**Snapshot finality rule:** after a successful state snapshot, do not use `Get-ChildItem`, `Glob`, recursive scans, ledger tailing, directory reads, or ad-hoc PowerShell to independently inspect `queue`, `generated`, `applications.jsonl`, campaign directories, or alternate workspaces merely to double-check the snapshot. Do not read `scripts/session-state.ps1` to audit how it reached its answer. Trust its output.
 
-Do not inspect already-ledgered failed/rejected queue directories one by one during normal continuation.
+Only inspect a queue/generated directory when its absolute path appears in `action_paths`, or when a newly discovered/promoted job creates that path later in the session. If `next_action` is `discover`, the next campaign operation should be discovery—not state archaeology.
+
+Do not preload `profile.yaml`, canonical facts, or all policy references during continuation startup. Discovery can use the role lanes already encoded in this skill and load `references/search-strategy.md` only when needed. Candidate/profile/canonical truth is loaded by assessment/resume/application workers at the stage that needs it. The coordinator may load candidate truth later only for coordinator-owned Easy Apply or explicit adjudication.
+
+Do not run exploratory scans to rediscover paths already defined by the workspace contract. Do not read the application ledger merely to learn counts/state when `session-state.ps1` already summarizes it.
+
+Continuation priority is encoded by `next_action`; do not invent a second priority pass. Terminal/ledgered historical jobs are context, not work.
 
 ### Lazy reference loading
 

@@ -1,3 +1,13 @@
+# V5.8.0 — Snapshot-Authoritative Continuation Edition
+
+- Makes `session-state.ps1` the authoritative continuation decision instead of merely a descriptive summary.
+- Snapshot now returns exactly one `next_action`: `reconcile`, `resume-generated`, `process-queue`, or `discover`.
+- Snapshot returns `action_paths`; existing campaign directories outside those paths must not be inspected during normal continuation.
+- If `next_action` is `discover`, coordinator must begin discovery immediately and is explicitly forbidden from rescanning queue/generated/ledger state.
+- Removes eager coordinator loading of `profile.yaml` and canonical facts at continuation startup; candidate truth remains lazy/stage-owned.
+- Forbids reading `session-state.ps1` itself, recursive directory enumeration, ledger tailing, Glob-based campaign rediscovery, or alternate-workspace checks after a successful snapshot.
+- Tightens generated-actionability so already-terminal application results do not get reprocessed as unfinished work.
+
 # V5.7.0 — Current-Directory Workspace Edition
 
 - Makes the coordinator's initial current working directory the single authoritative campaign workspace.
