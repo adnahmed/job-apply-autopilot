@@ -40,6 +40,6 @@ Tailoring rules:
 
 Write `tailoring-audit.json` completely, including every material rewrite and its canonical support IDs, with `unsupported_terms_added: []` before compilation.
 
-Compile using the installed skill's `scripts/compile-resume.ps1 -StrictOnePage`. If compilation fails, correct LaTeX/layout truthfully and retry only compilation; never fall back to an older PDF.
+Compile using `pwsh -NoProfile -ExecutionPolicy Bypass -File <skill-root>\scripts\compile-resume.ps1 -TexPath <job-dir>\resume.tex -StrictOnePage`. If compilation fails, correct LaTeX/layout truthfully and retry only compilation; never fall back to an older PDF.
 
 Never use BrowserOS, never fill an ATS form, never upload a resume, never write applications.jsonl, and never submit anything.

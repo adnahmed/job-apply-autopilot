@@ -29,7 +29,8 @@ foreach ($gate in @('integrity','eligibility','role_family','mandatory_requireme
 if ($fit.status -ne 'complete' -or $null -eq $fit.score) { throw 'Work item fit-map is incomplete.' }
 
 $scaffold = Join-Path $skillRoot 'scripts\scaffold-resume.ps1'
-$texPath = & $scaffold -JobId ([string]$job.job_id) -Company ([string]$job.company) -Title ([string]$job.title) -Canonical $Canonical -JobUrl ([string]$job.job_url) -Location ([string]$job.location) -Workspace $Workspace
+$pwsh = (Get-Command pwsh -ErrorAction Stop).Source
+$texPath = & $pwsh -NoProfile -ExecutionPolicy Bypass -File $scaffold -JobId ([string]$job.job_id) -Company ([string]$job.company) -Title ([string]$job.title) -Canonical $Canonical -JobUrl ([string]$job.job_url) -Location ([string]$job.location) -Workspace $Workspace
 if (-not $texPath) { throw 'Resume scaffold did not return a path.' }
 $generatedDir = Split-Path -Parent ([string]$texPath)
 

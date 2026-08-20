@@ -1,3 +1,12 @@
+# V5.1
+
+- Fixed Windows `AuthorizationManager check failed` when the coordinator invoked packaged `.ps1` files directly.
+- All documented/runtime script calls now use `pwsh -NoProfile -ExecutionPolicy Bypass -File ...`.
+- Installation unblocks downloaded/extracted skill files with `Unblock-File`.
+- `promote-workitem.ps1` now launches its nested scaffold script through a bypassed child `pwsh` process.
+- Resume subagent instructions explicitly require the bypassed `pwsh` compile command.
+- Clarified that `-ExecutionPolicy Bypass` is a host option, not a script argument.
+
 # V5 change log — Parallel Pipeline Edition
 
 ## Parallel orchestration

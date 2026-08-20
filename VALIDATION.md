@@ -1,4 +1,4 @@
-# Validation — Job Apply Autopilot V5
+# Validation — Job Apply Autopilot V5.1
 
 Validated on 2026-08-20 before packaging.
 
@@ -46,9 +46,9 @@ On the target Windows machine, run:
 
 ```powershell
 $skill = "$HOME\.config\opencode\skills\job-apply-autopilot"
-& "$skill\scripts\verify-canonical.ps1"
-& "$skill\scripts\install-subagents.ps1"
-& "$skill\scripts\verify-subagents.ps1"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\verify-canonical.ps1"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\install-subagents.ps1"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\verify-subagents.ps1"
 ```
 
 Then restart OpenCode and run the normal skill command.

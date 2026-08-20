@@ -1,13 +1,13 @@
-# Install Job Apply Autopilot V5
+# Install Job Apply Autopilot V5.1
 
-V5 adds bounded OpenCode subagent parallelism to V4's calibrated autonomous application pipeline.
+V5.1 keeps V5's bounded OpenCode subagent pipeline and fixes Windows PowerShell execution-policy handling for downloaded/extracted scripts.
 
 ## 1. Replace the installed skill
 
-Extract `job-apply-autopilot-v5.zip`, then run PowerShell from the extracted folder:
+Extract `job-apply-autopilot-v5.1.zip`, then run PowerShell from the extracted folder:
 
 ```powershell
-$src = ".\job-apply-autopilot-v5"
+$src = ".\job-apply-autopilot-v5.1"
 $dst = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 if (Test-Path $dst) {
@@ -16,6 +16,9 @@ if (Test-Path $dst) {
 }
 
 Copy-Item -Recurse -Force $src $dst
+
+# Remove Mark-of-the-Web from downloaded/extracted skill files.
+Get-ChildItem -LiteralPath $dst -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
 ```
 
 Expected skill file:
@@ -26,11 +29,14 @@ Expected skill file:
 
 ## 2. Install the packaged subagents
 
+> Windows rule: always run packaged `.ps1` files as `pwsh -NoProfile -ExecutionPolicy Bypass -File ...`. `-ExecutionPolicy` belongs to `pwsh`; adding it after `& script.ps1` does not bypass policy.
+
+
 V5 ships three hidden subagents under `agents/`. Install them globally:
 
 ```powershell
 $skill = "$HOME\.config\opencode\skills\job-apply-autopilot"
-& "$skill\scripts\install-subagents.ps1"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\install-subagents.ps1"
 ```
 
 This installs:
@@ -46,7 +52,7 @@ They are `hidden: true`, so they are intended for automatic Task invocation by t
 Verify the installation:
 
 ```powershell
-& "$skill\scripts\verify-subagents.ps1"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\verify-subagents.ps1"
 ```
 
 ## 3. OpenCode permissions
@@ -74,7 +80,7 @@ The worker definitions themselves deny BrowserOS. Only the coordinator should dr
 
 ```powershell
 $skill = "$HOME\.config\opencode\skills\job-apply-autopilot"
-& "$skill\scripts\verify-canonical.ps1"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\verify-canonical.ps1"
 ```
 
 Both canonical `.tex` files should report `OK`.
@@ -95,7 +101,7 @@ Do not wipe earlier application history. Initialize/upgrade the runtime director
 ```powershell
 mkdir "$HOME\job-search" -Force
 cd "$HOME\job-search"
-& "$skill\scripts\init-workspace.ps1"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\init-workspace.ps1" -Workspace "$HOME\job-search"
 ```
 
 Runtime structure now includes a parallel work queue:

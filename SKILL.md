@@ -144,13 +144,14 @@ A failed hard gate means **do not score and do not apply**. Never let salary, br
 Before invoking an assessor, create a queue item:
 
 ```powershell
-$workItem = & "$skillRoot\scripts\new-workitem.ps1" `
+$workItem = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\new-workitem.ps1" `
   -JobId "<job-id>" `
   -Company "<company>" `
   -Title "<title>" `
   -JobUrl "<url>" `
   -Location "<location>" `
-  -Source "<linkedin|official-ats|other>"
+  -Source "<linkedin|official-ats|other>" `
+  -Workspace "$HOME\job-search"
 ```
 
 Replace the generated `source.md` placeholder with the complete JD plus relevant source/location/relocation evidence. Do not invoke an assessor on a partial JD.
@@ -168,14 +169,29 @@ Each Task prompt must include exactly one work-item/generated directory path and
 After a queue work item passes final adjudication, promote it:
 
 ```powershell
-$jobDir = & "$skillRoot\scripts\promote-workitem.ps1" `
+$jobDir = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\promote-workitem.ps1" `
   -WorkItemDir $workItem `
-  -Canonical <ai|backend>
+  -Canonical <ai|backend> `
+  -Workspace "$HOME\job-search"
 ```
 
 Then dispatch `$jobDir` to one `job-autopilot-resume` worker.
 
 If custom subagents or Task are unavailable, execute the exact same stages serially. Do not weaken any gate.
+
+# Windows PowerShell invocation contract
+
+On Windows, **never invoke packaged `.ps1` files directly with `& path\script.ps1`**. Downloaded/extracted skill files may carry Mark-of-the-Web metadata and PowerShell can reject them with `AuthorizationManager check failed` before the script starts.
+
+Always launch packaged scripts through a fresh PowerShell process:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "<script.ps1>" <arguments>
+```
+
+`-ExecutionPolicy Bypass` is an option to `pwsh`, not a script parameter. Never write `& script.ps1 -ExecutionPolicy Bypass`.
+
+If the skill was installed from a downloaded ZIP, the installer should also unblock the installed tree once with `Get-ChildItem -Recurse -File | Unblock-File`, but the `pwsh ... -File` form remains the required runtime invocation.
 
 # Source identity capture
 
@@ -334,13 +350,14 @@ Choose the canonical base by the actual role:
 Run:
 
 ```powershell
-& "$skillRoot\scripts\scaffold-resume.ps1" `
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\scaffold-resume.ps1" `
   -JobId "<job-id>" `
   -Company "<company>" `
   -Title "<title>" `
   -Canonical <ai|backend> `
   -JobUrl "<url>" `
-  -Location "<location>"
+  -Location "<location>" `
+  -Workspace "$HOME\job-search"
 ```
 
 # Resume tailoring
@@ -374,7 +391,9 @@ Do not mirror `Staff`, `Principal`, `Lead`, `Research`, `ML Infrastructure`, or 
 Run:
 
 ```powershell
-& "$skillRoot\scripts\compile-resume.ps1" -TexPath "<job-dir>\resume.tex" -StrictOnePage
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\compile-resume.ps1" `
+  -TexPath "<job-dir>\resume.tex" `
+  -StrictOnePage
 ```
 
 Do not submit if compilation fails. Do not fall back to a stale generic PDF.
