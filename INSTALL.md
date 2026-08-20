@@ -1,13 +1,13 @@
-# Install Job Apply Autopilot V5.1
+# Install Job Apply Autopilot V5.3
 
-V5.1 keeps V5's bounded OpenCode subagent pipeline and fixes Windows PowerShell execution-policy handling for downloaded/extracted scripts.
+V5.3 keeps the bounded OpenCode subagent pipeline, fixes Windows PowerShell execution-policy handling, and gives the packaged workers trusted direct write permission so Windows path canonicalization cannot block their per-job outputs.
 
 ## 1. Replace the installed skill
 
-Extract `job-apply-autopilot-v5.1.zip`, then run PowerShell from the extracted folder:
+Extract `job-apply-autopilot-v5.3.zip`, then run PowerShell from the extracted folder:
 
 ```powershell
-$src = ".\job-apply-autopilot-v5.1"
+$src = ".\job-apply-autopilot-v5.3"
 $dst = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 if (Test-Path $dst) {
@@ -48,6 +48,8 @@ This installs:
 ```
 
 They are `hidden: true`, so they are intended for automatic Task invocation by the primary agent rather than normal `@` autocomplete. Restart OpenCode after installing them so the new agent definitions are loaded.
+
+V5.3 intentionally gives the three packaged workers `edit: allow`. The user trusts these workers; their one-job directory boundary is enforced by their instructions and by coordinator ownership, not by brittle relative-path permission globs. BrowserOS and nested Task calls remain denied in the worker definitions.
 
 Verify the installation:
 

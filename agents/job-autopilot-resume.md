@@ -9,9 +9,7 @@ permission:
   glob: allow
   grep: allow
   list: allow
-  edit:
-    "*": deny
-    ".job-apply-autopilot/generated/**": allow
+  edit: allow
   bash:
     "*": deny
     "*compile-resume.ps1*": allow

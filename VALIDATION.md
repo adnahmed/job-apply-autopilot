@@ -1,54 +1,19 @@
-# Validation — Job Apply Autopilot V5.1
+# V5.3 validation additions
 
-Validated on 2026-08-20 before packaging.
+- Packaged assessor/eligibility/resume definitions use `edit: allow`, avoiding Windows relative/canonical path mismatch failures.
+- BrowserOS remains denied for all three subagents; nested Task remains denied.
+- Mandatory requirement policy no longer contradicts itself about a single central ADJACENT requirement.
+- Role-defining ownership/years gaps still hard fail.
+- Task-prompt hygiene forbids coordinator-injected employer/eligibility/fit claims; worker evidence must come from persisted source files.
 
-## Package integrity
+# V5.2 Validation
 
-- SKILL frontmatter parses as YAML.
-- Skill name remains `job-apply-autopilot`.
-- Metadata version is `5`.
-- Three packaged agent frontmatters parse as YAML.
-- All three agents are `mode: subagent` and `hidden: true`.
-- `opencode-config-snippet.jsonc` parses as JSON.
-- Canonical SHA-256 values still match `canonical/SHA256SUMS.txt`.
-- No known generated ATS password from the previous run is present in the package.
-
-## Parallel architecture checks
-
-- assessor: BrowserOS denied; Task denied; no shell access.
-- eligibility researcher: BrowserOS denied; Task denied; web research allowed.
-- resume worker: BrowserOS denied; Task denied; only job-resume file work + compile command intended.
-- global application/watchlist/circuit-breaker ledgers are coordinator-only by policy.
-- browser submissions are serialized by policy.
-- queue work items isolate per-job assessment files.
-- generated folders isolate per-job resume files.
-
-## OpenCode compatibility basis
-
-OpenCode's current Agents documentation supports:
-
-- `mode: subagent`,
-- automatic invocation by primary agents,
-- child sessions,
-- `hidden: true` programmatic subagents,
-- Task permission patterns,
-- per-agent permissions,
-- `steps` limits,
-- subagents inheriting the invoking primary model when no model override is specified.
-
-The packaged workers intentionally omit a `model` override.
-
-## PowerShell note
-
-This ChatGPT container does not include Windows PowerShell/MiKTeX, so the newly added PowerShell queue/install scripts were statically reviewed rather than executed here. The canonical `.tex` files are byte-identical to the already validated V4 sources and their stored SHA-256 hashes still match.
-
-On the target Windows machine, run:
-
-```powershell
-$skill = "$HOME\.config\opencode\skills\job-apply-autopilot"
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\verify-canonical.ps1"
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\install-subagents.ps1"
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\verify-subagents.ps1"
-```
-
-Then restart OpenCode and run the normal skill command.
+Validated policy invariants:
+- Pakistan search placement alone is weak evidence.
+- Exact Pakistan job location on a direct employer posting is positive evidence.
+- Verified Pakistan employer/entity tied to an unrestricted remote role can establish Pakistan eligibility.
+- Explicit Asia/APAC/APJ role scope can establish `REGION_INCLUDES_PAKISTAN` unless employer-specific rules conflict.
+- EMEA/EU/US/India/Australia remain non-Pakistan scopes absent explicit bridging evidence.
+- Direct-employer LinkedIn/Easy Apply does not require a duplicate ATS posting.
+- Company HQ/entity facts may not be asserted without supplied or researched evidence.
+- Ambiguous foreign roles still become watchlist rather than auto-submit.

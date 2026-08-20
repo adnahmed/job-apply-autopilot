@@ -1,4 +1,4 @@
-# Conservative Evidence and Scoring Calibration V4
+# Conservative Evidence and Scoring Calibration V5.3
 
 ## Evidence classes
 
@@ -34,13 +34,27 @@ No supported evidence.
 
 ## Mandatory requirement gate
 
-A role passes only if:
+Judge mandatory requirements by **role identity and depth**, not by a mechanical one-gap rule.
 
-- every central mandatory requirement is EXACT or DIRECT, except at most one non-central mandatory item may be ADJACENT,
-- no mandatory years-of-experience requirement depends on ADJACENT evidence,
-- no specialist identity depends on inferred experience.
+A role passes when:
 
-Two or more central mandatory items at ADJACENT/WEAK/NONE -> skip before scoring.
+- every role-defining central mandatory requirement is EXACT or DIRECT,
+- at most one central mandatory requirement may be ADJACENT **only** when it is a learnable/transferable component rather than a defining specialist capability, and the JD does not require explicit years/ownership depth for that missing component,
+- no mandatory years-of-experience claim depends on ADJACENT/WEAK/NONE evidence,
+- no specialist identity depends on inferred experience,
+- non-central mandatory gaps are limited and truthfully answerable.
+
+Hard skip before scoring when any of these is true:
+
+- one role-defining central mandatory capability is WEAK/NONE,
+- one role-defining central mandatory capability is only ADJACENT **and** the JD requires explicit ownership/depth/years in that capability,
+- two or more central mandatory requirements are ADJACENT/WEAK/NONE,
+- passing would require inventing a technology, domain, leadership scope, or years-of-experience claim.
+
+Examples:
+
+- FastAPI candidate vs a Django requirement, where Django is one implementation choice among Python web frameworks and no Django-years requirement exists: may be an ADJACENT learnable gap.
+- A role requiring `4+ years owning data warehousing, data modeling, ETL/ELT and governance`, when canonical evidence shows ETL but not warehouse/governance ownership: role-defining depth gap -> fail even though some components are adjacent/direct.
 
 ## Score 0-100
 

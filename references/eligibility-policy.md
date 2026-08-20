@@ -1,15 +1,34 @@
-# Eligibility Evidence Policy V4
+# Eligibility Evidence Policy V5.2
 
 ## Core rule
-A foreign `Remote` label is not enough to auto-apply from Pakistan. Auto-submission requires positive evidence that Pakistan-based candidates can be considered, or explicit immigration/relocation support that can bridge the location gap.
+Do not equate `Remote` with worldwide, but also do not require magic wording such as `Pakistan applicants welcome` when ordinary geographic evidence already makes the candidate eligible.
+
+Classify the exact role's hiring geography using the strongest available evidence. Eligibility is a practical hiring judgment, not a literal-string test.
 
 ## Auto-applicable eligibility states
 
 ### PAKISTAN_ELIGIBLE
-Examples:
-- role location is Pakistan,
-- JD explicitly allows candidates in Pakistan,
-- official allowed-country list includes Pakistan.
+Use when the exact role is reasonably tied to Pakistan. Positive evidence includes any of:
+- exact job location is Pakistan / Islamabad / Rawalpindi / Lahore / Karachi or another Pakistan location,
+- official employer/ATS posting states the role is Pakistan-based,
+- direct employer LinkedIn posting itself lists Pakistan as the job location,
+- a verified Pakistan-headquartered employer posts an unrestricted remote role through its own company account,
+- the exact role is clearly attached to a verified Pakistan employing entity/team and has no conflicting country restriction.
+
+A company merely having one office in Pakistan is supporting context, not enough by itself for an unrelated foreign-country role.
+
+### REGION_INCLUDES_PAKISTAN
+Use when the exact role explicitly allows a broad region that ordinarily includes Pakistan and no narrower country list or work-authorization rule conflicts.
+
+Normally inclusive:
+- Asia,
+- South Asia,
+- APAC / Asia-Pacific,
+- APJ / Asia-Pacific-Japan.
+
+Do not treat EMEA, EU, Europe, GCC, North America, LATAM, US, Canada, Australia, India, or another country-specific scope as including Pakistan unless the employer explicitly does so.
+
+If an employer publishes its own definition of APAC/APJ that excludes Pakistan, that employer-specific definition wins.
 
 ### WORLDWIDE_EXPLICIT
 Examples:
@@ -38,49 +57,61 @@ Examples:
 - relocation package/assistance,
 - visa transfer.
 
-## Not positive evidence
-The following may be useful context but do not establish eligibility:
+## Evidence that can support, but should not decide alone
+These signals become meaningful when combined with the exact role's location and provenance:
+- employer has a verified Pakistan legal entity or engineering/hiring operation,
+- employer repeatedly advertises engineering roles located in Pakistan,
+- direct employer posting was intentionally published with Pakistan as its LinkedIn job location,
+- direct employer posting uses APAC/APJ/Asia scope,
+- application accepts Pakistan as the working location and no contradictory gate appears.
 
-- LinkedIn says `Remote`,
-- LinkedIn search location was `Worldwide`,
+Do not discard these signals as worthless; weigh them in context.
+
+## Weak / non-decisive evidence
+The following are weak and must not establish eligibility by themselves:
+- LinkedIn search placement merely because the search location was Pakistan or Worldwide,
+- generic `Remote` label with no geographic context,
 - company is multinational,
-- company has a team in AU/IN/US or other countries,
-- company has offices in many countries,
-- form accepts a Pakistan phone/address,
-- profile country dropdown includes Pakistan,
-- application has no work-auth question,
-- no country exclusion was found,
-- the employer mentions pay transparency for a different country,
-- a recruiter or aggregator labels the role worldwide without employer confirmation.
+- team biographies span several countries,
+- generic office list unrelated to the exact role,
+- profile country dropdown contains Pakistan,
+- no work-auth question appears,
+- no exclusion statement was found,
+- pay-transparency text for an unrelated country,
+- recruiter/aggregator says worldwide without employer confirmation.
+
+## Direct LinkedIn postings do not require an ATS duplicate
+A credible direct-employer LinkedIn posting, including LinkedIn Easy Apply, can be the authoritative requisition source. Do NOT mark eligibility unclear merely because no separate careers-page or ATS copy was found.
+
+Require external verification only when the posting itself is ambiguous, recruiter/aggregator-sourced, internally inconsistent, suspicious, or foreign-country eligibility genuinely remains unclear.
 
 ## Country/region locked examples
 Treat as ineligible unless explicit sponsorship/relocation bridges the gap:
-
-- `Remote - Australia` / `Remote-first in Australia`
-- `Remote - United States`
-- `Remote - India`
-- `Remote - Spain`
-- `Remote - EU`
-- `Remote - EMEA` when Pakistan is not explicitly included
-- `must reside in ...`
-- `right to work in ... required`
+- `Remote - Australia` / `Remote-first in Australia`,
+- `Remote - United States`,
+- `Remote - India`,
+- `Remote - Spain`,
+- `Remote - EU`,
+- `Remote - EMEA` unless employer explicitly defines the eligible region to include Pakistan,
+- `must reside in ...`,
+- `right to work in ... required`.
 
 ## Verification sources, strongest first
 1. official employer JD / ATS requisition,
-2. official employer remote-hiring/location policy,
-3. explicit application screening text,
-4. verified recruiter statement tied to the exact requisition,
-5. LinkedIn source posting.
+2. direct employer LinkedIn posting for the exact role,
+3. official employer remote-hiring/location policy,
+4. exact application screening text,
+5. verified recruiter statement tied to the exact requisition.
 
-Do not use the absence of an exclusion as evidence.
+Company metadata such as headquarters, legal entities, or office locations must be sourced from the supplied posting or verified research. The assessor must not invent or infer it.
 
 ## Unknown state
-If evidence remains unclear after reasonable verification:
+Use `UNCLEAR` only when a material geographic ambiguity remains after applying the contextual rules above. Do not use `UNCLEAR` merely because the JD omitted the words `Pakistan eligible`.
 
-- state = `UNCLEAR`,
+If genuinely unclear after reasonable verification:
 - do not auto-submit,
 - if technically attractive, write it to `relocation-watchlist.jsonl`,
 - continue campaign without asking the user.
 
 ## Redirect recheck
-After an external redirect, re-evaluate location eligibility before creating a profile or generating a resume when practical. If the destination introduces a new location/work-auth restriction, stop immediately.
+After an external redirect, re-evaluate location eligibility before substantial profile creation or resume generation when practical. If the destination introduces a new location/work-auth restriction, stop immediately.

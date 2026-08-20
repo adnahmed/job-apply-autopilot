@@ -1,4 +1,4 @@
-# Parallel Orchestration V5
+# Parallel Orchestration V5.3
 
 ## Goal
 Use OpenCode subagents for independent analysis and file-generation work while keeping browser-side irreversible actions under one coordinator.
@@ -50,8 +50,21 @@ If a domain circuit breaker trips, do not launch new work for that domain during
 9. As resumes finish, coordinator applies sequentially, checking OAuth/redirect identity/eligibility again.
 10. While one ATS application is being completed, another child worker may assess or prepare a different job, but no child may submit.
 
+## Task-prompt hygiene
+The coordinator passes **one directory path, not a pre-baked verdict**. A normal assessor Task prompt should be no more specific than:
+
+```text
+Handle exactly one job-apply-autopilot queue work item: <absolute-or-workspace-relative-path>.
+Load the currently installed job-apply-autopilot skill and follow its current policies.
+Read the evidence files in that work item and canonical facts yourself.
+Write the required outputs directly in that work item.
+Do not touch any other job or global ledger.
+```
+
+Do not inject claims such as company headquarters, local entity presence, eligibility interpretation, technical fit, or copied scoring rules into the Task prompt. Put sourced evidence into the work-item files instead. This keeps child workers independent and prevents a long-running coordinator from passing stale policy text after a skill upgrade.
+
 ## File ownership
-Each worker receives exactly one directory path. Never let two workers edit the same job folder.
+Each worker receives exactly one directory path. Packaged subagents are trusted with direct file-write permission, and their behavioral contract limits them to that assigned directory. Never let two workers edit the same job folder.
 
 Safe parallel paths:
 - `.job-apply-autopilot/queue/<job-a>/`
@@ -64,7 +77,7 @@ Unsafe shared writes:
 - `relocation-watchlist.jsonl`
 - `domain-circuit-breakers.jsonl`
 
-Only the coordinator writes those.
+Only the coordinator writes those by contract. Worker `edit` permission is intentionally trusted/unrestricted at the tool layer to avoid Windows/path-canonicalization mismatches; directory ownership is enforced by the worker prompt and coordinator validation.
 
 ## Failure isolation
 A worker failure applies to that work item only. Do not stop other workers unless the failure is a shared-domain automation/security signal reported by the coordinator.
