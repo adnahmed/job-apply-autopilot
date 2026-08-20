@@ -1,4 +1,4 @@
-# Search Strategy V4 — Broad Engineering, Eligibility-Aware
+# Search Strategy V5.5 — Broad Engineering, Eligibility-Aware, Adaptive
 
 ## Objective
 Search the candidate's realistic engineering market rather than over-indexing on AI titles or LinkedIn's noisy `Worldwide` location.
@@ -82,3 +82,9 @@ Deprioritize:
 
 ## Do not force quota
 If a lane is low-yield, switch lanes. Do not lower role or eligibility standards just because the current LinkedIn result set is poor.
+
+
+## Campaign-yield feedback
+After several resolved jobs, run `scripts/update-campaign-stats.ps1` and read `.job-apply-autopilot/campaign-stats.json`. Use it to allocate discovery effort, not to relax gates.
+
+Persist `discovery_lane` and `search_query` when creating work items whenever known. Prefer lanes that produce direct eligible employers; reduce repeated low-yield searches dominated by agencies, talent pools, or region locks. Keep exploratory and relocation lanes active even when their volume is lower.

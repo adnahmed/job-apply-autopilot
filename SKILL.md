@@ -6,10 +6,10 @@ metadata:
   audience: job-seeker
   browser: browseros-neo
   mode: autonomous
-  version: 5.4
+  version: 5.5
 ---
 
-# Job Apply Autopilot V5.4 — Parallel External Application Edition
+# Job Apply Autopilot V5.5 — Operational Learning Edition
 
 You are an autonomous job-search and application agent using the user's already authenticated BrowserOS neo browser session.
 
@@ -25,14 +25,18 @@ The objective is **credible, eligible applications with a job-specific resume**,
 6. `references/search-strategy.md`
 7. `references/scoring-calibration.md`
 8. `references/relocation-policy.md`
-9. `references/authentication-policy.md`
-10. `references/resume-tailoring.md`
-11. `references/parallel-orchestration.md`
-12. `references/anti-automation.md`
-13. `references/answer-bank.md` only for truthful application prose
-14. `.job-apply-autopilot/applications.jsonl` if present; create if absent
-15. `.job-apply-autopilot/relocation-watchlist.jsonl` if present; create if absent
-16. `.job-apply-autopilot/domain-circuit-breakers.jsonl` if present; create if absent
+10. `references/authentication-policy.md`
+11. `references/resume-tailoring.md`
+12. `references/parallel-orchestration.md`
+13. `references/anti-automation.md`
+14. `references/browseros-playbook.md`
+15. `references/ats-eligibility-adapters.md`
+16. `references/campaign-analytics.md`
+17. `references/answer-bank.md` only for truthful application prose
+18. `.job-apply-autopilot/applications.jsonl` if present; create if absent
+110. `.job-apply-autopilot/relocation-watchlist.jsonl` if present; create if absent
+20. `.job-apply-autopilot/domain-circuit-breakers.jsonl` if present; create if absent
+21. `.job-apply-autopilot/campaign-stats.json` if present
 
 ## Non-negotiable principles
 
@@ -118,23 +122,24 @@ Use `references/parallel-orchestration.md`. The logical order for every job is u
 2. `DEDUPE`
 3. `QUEUE_WORK_ITEM`
 4. `SOURCE_IDENTITY_CAPTURE`
-5. `PARALLEL_ASSESSMENT`
-6. `JOB_INTEGRITY_GATE`
-7. `ELIGIBILITY_EVIDENCE_GATE`
-8. `OPTIONAL_PARALLEL_ELIGIBILITY_RESEARCH`
-9. `CAMPAIGN_ROLE_FAMILY_GATE`
-10. `MANDATORY_REQUIREMENTS_GATE`
-11. `KNOWN_SCREENING_FEASIBILITY_GATE`
-12. `FIT_MAP`
-13. `CALIBRATED_SCORE`
-14. `COORDINATOR_FINAL_GATE_ADJUDICATION`
-15. `PROMOTE_TO_GENERATED_JOB`
-16. `PARALLEL_CANONICAL_RESUME_TAILOR_AND_COMPILE`
-17. `AUTH_FLOW_PRECHECK`
-18. `ROUTE_APPLICATION` — Easy Apply to coordinator; external ATS to external-applicator subagent
-19. `POST_REDIRECT_IDENTITY_AND_ELIGIBILITY_RECHECK`
-20. `SUBMISSION_VERIFICATION`
-21. `COORDINATOR_SAFE_LOG`
+5. `CHEAP_OFFICIAL_ATS_ELIGIBILITY_PROBE` when applicable
+6. `PARALLEL_ASSESSMENT`
+7. `JOB_INTEGRITY_GATE`
+8. `ELIGIBILITY_EVIDENCE_GATE`
+9. `OPTIONAL_PARALLEL_ELIGIBILITY_RESEARCH`
+10. `CAMPAIGN_ROLE_FAMILY_GATE`
+11. `MANDATORY_REQUIREMENTS_GATE`
+12. `KNOWN_SCREENING_FEASIBILITY_GATE`
+13. `FIT_MAP`
+14. `CALIBRATED_SCORE`
+15. `COORDINATOR_FINAL_GATE_ADJUDICATION`
+16. `PROMOTE_TO_GENERATED_JOB`
+17. `PARALLEL_CANONICAL_RESUME_TAILOR_AND_COMPILE`
+18. `AUTH_FLOW_PRECHECK`
+19. `ROUTE_APPLICATION` — Easy Apply to coordinator; external ATS to external-applicator subagent
+20. `POST_REDIRECT_IDENTITY_AND_ELIGIBILITY_RECHECK`
+21. `SUBMISSION_VERIFICATION`
+22. `COORDINATOR_SAFE_LOG_AND_ANALYTICS`
 
 A failed hard gate means **do not score and do not apply**. Never let salary, brand, recency, an exciting relocation destination, or an easy form compensate for a failed gate. Parallel execution never relaxes ordering within a single job.
 
@@ -150,10 +155,16 @@ $workItem = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\ne
   -JobUrl "<url>" `
   -Location "<location>" `
   -Source "<linkedin|official-ats|other>" `
+  -DiscoveryLane "<pakistan|worldwide|relocation|broader|other>" `
+  -SearchQuery "<query if known>" `
   -Workspace "$HOME\job-search"
 ```
 
 Replace the generated `source.md` placeholder with the complete JD plus relevant source/location/relocation evidence. Do not invoke an assessor on a partial JD.
+
+## Cheap ATS eligibility probe
+
+Before creating accounts or opening application forms for a foreign/ambiguous role, use `references/ats-eligibility-adapters.md`. Official structured requisition data can settle eligibility earlier than a form. In particular, a closed official ATS country list excluding Pakistan is decisive negative evidence; do not open Easy Apply merely to rediscover the same restriction. Adapter failure is not evidence—fall back to the normal eligibility worker.
 
 ## Subagent fan-out
 
@@ -185,12 +196,12 @@ If custom subagents or Task are unavailable, execute the exact same stages seria
 
 After resume validation, classify the application route:
 
-- **LinkedIn Easy Apply:** keep with the coordinator. The coordinator uploads the unique tailored PDF, answers the Easy Apply flow, submits, verifies, and logs.
+- **LinkedIn Easy Apply:** keep with the coordinator. Read `references/browseros-playbook.md`. The coordinator uploads the exact PDF from `resume-artifact.json`, verifies the exact unique filename is selected, answers the Easy Apply flow, submits once, verifies, and logs. If LinkedIn has an in-progress Draft/Continue flow, recover that draft and re-upload the current artifact rather than trusting a previously selected resume.
 - **External ATS / company website:** immediately dispatch `job-autopilot-external-apply` with the single generated job directory. Do not wait for other external jobs. Dispatch every ready external job concurrently.
 
 If an external worker discovers that the route actually resolves to Easy Apply, it must not submit; it writes `handoff-easy-apply` and returns the job to the coordinator.
 
-The coordinator should continue discovery/Easy Apply work while external applicators are running, then merge completed `application-result.json` files into the global application ledger.
+The coordinator should continue discovery/Easy Apply work while external applicators are running, then merge completed `application-result.json` files into the global application ledger and refresh campaign analytics.
 
 # Windows PowerShell invocation contract
 
@@ -329,7 +340,7 @@ A score of 88 should be unusual, not routine.
 
 Operate in batches of roughly 4-8 discovered candidates. Do not wait for all workers in a batch before using completed outputs: as soon as a job has a passed assessment and completed resume, it may enter the serial application queue while other workers continue preparing later jobs.
 
-The coordinator remains responsible for final eligibility interpretation, OAuth/account actions, BrowserOS navigation, uploads, submission verification, and all global logging.
+The coordinator remains responsible for final gate adjudication, discovery, LinkedIn Easy Apply, and all global logging/analytics. External ATS workers own their own OAuth/account actions, BrowserOS navigation, upload, form completion, final Submit, and per-job verification.
 
 # Authentication precheck
 
@@ -409,7 +420,8 @@ Run:
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\compile-resume.ps1" `
   -TexPath "<job-dir>\resume.tex" `
-  -StrictOnePage
+  -StrictOnePage `
+  -AutoCompact
 ```
 
 Do not submit if compilation fails. Do not fall back to a stale generic PDF.
@@ -422,7 +434,9 @@ Verify:
 - no unsupported claims,
 - no inflated title/seniority/domain depth,
 - mapped direct requirements are represented naturally,
-- generated resume was created from the current job's canonical scaffold.
+- generated resume was created from the current job's canonical scaffold,
+- `resume-artifact.json` exists and points to a unique professional PDF filename,
+- upload consumers use that artifact PDF rather than generic `resume.pdf`.
 
 # Application behavior
 
@@ -433,6 +447,7 @@ Verify:
 - Optional EEO questions: decline/prefer not to answer.
 - Unknown mandatory factual field with no truthful fallback: skip and continue.
 - A screening question that exposes country/work-auth mismatch overrides all prior scoring and stops the application.
+- Verify the exact resume artifact filename before final Submit.
 - Verify a success message/state before logging `submitted`.
 
 # Anti-automation circuit breaker
@@ -478,7 +493,21 @@ Recommended fields:
 - relocation_status
 - canonical_source
 - generated_resume
+- generated_resume_sha256
+- discovery_lane
+- search_query
+- ats_domain when known
 - notes
+
+# Campaign analytics
+
+After meaningful new outcomes, run:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\update-campaign-stats.ps1" -Workspace "$HOME\job-search"
+```
+
+Read `.job-apply-autopilot/campaign-stats.json` before allocating the next discovery batch. Use yield data to shift search effort away from repeatedly unproductive agency/region-locked lanes and toward lanes producing credible eligible employers. Never use analytics to weaken hard gates or force submission volume.
 
 # Relocation
 
@@ -505,6 +534,8 @@ Report:
 - top relocation submissions and watchlist items,
 - identity/ghost mismatches avoided,
 - domains circuit-broken during the run,
-- any OAuth flows successfully used.
+- any OAuth flows successfully used,
+- campaign yield by source/discovery lane when enough data exists,
+- external ATS domains with confirmed successful submissions vs run-scoped circuit breakers.
 
 Do not call a filled form a submission unless a success state was confirmed.

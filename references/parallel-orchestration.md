@@ -1,4 +1,4 @@
-# Parallel Orchestration V5.4
+# Parallel Orchestration V5.5
 
 ## Goal
 Use OpenCode subagents as trusted job workers. Parallelize all independent work, including end-to-end external ATS applications. Keep LinkedIn Easy Apply under the primary coordinator because Easy Apply shares one LinkedIn surface/session and benefits from centralized dedupe/resume-selection control.
@@ -15,7 +15,7 @@ One unclear job per child session. Researches official eligibility/relocation ev
 One approved job per child session. Tailors and compiles the fresh canonical LaTeX resume in that job's unique generated folder.
 
 ### job-autopilot-external-apply
-One approved external-ATS job per child session. Owns its BrowserOS tabs and completes the external application end to end, including OAuth/login, form filling, resume upload, screening questions, final Submit, and confirmation. Writes `application-result.json` in its job folder.
+One approved external-ATS job per child session. Owns its BrowserOS tabs and completes the external application end to end, including OAuth/login, form filling, unique resume-artifact upload, screening questions, final Submit, and confirmation. Writes `application-progress.json` checkpoints and `application-result.json` in its job folder.
 
 ## Coordinator-owned operations
 The primary agent owns:
@@ -59,7 +59,7 @@ Unlimited fan-out does not waive anti-automation rules.
    - LinkedIn Easy Apply -> coordinator queue.
    - External ATS/company site -> immediately dispatch `job-autopilot-external-apply`.
 8. External applicators run concurrently with each other and with ongoing assessment/resume preparation.
-9. Coordinator periodically reads completed `application-result.json` files and safely merges them into `applications.jsonl`.
+9. Coordinator periodically reads completed `application-result.json` files and safely merges them into `applications.jsonl`, then refreshes `campaign-stats.json`.
 10. Continue discovering/preparing while external application tasks are in flight.
 
 ## Task-prompt hygiene

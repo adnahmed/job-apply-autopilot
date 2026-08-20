@@ -1,27 +1,39 @@
-# V5.4 validation additions
+# V5.5 validation
 
-- Packaged assessor/eligibility/resume definitions use `edit: allow`, avoiding Windows relative/canonical path mismatch failures.
-- BrowserOS remains denied for all three subagents; nested Task remains denied.
-- Mandatory requirement policy no longer contradicts itself about a single central ADJACENT requirement.
-- Role-defining ownership/years gaps still hard fail.
-- Task-prompt hygiene forbids coordinator-injected employer/eligibility/fit claims; worker evidence must come from persisted source files.
+## Package invariants
+- Skill metadata version is 5.5.
+- Canonical `.tex` files are unchanged from the prior validated canonical sources.
+- Four trusted hidden subagents are packaged.
+- External ATS applicator retains BrowserOS + final-submit authority and no skill-imposed concurrency cap.
+- LinkedIn Easy Apply remains coordinator-owned.
 
-# V5.2 Validation
+## Operational-learning checks
+- `references/ats-eligibility-adapters.md` exists.
+- `references/browseros-playbook.md` exists.
+- `references/campaign-analytics.md` exists.
+- `scripts/update-campaign-stats.ps1` exists.
+- `scripts/init-workspace.ps1` creates the `domain-circuit-breakers/` marker directory and `campaign-stats.json`.
+- Queue `job.json` supports `discovery_lane` and `search_query`.
+- Promotion carries discovery/source metadata into the generated job.
 
-Validated policy invariants:
-- Pakistan search placement alone is weak evidence.
-- Exact Pakistan job location on a direct employer posting is positive evidence.
-- Verified Pakistan employer/entity tied to an unrestricted remote role can establish Pakistan eligibility.
-- Explicit Asia/APAC/APJ role scope can establish `REGION_INCLUDES_PAKISTAN` unless employer-specific rules conflict.
-- EMEA/EU/US/India/Australia remain non-Pakistan scopes absent explicit bridging evidence.
-- Direct-employer LinkedIn/Easy Apply does not require a duplicate ATS posting.
-- Company HQ/entity facts may not be asserted without supplied or researched evidence.
-- Ambiguous foreign roles still become watchlist rather than auto-submit.
+## Resume artifact checks
+- Compile still requires passed hard gates, complete fit map, complete tailoring audit, zero unsupported terms, and canonical SHA-256 match.
+- `latexmk` failure falls back to two direct `pdflatex` passes.
+- `-AutoCompact` makes at most one controlled layout-only fallback and preserves `resume.precompact.tex`.
+- The compile script creates a unique application-facing filename and `resume-artifact.json` with SHA-256.
+- Browser/application workers are instructed to verify the exact artifact filename before Submit.
 
+## External application checks
+- External worker step budget increased to 120.
+- External worker writes/resumes `application-progress.json` checkpoints.
+- A `submit-clicked` checkpoint requires success verification before another submit attempt.
+- External worker still stops on first spam/automation/429/security signal.
 
-## V5.4 orchestration checks
-- `job-autopilot-external-apply.md` packaged and installed.
-- External applicator has `browseros-neo_*: allow`, `edit: allow`, `task: deny`.
-- Other workers retain BrowserOS deny.
-- No skill-imposed numeric external-application concurrency limit appears in orchestration policy.
-- LinkedIn Easy Apply is explicitly coordinator-owned.
+## Eligibility learning checks
+- Closed official ATS country lists excluding Pakistan are decisive negative evidence.
+- Workable/Ashby adapter failure is not itself negative evidence.
+- `Remote`, generic global-company language, or a form accepting Pakistan remains insufficient by itself.
+
+## Campaign analytics checks
+- Stats script tolerates legacy ledger entries without discovery-lane metadata.
+- Analytics changes search allocation only; it never lowers job gates or forces quota completion.

@@ -1,3 +1,14 @@
+# V5.5 — Operational learning from successful real applications
+
+- Added official ATS eligibility adapter guidance. Workable closed-country lists and Ashby exact-role location data can resolve foreign eligibility before opening forms.
+- Added persistent BrowserOS playbook from successful Conquer/BTSE flows: Easy Apply draft recovery, hidden-input resume upload, exact filename verification, covered-button fallbacks, Lever native setter workaround, and known unavailable CDP DOM methods.
+- Resume compiler now creates a unique professional application PDF plus `resume-artifact.json` SHA-256 manifest; generic `resume.pdf` is compile-only.
+- Added one controlled one-page layout fallback (`resume.precompact.tex`, remove `\vfill`, tighten itemize spacing) and working-pdflatex fallback when latexmk is installed but broken.
+- External ATS worker step budget increased to 120 and now checkpoints `application-progress.json`; re-dispatch resumes safely and verifies any prior `submit-clicked` state before another submit.
+- Added campaign analytics (`update-campaign-stats.ps1`, `campaign-stats.json`) and discovery-lane/search-query metadata to improve search allocation without changing gates.
+- Fixed workspace initialization to actually create the shared `domain-circuit-breakers/` marker directory already referenced by workers.
+- Preserved V5.4 architecture: all ready external ATS applications can run concurrently through trusted subagents; LinkedIn Easy Apply remains coordinator-owned.
+
 # V5.4 changes
 
 - Added trusted `job-autopilot-external-apply` subagent with BrowserOS access and final-submit authority for external ATS/company-site jobs.

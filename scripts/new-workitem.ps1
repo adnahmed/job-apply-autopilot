@@ -6,6 +6,8 @@ param(
     [string]$JobUrl = '',
     [string]$Location = '',
     [string]$Source = '',
+    [string]$DiscoveryLane = '',
+    [string]$SearchQuery = '',
     [string]$Workspace = (Get-Location).Path
 )
 
@@ -31,6 +33,8 @@ $job = [ordered]@{
     location = $Location
     job_url = $JobUrl
     source = $Source
+    discovery_lane = $DiscoveryLane
+    search_query = $SearchQuery
     created_at = (Get-Date).ToUniversalTime().ToString('o')
     status = 'captured-awaiting-source-and-assessment'
 }

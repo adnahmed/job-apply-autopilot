@@ -1,4 +1,4 @@
-# Canonical Per-Job Resume Tailoring V4 — Selection First
+# Canonical Per-Job Resume Tailoring V5.5 — Selection First
 
 ## Goal
 Create a fresh, credible, ATS-readable resume for each accepted job without turning adjacent experience into a new specialist identity.
@@ -118,10 +118,13 @@ If over one page:
 2. remove least relevant bullet,
 3. compress skills,
 4. shorten summary,
-5. reduce spacing slightly,
-6. only then small font adjustments.
+5. run the compile script's controlled compact-layout fallback,
+6. only then make another truthful content cut.
 
-Never shrink into unreadability.
+The compact fallback may remove `\vfill` and tighten itemize spacing within the canonical's already readable range. It must create `resume.precompact.tex` before changing layout. Never shrink into unreadability or silently change factual content.
+
+## Application filename
+The application-facing PDF must have a unique professional filename derived from the exact company + role, for example `Adnan_Ahmed_Khan_Conquer_AI_Software_Engineer.pdf`. Never rely on a generic `resume.pdf` as the file presented to LinkedIn/ATS. The compile script writes `resume-artifact.json` with the exact upload filename/path/hash. Workers must upload that artifact and verify the exact filename is selected before submission.
 
 ## Final audit before upload
 Ask:

@@ -1,4 +1,4 @@
-# Anti-Automation and Circuit-Breaker Policy V5.4
+# Anti-Automation and Circuit-Breaker Policy V5.5
 
 ## Principle
 When a site resists automation, stop pushing. Protect the account/session and move to unaffected jobs. Parallel external ATS execution does not justify retries or bypasses.
@@ -38,3 +38,9 @@ LinkedIn Easy Apply remains coordinator-owned. If LinkedIn starts returning repe
 
 ## ATS-specific
 Do not replay POSTs, synthesize hidden security tokens, or probe anti-bot endpoints merely to force submission after an ATS rejects automation.
+
+
+## Domain health observations
+A successful submission may be recorded as positive operational evidence in per-job `application-result.json` and campaign analytics. This does not disable future circuit breakers: a domain can be healthy for one application and later resist automation.
+
+Do not pre-emptively block an entire ATS vendor just because one employer on that vendor behaved differently, unless the observed signal is clearly vendor/domain-wide. Circuit-breaker markers are run-scoped operational state, not permanent reputation labels.

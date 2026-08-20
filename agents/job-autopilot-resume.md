@@ -3,7 +3,7 @@ description: Tailor and compile exactly one already-approved job-specific LaTeX 
 mode: subagent
 hidden: true
 temperature: 0.1
-steps: 18
+steps: 30
 permission:
   read: allow
   glob: allow
@@ -38,6 +38,6 @@ Tailoring rules:
 
 Write `tailoring-audit.json` completely, including every material rewrite and its canonical support IDs, with `unsupported_terms_added: []` before compilation.
 
-Compile using `pwsh -NoProfile -ExecutionPolicy Bypass -File <skill-root>\scripts\compile-resume.ps1 -TexPath <job-dir>\resume.tex -StrictOnePage`. If compilation fails, correct LaTeX/layout truthfully and retry only compilation; never fall back to an older PDF.
+Compile using `pwsh -NoProfile -ExecutionPolicy Bypass -File <skill-root>\scripts\compile-resume.ps1 -TexPath <job-dir>\resume.tex -StrictOnePage -AutoCompact`. The script may perform one controlled layout-only compact fallback and will write `resume-artifact.json` plus a unique professional application PDF. Upload consumers must use the artifact PDF, not generic `resume.pdf`. If compilation still fails, correct content/layout truthfully; never fall back to an older PDF.
 
 Never use BrowserOS, never fill an ATS form, never upload a resume, never write applications.jsonl, and never submit anything.

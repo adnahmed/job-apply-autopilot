@@ -30,7 +30,7 @@ foreach ($name in $names) {
         continue
     }
     if ($text -notmatch '(?m)^\s{2}edit:\s*allow\s*$') {
-        Write-Error "V5.3 TRUSTED WRITE PERMISSION MISSING in $path"
+        Write-Error "TRUSTED WRITE PERMISSION MISSING in $path"
         $failed = $true
         continue
     }

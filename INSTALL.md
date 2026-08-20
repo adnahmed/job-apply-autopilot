@@ -1,13 +1,13 @@
-# Install Job Apply Autopilot V5.4
+# Install Job Apply Autopilot V5.5
 
-V5.4 uses trusted OpenCode subagents for parallel assessment, eligibility research, resume generation, and end-to-end external ATS applications. External applications have no skill-imposed numeric concurrency cap; LinkedIn Easy Apply remains coordinator-owned.
+V5.5 keeps the V5.4 trusted parallel architecture and adds operational learning from successful/failed real applications: official ATS eligibility probes, unique application-facing resume filenames, BrowserOS recipes, external-worker checkpoints, controlled one-page compaction, and campaign-yield analytics.
 
 ## 1. Replace the installed skill
 
-Extract `job-apply-autopilot-v5.4.zip`, then run PowerShell from the extracted folder:
+Extract `job-apply-autopilot-v5.5.zip`, then run PowerShell from the extracted folder:
 
 ```powershell
-$src = ".\job-apply-autopilot-v5.4"
+$src = ".\job-apply-autopilot-v5.5"
 $dst = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 if (Test-Path $dst) {
@@ -16,90 +16,58 @@ if (Test-Path $dst) {
 }
 
 Copy-Item -Recurse -Force $src $dst
-
-# Remove Mark-of-the-Web from downloaded/extracted skill files.
 Get-ChildItem -LiteralPath $dst -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
 ```
 
-Expected skill file:
+Do **not** delete `$HOME\job-search\.job-apply-autopilot`; keep the existing queue, ledgers, watchlist and generated artifacts.
 
-```text
-~/.config/opencode/skills/job-apply-autopilot/SKILL.md
-```
+## 2. Install/reinstall the trusted subagents
 
-## 2. Install the packaged subagents
-
-> Windows rule: always run packaged `.ps1` files as `pwsh -NoProfile -ExecutionPolicy Bypass -File ...`. `-ExecutionPolicy` belongs to `pwsh`; adding it after `& script.ps1` does not bypass policy.
-
-
-V5.4 ships four hidden subagents under `agents/`. Install them globally:
+Always invoke packaged PowerShell scripts through `pwsh`:
 
 ```powershell
 $skill = "$HOME\.config\opencode\skills\job-apply-autopilot"
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\install-subagents.ps1"
-```
-
-This installs:
-
-```text
-~/.config/opencode/agents/job-autopilot-assessor.md
-~/.config/opencode/agents/job-autopilot-eligibility.md
-~/.config/opencode/agents/job-autopilot-resume.md
-~/.config/opencode/agents/job-autopilot-external-apply.md
-```
-
-They are `hidden: true`, so they are intended for automatic Task invocation by the primary agent rather than normal `@` autocomplete. Restart OpenCode after installing them so the new agent definitions are loaded.
-
-V5.4 intentionally gives all four packaged workers `edit: allow`. The external applicator additionally has BrowserOS access and final-submit authority for its assigned external ATS job. Assessor, eligibility, and resume workers still deny BrowserOS. Nested Task calls remain denied for every worker.
-
-Verify the installation:
-
-```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\verify-subagents.ps1"
 ```
 
+Installed hidden workers:
+
+```text
+job-autopilot-assessor
+job-autopilot-eligibility
+job-autopilot-resume
+job-autopilot-external-apply
+```
+
+All four remain trusted writers for their assigned job artifacts. `job-autopilot-external-apply` additionally has BrowserOS and final-submit authority for external ATS/company-site applications. LinkedIn Easy Apply stays coordinator-owned. External ATS workers have no skill-imposed concurrency cap.
+
+Restart OpenCode after installing the agent definitions.
+
 ## 3. OpenCode permissions
 
-If BrowserOS neo already works, keep your existing MCP connection. Merge this permission fragment into `opencode.json` if needed:
+If BrowserOS neo already works, keep the existing MCP configuration. The primary agent needs the skill, Task workers, and BrowserOS:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "permission": {
-    "skill": {
-      "job-apply-autopilot": "allow"
-    },
-    "task": {
-      "job-autopilot-*": "allow"
-    },
+    "skill": { "job-apply-autopilot": "allow" },
+    "task": { "job-autopilot-*": "allow" },
     "browseros-neo_*": "allow"
   }
 }
 ```
 
-The assessor, eligibility, and resume workers deny BrowserOS. `job-autopilot-external-apply` explicitly allows BrowserOS for external ATS/company-site jobs. LinkedIn Easy Apply remains coordinator-owned.
-
 ## 4. Verify canonical resumes
 
 ```powershell
-$skill = "$HOME\.config\opencode\skills\job-apply-autopilot"
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\verify-canonical.ps1"
 ```
 
-Both canonical `.tex` files should report `OK`.
+Both canonical `.tex` sources should report `OK`.
 
-## 5. Check MiKTeX CLI
-
-```powershell
-pdflatex --version
-latexmk -v
-```
-
-If `latexmk` is unavailable/broken, the compile script falls back to two direct `pdflatex` passes.
-
-## 6. Keep your existing job-search workspace
-
-Do not wipe earlier application history. Initialize/upgrade the runtime directories:
+## 5. Initialize/upgrade the workspace
 
 ```powershell
 mkdir "$HOME\job-search" -Force
@@ -107,7 +75,7 @@ cd "$HOME\job-search"
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\init-workspace.ps1" -Workspace "$HOME\job-search"
 ```
 
-Runtime structure now includes a parallel work queue:
+V5.5 runtime structure:
 
 ```text
 .job-apply-autopilot/
@@ -117,69 +85,109 @@ Runtime structure now includes a parallel work queue:
       source.md
       assessment.json
       fit-map.json
-      eligibility-research.json   # optional
+      eligibility-research.json      # optional
   generated/
     <job-id>-<slug>/
+      job.json
       assessment.json
       fit-map.json
       tailoring-audit.json
       canonical-source.tex
       resume.tex
-      resume.pdf
-      resume.log
-      application-result.json     # external ATS workers
-  domain-circuit-breakers/        # reactive per-domain markers
+      resume.pdf                      # compile intermediate
+      resume.precompact.tex           # only if compact fallback used
+      Adnan_Ahmed_Khan_<Company>_<Role>.pdf
+      resume-artifact.json            # exact PDF path/name/hash to upload
+      application-progress.json       # external ATS checkpoint
+      application-result.json         # external ATS terminal result
+  domain-circuit-breakers/            # reactive marker files
   applications.jsonl
   relocation-watchlist.jsonl
   domain-circuit-breakers.jsonl
+  campaign-stats.json
 ```
 
-## 7. How V5.4 parallelizes
+## 6. Resume compilation
 
-The coordinator discovers/dedupes jobs and creates isolated work items. Independent stages fan out across jobs. Once a validated tailored resume exists, routing splits:
+MiKTeX CLI should expose `pdflatex`; `latexmk` is optional. V5.5 automatically falls back to two direct `pdflatex` passes if `latexmk` exists but fails.
+
+```powershell
+pdflatex --version
+latexmk -v
+```
+
+Resume workers call:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\compile-resume.ps1" `
+  -TexPath "<generated-job>\resume.tex" `
+  -StrictOnePage `
+  -AutoCompact
+```
+
+If a first compile is over one page, `-AutoCompact` permits one layout-only fallback learned from the successful Conquer run: preserve `resume.precompact.tex`, remove `\vfill`, and tighten itemized spacing to 2pt. It never changes factual content. If the result is still over one page, compilation fails rather than shrinking indefinitely.
+
+The application-facing file is **not** generic `resume.pdf`. The compiler creates a unique professional file plus `resume-artifact.json`; LinkedIn/ATS workers must upload that exact artifact.
+
+## 7. ATS eligibility adapters
+
+Read-only adapter guidance lives in:
 
 ```text
-Browser discovery / dedupe (coordinator)
-        ↓
-queue independent jobs
-        ↓
-assess / eligibility / resume workers fan out
-        ↓
-validated tailored resumes
-        ├── LinkedIn Easy Apply → coordinator
-        └── External ATS/company site → one external applicator per ready job
-                                      (dispatch ALL ready jobs concurrently)
+references/ats-eligibility-adapters.md
 ```
 
-There is **no skill-imposed numeric limit** on concurrent external ATS application workers. OpenCode/runtime/system capacity is the natural limit. Each external worker owns one job, its own BrowserOS tabs, OAuth/login/form/upload/Submit flow, and writes `application-result.json` in that job directory.
+Observed high-value patterns include:
 
-Shared JSONL ledgers are still coordinator-written to avoid append races. A reactive domain circuit-breaker marker is checked immediately before final Submit; it does not impose a pre-emptive per-domain concurrency cap.
+- Workable public widget data: exact requisition repeated across a closed country list.
+- Ashby public job-board posting API: exact role location such as `Remote (Europe)`.
+- Lever: exact job location/scope plus screening evidence; an address field accepting Pakistan is not by itself eligibility proof.
 
-## 8. OAuth behavior
+Use official structured evidence before opening an application when it can settle the geographic gate cheaply.
 
-Authentication order remains:
+## 8. BrowserOS playbook
+
+Real-world browser techniques are persisted in:
 
 ```text
-existing ATS session
-→ LinkedIn OAuth / Apply with LinkedIn
-→ Import profile/resume from LinkedIn
-→ other already-authenticated OAuth
-→ generate/autofill password account
+references/browseros-playbook.md
 ```
 
-OAuth success never substitutes for geographic eligibility evidence.
+It covers:
 
-## 9. Recommended command
+- recovering LinkedIn Easy Apply drafts,
+- surfacing hidden file inputs,
+- verifying the unique selected resume filename,
+- covered-button interaction fallbacks,
+- Lever field setter workaround,
+- known unavailable CDP DOM methods,
+- timeout behavior.
 
-The simple command remains enough:
+## 9. External ATS checkpointing
+
+`job-autopilot-external-apply` now has a larger step budget and maintains `application-progress.json` after important stages. If a worker is re-dispatched, it resumes from the last verified state. If the last checkpoint is `submit-clicked`, it verifies success before ever clicking Submit again.
+
+This prevents a worker step limit from causing duplicate submissions or forcing the coordinator to reconstruct the entire flow.
+
+## 10. Campaign analytics
+
+Refresh analytics after meaningful new outcomes:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\update-campaign-stats.ps1" `
+  -Workspace "$HOME\job-search"
+```
+
+This writes:
 
 ```text
-Use job-apply-autopilot. Apply to jobs.
+.job-apply-autopilot/campaign-stats.json
 ```
 
-V5 should automatically use its packaged subagents when Task is available. If Task is unavailable, it performs the same stages serially.
+New work items can record `-DiscoveryLane` and `-SearchQuery`; that metadata is carried into generated job folders. Analytics can shift future discovery effort toward productive lanes, but never relaxes integrity, eligibility, truth, or fit gates.
 
+## 11. Recommended command
 
-## V5.4 external ATS parallelism
-
-The installer now installs four hidden subagents, including `job-autopilot-external-apply`. External ATS/company-site applications may be submitted end to end by those workers with no skill-imposed numeric concurrency cap. LinkedIn Easy Apply remains coordinator-owned.
+```text
+Use job-apply-autopilot. Continue applying to jobs.
+```

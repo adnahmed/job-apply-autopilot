@@ -34,6 +34,18 @@ $texPath = & $pwsh -NoProfile -ExecutionPolicy Bypass -File $scaffold -JobId ([s
 if (-not $texPath) { throw 'Resume scaffold did not return a path.' }
 $generatedDir = Split-Path -Parent ([string]$texPath)
 
+# Carry discovery/source metadata forward so campaign analytics survives promotion.
+$generatedJobPath = Join-Path $generatedDir 'job.json'
+if (Test-Path -LiteralPath $generatedJobPath) {
+    $generatedJob = Get-Content -LiteralPath $generatedJobPath -Raw | ConvertFrom-Json
+    foreach ($name in @('source','discovery_lane','search_query')) {
+        if ($job.PSObject.Properties.Name -contains $name) {
+            $generatedJob | Add-Member -NotePropertyName $name -NotePropertyValue $job.$name -Force
+        }
+    }
+    $generatedJob | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $generatedJobPath -Encoding UTF8
+}
+
 Copy-Item -LiteralPath $assessmentPath -Destination (Join-Path $generatedDir 'assessment.json') -Force
 Copy-Item -LiteralPath $fitPath -Destination (Join-Path $generatedDir 'fit-map.json') -Force
 Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $generatedDir 'source.md') -Force
