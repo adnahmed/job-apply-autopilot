@@ -1,3 +1,12 @@
+# V5.11.1 — Non-Interactive Autonomy Patch
+
+- Coordinator never asks the user to choose/confirm/clarify routine campaign decisions.
+- Question/interactive-choice tools are prohibited for the campaign.
+- For benign non-factual choices: choose `Recommended` when present, otherwise the first safe option.
+- Factual screening questions remain truth/evidence-bound; unsupported facts cause N/A/decline/skip, never fabrication or user prompting.
+- CAPTCHA/MFA/security/manual-required blockers become terminal per-job/domain states while other jobs continue; no in-chat interruption.
+- Applied the same deterministic policy to every packaged subagent.
+
 # V5.11 — Fast Path Edition
 
 - Reworked orchestration around **first useful application latency**: ready/resume/assessment work runs before web-heavy eligibility/evidence research. Fast and slow workers must not share one blocking wave.

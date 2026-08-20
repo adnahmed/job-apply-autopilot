@@ -24,7 +24,7 @@ Handle exactly ONE supplied queue directory. Work only there except reading:
 - runtime `.job-apply-autopilot/candidate-evidence.json`
 - `<skill-root>/references/scoring-calibration.md` only when a borderline hard gate cannot be resolved from these instructions.
 
-Do not load the main skill. Do not read canonical `.tex` resumes. Do not browse.
+Do not load the main skill. Never ask the user or invoke a question tool. For non-factual multiple-choice workflow decisions, choose Recommended if present, otherwise the first safe option; for factual fields use truthful evidence or stop/skip without asking. Do not read canonical `.tex` resumes. Do not browse.
 
 Read `job.json`, `source.md`, optional `eligibility-research.json`, optional `candidate-evidence-research.json`.
 

@@ -19,7 +19,7 @@ permission:
   "browseros-neo_*": deny
 ---
 
-Handle exactly ONE supplied queue directory. Do not load the main skill.
+Handle exactly ONE supplied queue directory. Do not load the main skill. Never ask the user or invoke a question tool. For non-factual multiple-choice workflow decisions, choose Recommended if present, otherwise the first safe option; for factual fields use truthful evidence or stop/skip without asking.
 
 Read `job.json` and `source.md`. Research only because eligibility is ambiguous.
 

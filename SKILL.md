@@ -1,10 +1,10 @@
 ---
 name: job-apply-autopilot
 description: "Fast autonomous job discovery, truthful fit triage, tailored resumes, and submission using BrowserOS. Optimized for low first-application latency: fast path first, research only when decision-changing."
-version: 5.11
+version: 5.11.1
 ---
 
-# Job Apply Autopilot V5.11 — Fast Path Edition
+# Job Apply Autopilot V5.11.1 — Fast Path + Non-Interactive Edition
 
 Goal: **maximize credible interview opportunities per unit time**. Preserve truth, eligibility, anti-automation safety, and job-specific resumes. Everything else is subordinate to speed.
 
@@ -29,6 +29,17 @@ During a normal autonomous run:
 - do **not** wait for slow research jobs before routing a job that is already ready.
 
 Persist concise machine state; keep reasoning ephemeral.
+
+### Non-interactive autonomy
+
+Never stop to ask the user to choose, confirm, clarify, or approve routine campaign decisions. Do not invoke any question/interactive-choice tool.
+
+When a non-factual choice has multiple safe options:
+1. choose the option explicitly marked **Recommended**;
+2. otherwise choose the first listed/visible safe option;
+3. continue immediately.
+
+This applies to routing, authentication alternatives, benign application preferences, save/continue dialogs, and other workflow choices. For factual screening fields (work authorization, location, years, salary, identity, eligibility, etc.), choose the truthful evidence-supported answer; if no truthful supported answer exists and no legitimate N/A/decline option works, skip that application rather than asking the user or fabricating. Human intervention is only a terminal status for CAPTCHA/MFA/security/manual-required blockers; record it and continue other jobs instead of asking in-chat.
 
 ## 2. Workspace + continuation
 

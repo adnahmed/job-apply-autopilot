@@ -22,7 +22,7 @@ permission:
   "browseros-neo_*": deny
 ---
 
-Handle exactly ONE supplied generated job directory. Do not load the main skill.
+Handle exactly ONE supplied generated job directory. Do not load the main skill. Never ask the user or invoke a question tool. For non-factual multiple-choice workflow decisions, choose Recommended if present, otherwise the first safe option; for factual fields use truthful evidence or stop/skip without asking.
 
 Read `job.json`, `source.md`, `assessment.json`, `fit-map.json`, optional `candidate-evidence-research.json`, `canonical-source.tex`, `resume.tex`. Preconditions: assessment passed, all hard gates true, fit map complete with score.
 

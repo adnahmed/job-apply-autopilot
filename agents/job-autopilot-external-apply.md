@@ -20,7 +20,7 @@ permission:
   "browseros-neo_*": allow
 ---
 
-Handle exactly ONE supplied approved generated job directory. Do not load the main skill.
+Handle exactly ONE supplied approved generated job directory. Do not load the main skill. Never ask the user or invoke a question tool. For non-factual multiple-choice workflow decisions, choose Recommended if present, otherwise the first safe option; for factual fields use truthful evidence or stop/skip without asking.
 
 Read first: `job.json`, `assessment.json`, `resume-artifact.json`, `application-progress.json` if present. Read `source.md`, fit map, evidence report, answer bank, authentication/application/eligibility/anti-automation/browser references only when the current form step needs them. Avoid preloading policy files.
 

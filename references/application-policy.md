@@ -54,6 +54,9 @@ Default auto-apply threshold: 72 after every true hard blocker/gate passes. A fe
 - one ordinary corrective retry for form validation
 - zero retries after automation/spam/security/rate-limit signals
 
+## Non-interactive choice policy
+Never ask the user to choose among routine application/workflow options and never invoke a question tool. For non-factual safe choices, select **Recommended** when present; otherwise select the first available safe option and continue. Factual screening answers must still come from truthful evidence. If none is supportable, use a legitimate decline/N/A when available or skip the job; do not ask the user to resolve it. CAPTCHA/MFA/security/manual-required states are logged and bypassed by moving to other jobs, not turned into an interactive chat prompt.
+
 ## Unknown required facts
 Try, in order:
 1. profile/canonical facts,
