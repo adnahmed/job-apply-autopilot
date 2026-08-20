@@ -1,4 +1,4 @@
-# Search Strategy V5.5 — Broad Engineering, Eligibility-Aware, Adaptive
+# Search Strategy V5.6 — Broad Engineering, Eligibility-Aware, Adaptive
 
 ## Objective
 Search the candidate's realistic engineering market rather than over-indexing on AI titles or LinkedIn's noisy `Worldwide` location.

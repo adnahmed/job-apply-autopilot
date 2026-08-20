@@ -1,7 +1,7 @@
-# V5.5 validation
+# V5.6 validation
 
 ## Package invariants
-- Skill metadata version is 5.5.
+- Skill metadata version is 5.6.
 - Canonical `.tex` files are unchanged from the prior validated canonical sources.
 - Four trusted hidden subagents are packaged.
 - External ATS applicator retains BrowserOS + final-submit authority and no skill-imposed concurrency cap.
@@ -37,3 +37,11 @@
 ## Campaign analytics checks
 - Stats script tolerates legacy ledger entries without discovery-lane metadata.
 - Analytics changes search allocation only; it never lowers job gates or forces quota completion.
+
+## V5.6 bootstrap checks
+
+- `SKILL.md` contains deterministic workspace resolution and forbids home-directory scanning during bootstrap.
+- Generated runtime path is explicitly `<workspace>/.job-apply-autopilot/generated`.
+- `scripts/session-state.ps1` exists and produces a single JSON state snapshot without recursively scanning the user home directory.
+- Reference policies are lazy-loaded by stage rather than mandatory startup reads.
+- `answer-bank.md`, BrowserOS playbook, ATS/application/auth policies are not mandatory coordinator startup reads.

@@ -1,13 +1,13 @@
-# Install Job Apply Autopilot V5.5
+# Install Job Apply Autopilot V5.6
 
-V5.5 keeps the V5.4 trusted parallel architecture and adds operational learning from successful/failed real applications: official ATS eligibility probes, unique application-facing resume filenames, BrowserOS recipes, external-worker checkpoints, controlled one-page compaction, and campaign-yield analytics.
+V5.6 keeps the trusted parallel/external-apply architecture and V5.5 operational learning, while fixing continuation startup thrash: deterministic workspace resolution, one compact session-state snapshot, and lazy stage-specific policy loading.
 
 ## 1. Replace the installed skill
 
-Extract `job-apply-autopilot-v5.5.zip`, then run PowerShell from the extracted folder:
+Extract `job-apply-autopilot-v5.6.zip`, then run PowerShell from the extracted folder:
 
 ```powershell
-$src = ".\job-apply-autopilot-v5.5"
+$src = ".\job-apply-autopilot-v5.6"
 $dst = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 if (Test-Path $dst) {
@@ -75,7 +75,15 @@ cd "$HOME\job-search"
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\init-workspace.ps1" -Workspace "$HOME\job-search"
 ```
 
-V5.5 runtime structure:
+For continuation sessions, V5.6 uses one compact state snapshot instead of scanning home folders or reading every policy up front:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\session-state.ps1" -Workspace "$HOME\job-search"
+```
+
+The coordinator treats `$HOME\job-search\.job-apply-autopilot` as the single runtime tree. It must not guess alternate `jobs`, `jobs2`, `job-apply-autopilot`, or `job-search\generated` locations.
+
+V5.6 runtime structure:
 
 ```text
 .job-apply-autopilot/
@@ -109,7 +117,7 @@ V5.5 runtime structure:
 
 ## 6. Resume compilation
 
-MiKTeX CLI should expose `pdflatex`; `latexmk` is optional. V5.5 automatically falls back to two direct `pdflatex` passes if `latexmk` exists but fails.
+MiKTeX CLI should expose `pdflatex`; `latexmk` is optional. V5.6 automatically falls back to two direct `pdflatex` passes if `latexmk` exists but fails.
 
 ```powershell
 pdflatex --version

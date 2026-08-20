@@ -1,4 +1,4 @@
-# Campaign Analytics V5.5
+# Campaign Analytics V5.6
 
 ## Purpose
 Use accumulated application outcomes to spend discovery effort where credible eligible jobs are actually found. Analytics may change search allocation, never truth/eligibility/fit standards.

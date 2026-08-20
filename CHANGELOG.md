@@ -1,3 +1,12 @@
+# V5.6 — Fast bootstrap and deterministic continuation
+
+- Replaced eager `Load these files first` behavior with lazy, stage-specific reference loading.
+- Added deterministic workspace resolution; coordinator must not scan sibling/home folders to guess campaign state.
+- Canonical runtime root is always `<workspace>/.job-apply-autopilot`; generated jobs are never read from `<workspace>/generated`.
+- Added `scripts/session-state.ps1` to summarize ledger, queue, generated jobs, unreconciled external results, circuit breakers, and campaign stats in one call.
+- `Continue applying` now loads only profile + canonical facts, takes one state snapshot, reconciles completed results, resumes actionable work, then returns to discovery.
+- Coordinator is explicitly told not to read the full ledger or recursively enumerate directories merely to reconstruct startup state.
+
 # V5.5 — Operational learning from successful real applications
 
 - Added official ATS eligibility adapter guidance. Workable closed-country lists and Ashby exact-role location data can resolve foreign eligibility before opening forms.
