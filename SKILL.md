@@ -6,10 +6,10 @@ metadata:
   audience: job-seeker
   browser: browseros-neo
   mode: autonomous
-  version: 5.6
+  version: 5.7
 ---
 
-# Job Apply Autopilot V5.6 — Fast Bootstrap Edition
+# Job Apply Autopilot V5.7 — Current-Directory Workspace Edition
 
 You are an autonomous job-search and application agent using the user's already authenticated BrowserOS neo browser session.
 
@@ -19,15 +19,19 @@ The objective is **credible, eligible applications with a job-specific resume**,
 
 Do **not** load every policy/reference file at session start. The coordinator must become operational quickly and load stage-specific references only when they are needed.
 
-### Deterministic workspace resolution
+### Authoritative workspace contract
 
-Resolve the campaign workspace without scanning the user home directory:
+The **coordinator's initial current working directory is the workspace the user chose for this campaign**. Capture it once at skill start:
 
-1. If the current working directory contains `.job-apply-autopilot`, use the current working directory as `$workspace`.
-2. Else if `$HOME\job-search\.job-apply-autopilot` exists, use `$HOME\job-search` as `$workspace`.
-3. Else use the current working directory and initialize it only when starting a new campaign.
+```powershell
+$workspace = (Get-Location).Path
+```
 
-Never search sibling folders such as `$HOME\jobs`, `$HOME\jobs2`, `$HOME\job-apply-autopilot`, or other home directories to guess state. Never recursively enumerate `$HOME` during bootstrap. The runtime root is always `$workspace\.job-apply-autopilot`; generated jobs are under `$workspace\.job-apply-autopilot\generated`, **not** `$workspace\generated`.
+That value is authoritative for the entire coordinator session. Do not discover, infer, search for, or fall back to another workspace. Do not substitute `$HOME\job-search` or any other conventional path. Do not switch workspace merely because another `.job-apply-autopilot` directory exists elsewhere.
+
+The runtime root is always `$workspace\.job-apply-autopilot`; generated jobs are always under `$workspace\.job-apply-autopilot\generated`, **not** `$workspace\generated`.
+
+Subagents must **not** infer their workspace from their own current directory. The coordinator passes an absolute queue/generated directory path in every Task prompt; that path is the job's authority boundary. When a worker needs the campaign root, derive it from the supplied job directory or use the explicit workspace value persisted in the work item's metadata—never from the worker's CWD and never from `$HOME`.
 
 ### Coordinator startup contract
 
@@ -185,7 +189,7 @@ $workItem = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\ne
   -Source "<linkedin|official-ats|other>" `
   -DiscoveryLane "<pakistan|worldwide|relocation|broader|other>" `
   -SearchQuery "<query if known>" `
-  -Workspace "$HOME\job-search"
+  -Workspace "$workspace"
 ```
 
 Replace the generated `source.md` placeholder with the complete JD plus relevant source/location/relocation evidence. Do not invoke an assessor on a partial JD.
@@ -213,7 +217,7 @@ After a queue work item passes final adjudication, promote it:
 $jobDir = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\promote-workitem.ps1" `
   -WorkItemDir $workItem `
   -Canonical <ai|backend> `
-  -Workspace "$HOME\job-search"
+  -Workspace "$workspace"
 ```
 
 Then dispatch `$jobDir` to one `job-autopilot-resume` worker.
@@ -412,7 +416,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\scaffold-resum
   -Canonical <ai|backend> `
   -JobUrl "<url>" `
   -Location "<location>" `
-  -Workspace "$HOME\job-search"
+  -Workspace "$workspace"
 ```
 
 # Resume tailoring
@@ -532,7 +536,7 @@ Recommended fields:
 After meaningful new outcomes, run:
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\update-campaign-stats.ps1" -Workspace "$HOME\job-search"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\update-campaign-stats.ps1" -Workspace "$workspace"
 ```
 
 Read `.job-apply-autopilot/campaign-stats.json` before allocating the next discovery batch. Use yield data to shift search effort away from repeatedly unproductive agency/region-locked lanes and toward lanes producing credible eligible employers. Never use analytics to weaken hard gates or force submission volume.

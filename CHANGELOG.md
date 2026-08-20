@@ -1,3 +1,12 @@
+# V5.7.0 — Current-Directory Workspace Edition
+
+- Makes the coordinator's initial current working directory the single authoritative campaign workspace.
+- Removes the `$HOME\job-search` fallback and all orchestration examples that hardcoded that convention.
+- Forbids workspace discovery/scanning entirely during continuation.
+- Defines runtime root as `<coordinator-cwd>\.job-apply-autopilot`.
+- Requires subagents to use the absolute queue/generated job path passed by the coordinator rather than their own CWD.
+- Keeps scripts portable: `-Workspace` receives the captured coordinator workspace; scripts already default to `(Get-Location).Path` when invoked directly.
+
 # V5.6 — Fast bootstrap and deterministic continuation
 
 - Replaced eager `Load these files first` behavior with lazy, stage-specific reference loading.

@@ -1,4 +1,4 @@
-# Anti-Automation and Circuit-Breaker Policy V5.6
+# Anti-Automation and Circuit-Breaker Policy V5.7
 
 ## Principle
 When a site resists automation, stop pushing. Protect the account/session and move to unaffected jobs. Parallel external ATS execution does not justify retries or bypasses.

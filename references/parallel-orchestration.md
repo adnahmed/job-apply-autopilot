@@ -1,4 +1,4 @@
-# Parallel Orchestration V5.6
+# Parallel Orchestration V5.7
 
 ## Goal
 Use OpenCode subagents as trusted job workers. Parallelize all independent work, including end-to-end external ATS applications. Keep LinkedIn Easy Apply under the primary coordinator because Easy Apply shares one LinkedIn surface/session and benefits from centralized dedupe/resume-selection control.

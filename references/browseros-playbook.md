@@ -1,4 +1,4 @@
-# BrowserOS Operational Playbook V5.6
+# BrowserOS Operational Playbook V5.7
 
 ## Purpose
 Persist browser techniques that have already succeeded in real applications so workers do not rediscover them by trial and error.

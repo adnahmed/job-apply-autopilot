@@ -1,4 +1,4 @@
-# Canonical Per-Job Resume Tailoring V5.6 — Selection First
+# Canonical Per-Job Resume Tailoring V5.7 — Selection First
 
 ## Goal
 Create a fresh, credible, ATS-readable resume for each accepted job without turning adjacent experience into a new specialist identity.

@@ -1,13 +1,13 @@
-# Install Job Apply Autopilot V5.6
+# Install Job Apply Autopilot V5.7
 
-V5.6 keeps the trusted parallel/external-apply architecture and V5.5 operational learning, while fixing continuation startup thrash: deterministic workspace resolution, one compact session-state snapshot, and lazy stage-specific policy loading.
+V5.7 keeps the trusted parallel/external-apply architecture and V5.5 operational learning, while fixing continuation startup thrash: deterministic workspace resolution, one compact session-state snapshot, and lazy stage-specific policy loading.
 
 ## 1. Replace the installed skill
 
-Extract `job-apply-autopilot-v5.6.zip`, then run PowerShell from the extracted folder:
+Extract `job-apply-autopilot-v5.7.zip`, then run PowerShell from the extracted folder:
 
 ```powershell
-$src = ".\job-apply-autopilot-v5.6"
+$src = ".\job-apply-autopilot-v5.7"
 $dst = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 if (Test-Path $dst) {
@@ -19,7 +19,7 @@ Copy-Item -Recurse -Force $src $dst
 Get-ChildItem -LiteralPath $dst -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
 ```
 
-Do **not** delete `$HOME\job-search\.job-apply-autopilot`; keep the existing queue, ledgers, watchlist and generated artifacts.
+Do **not** delete the `.job-apply-autopilot` directory inside your chosen workspace; keep the existing queue, ledgers, watchlist and generated artifacts.
 
 ## 2. Install/reinstall the trusted subagents
 
@@ -70,20 +70,22 @@ Both canonical `.tex` sources should report `OK`.
 ## 5. Initialize/upgrade the workspace
 
 ```powershell
-mkdir "$HOME\job-search" -Force
-cd "$HOME\job-search"
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\init-workspace.ps1" -Workspace "$HOME\job-search"
+# Run this from the workspace directory you chose for the campaign.
+# The current directory is the workspace; do not substitute a hardcoded path.
+$workspace = (Get-Location).Path
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\init-workspace.ps1" -Workspace "$workspace"
 ```
 
-For continuation sessions, V5.6 uses one compact state snapshot instead of scanning home folders or reading every policy up front:
+For continuation sessions, V5.7 uses one compact state snapshot instead of scanning home folders or reading every policy up front:
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\session-state.ps1" -Workspace "$HOME\job-search"
+$workspace = (Get-Location).Path
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\session-state.ps1" -Workspace "$workspace"
 ```
 
-The coordinator treats `$HOME\job-search\.job-apply-autopilot` as the single runtime tree. It must not guess alternate `jobs`, `jobs2`, `job-apply-autopilot`, or `job-search\generated` locations.
+The coordinator treats `<current-directory>\.job-apply-autopilot` as the single runtime tree. The current directory at skill start is authoritative; it must not scan home directories or guess alternate workspace locations.
 
-V5.6 runtime structure:
+V5.7 runtime structure:
 
 ```text
 .job-apply-autopilot/
@@ -117,7 +119,7 @@ V5.6 runtime structure:
 
 ## 6. Resume compilation
 
-MiKTeX CLI should expose `pdflatex`; `latexmk` is optional. V5.6 automatically falls back to two direct `pdflatex` passes if `latexmk` exists but fails.
+MiKTeX CLI should expose `pdflatex`; `latexmk` is optional. V5.7 automatically falls back to two direct `pdflatex` passes if `latexmk` exists but fails.
 
 ```powershell
 pdflatex --version
@@ -183,7 +185,7 @@ Refresh analytics after meaningful new outcomes:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\update-campaign-stats.ps1" `
-  -Workspace "$HOME\job-search"
+  -Workspace "$workspace"
 ```
 
 This writes:
