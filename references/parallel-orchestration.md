@@ -1,86 +1,90 @@
-# Parallel Orchestration V5.3
+# Parallel Orchestration V5.4
 
 ## Goal
-Use OpenCode subagents for independent analysis and file-generation work while keeping browser-side irreversible actions under one coordinator.
-
-## Why this split
-Parallelism is useful for CPU/context-heavy work but browser automation creates shared-session risk: rate limits, tab ownership confusion, duplicate applications, and anti-spam signals. Therefore V5 uses a bounded pipeline rather than unrestricted browser swarming.
+Use OpenCode subagents as trusted job workers. Parallelize all independent work, including end-to-end external ATS applications. Keep LinkedIn Easy Apply under the primary coordinator because Easy Apply shares one LinkedIn surface/session and benefits from centralized dedupe/resume-selection control.
 
 ## Workers
 
 ### job-autopilot-assessor
-One job per child session. Reads captured source data and canonical facts; writes assessment + fit map. No browser, no shell, no application.
+One queued job per child session. Reads captured source data and canonical facts; writes assessment + fit map.
 
 ### job-autopilot-eligibility
-One unclear job per child session. Uses web search/fetch to find official eligibility/relocation evidence; writes eligibility-research.json. No BrowserOS and no form interaction.
+One unclear job per child session. Researches official eligibility/relocation evidence; writes eligibility-research.json.
 
 ### job-autopilot-resume
-One approved job per child session. Tailors and compiles the fresh canonical LaTeX resume in that job's unique generated folder. No browser or application tools.
+One approved job per child session. Tailors and compiles the fresh canonical LaTeX resume in that job's unique generated folder.
 
-## Coordinator-only operations
-The primary agent is the single writer for:
-- BrowserOS form interaction,
-- ATS authentication/OAuth,
-- file upload,
-- Submit clicks,
-- CAPTCHA/MFA/security decisions,
-- global application/watchlist/circuit-breaker ledgers,
-- final gate adjudication.
+### job-autopilot-external-apply
+One approved external-ATS job per child session. Owns its BrowserOS tabs and completes the external application end to end, including OAuth/login, form filling, resume upload, screening questions, final Submit, and confirmation. Writes `application-result.json` in its job folder.
 
-Subagents never write global ledgers.
+## Coordinator-owned operations
+The primary agent owns:
+- discovery and dedupe,
+- queue creation and source capture,
+- final gate adjudication,
+- promotion to generated folders,
+- LinkedIn Easy Apply submissions,
+- dispatch of external ATS applicators,
+- reconciliation of per-job `application-result.json` files into global ledgers,
+- global reporting.
 
-## Bounded concurrency defaults
-- discovery/browser harvesting: 1 coordinator only,
-- assessor workers: up to 4 concurrent jobs,
-- eligibility workers: up to 3 concurrent jobs,
-- resume workers: up to 3 concurrent jobs,
-- active ATS submission: exactly 1 at a time.
+The coordinator is NOT the bottleneck for external ATS applications.
 
-If a domain circuit breaker trips, do not launch new work for that domain during the run.
+## Concurrency policy
+There is **no skill-imposed numeric concurrency limit for external ATS applications**.
+
+When multiple approved external jobs have valid tailored resumes, dispatch one `job-autopilot-external-apply` task for **every ready job** without waiting for earlier external tasks to finish. Actual concurrency is limited only by OpenCode/runtime/system resources.
+
+Assessment, eligibility, and resume stages may also be fanned out aggressively across independent jobs. Avoid assigning two workers to the same job directory at the same time.
+
+LinkedIn Easy Apply remains coordinator-owned and may be processed sequentially while external ATS subagents run concurrently in the background/task pool.
+
+## Domain circuit breakers under parallel load
+Unlimited fan-out does not waive anti-automation rules.
+
+- Every external worker owns its job and must stop on its first spam/automation/429/security signal.
+- Before final Submit, each external worker checks `.job-apply-autopilot/domain-circuit-breakers/` for an existing marker for its ATS domain.
+- A worker that encounters a domain-wide resistance signal should best-effort create the domain marker immediately.
+- Concurrent workers already active on the same domain should check again immediately before their own Submit and stop if the marker is present.
+- Do not serialize all jobs merely because they share an ATS domain; the circuit breaker is reactive, not a pre-emptive per-domain concurrency cap.
 
 ## Batch pipeline
-1. Coordinator harvests 4-8 credible candidates and saves each as a queue work item.
-2. Launch assessor tasks for independent work items together.
-3. Read worker outputs; immediately discard hard failures.
-4. For `UNCLEAR` eligibility only, launch eligibility workers together.
-5. Re-run the assessor once for researched work items so the fit/gate files incorporate the new evidence.
-6. Coordinator performs final eligibility adjudication.
-7. Promote accepted work items to generated job folders.
-8. Launch resume workers together, one folder each.
-9. As resumes finish, coordinator applies sequentially, checking OAuth/redirect identity/eligibility again.
-10. While one ATS application is being completed, another child worker may assess or prepare a different job, but no child may submit.
+1. Coordinator harvests credible jobs and creates one queue directory per job.
+2. Fan out assessors across all complete work items.
+3. Fan out eligibility researchers for all `UNCLEAR` jobs that remain otherwise viable.
+4. Re-assess researched jobs and perform coordinator final adjudication.
+5. Promote every accepted work item.
+6. Fan out resume workers across all promoted jobs.
+7. As soon as a resume is ready:
+   - LinkedIn Easy Apply -> coordinator queue.
+   - External ATS/company site -> immediately dispatch `job-autopilot-external-apply`.
+8. External applicators run concurrently with each other and with ongoing assessment/resume preparation.
+9. Coordinator periodically reads completed `application-result.json` files and safely merges them into `applications.jsonl`.
+10. Continue discovering/preparing while external application tasks are in flight.
 
 ## Task-prompt hygiene
-The coordinator passes **one directory path, not a pre-baked verdict**. A normal assessor Task prompt should be no more specific than:
+Pass one directory path, not a pre-baked verdict. Example external applicator Task prompt:
 
 ```text
-Handle exactly one job-apply-autopilot queue work item: <absolute-or-workspace-relative-path>.
+Handle exactly one approved external job-apply-autopilot generated directory: <path>.
 Load the currently installed job-apply-autopilot skill and follow its current policies.
-Read the evidence files in that work item and canonical facts yourself.
-Write the required outputs directly in that work item.
-Do not touch any other job or global ledger.
+Own this external ATS application end to end and write application-result.json in the supplied directory.
+Do not handle LinkedIn Easy Apply; hand it back if the route resolves to Easy Apply.
+Do not touch any other job.
 ```
 
-Do not inject claims such as company headquarters, local entity presence, eligibility interpretation, technical fit, or copied scoring rules into the Task prompt. Put sourced evidence into the work-item files instead. This keeps child workers independent and prevents a long-running coordinator from passing stale policy text after a skill upgrade.
+Do not inject headquarters claims, eligibility conclusions, fit conclusions, passwords, or stale policy summaries into child prompts. Persist sourced evidence in the job files instead.
 
 ## File ownership
-Each worker receives exactly one directory path. Packaged subagents are trusted with direct file-write permission, and their behavioral contract limits them to that assigned directory. Never let two workers edit the same job folder.
+Never run two workers on the same job directory concurrently.
 
-Safe parallel paths:
+Safe independent job paths:
 - `.job-apply-autopilot/queue/<job-a>/`
 - `.job-apply-autopilot/queue/<job-b>/`
 - `.job-apply-autopilot/generated/<job-a>/`
 - `.job-apply-autopilot/generated/<job-b>/`
 
-Unsafe shared writes:
-- `applications.jsonl`
-- `relocation-watchlist.jsonl`
-- `domain-circuit-breakers.jsonl`
-
-Only the coordinator writes those by contract. Worker `edit` permission is intentionally trusted/unrestricted at the tool layer to avoid Windows/path-canonicalization mismatches; directory ownership is enforced by the worker prompt and coordinator validation.
-
-## Failure isolation
-A worker failure applies to that work item only. Do not stop other workers unless the failure is a shared-domain automation/security signal reported by the coordinator.
+External applicators write only their assigned `application-result.json` plus the shared per-domain circuit-breaker marker when necessary. They do not append shared JSONL ledgers.
 
 ## Fallback
-If the Task tool or custom subagents are unavailable, run the exact same pipeline serially. Correctness rules do not change.
+If custom Task/subagents are unavailable, perform the same logic serially. Correctness rules do not change.

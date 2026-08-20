@@ -15,7 +15,8 @@ $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $names = @(
     'job-autopilot-assessor.md',
     'job-autopilot-eligibility.md',
-    'job-autopilot-resume.md'
+    'job-autopilot-resume.md',
+    'job-autopilot-external-apply.md'
 )
 
 foreach ($name in $names) {

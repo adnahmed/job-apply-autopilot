@@ -1,10 +1,9 @@
-# Anti-Automation and Circuit-Breaker Policy V4
+# Anti-Automation and Circuit-Breaker Policy V5.4
 
 ## Principle
-When a site resists automation, stop pushing. Protect the account/session and move to another job.
+When a site resists automation, stop pushing. Protect the account/session and move to unaffected jobs. Parallel external ATS execution does not justify retries or bypasses.
 
 ## Immediate circuit-breaker signals
-
 - `possible spam`
 - `flagged as spam`
 - `automation detected`
@@ -17,28 +16,25 @@ When a site resists automation, stop pushing. Protect the account/session and mo
 - CAPTCHA/MFA challenge requiring human interaction
 
 ## On first signal
-
 1. do not click Submit again,
-2. mark current job `blocked-automation` or `manual-needed`,
-3. append domain + reason to `.job-apply-autopilot/domain-circuit-breakers.jsonl`,
-4. stop new submissions on that domain for the rest of the run,
-5. continue with unaffected domains when safe.
+2. mark current job `blocked-automation` / `blocked-security` / `manual-needed` as appropriate,
+3. best-effort create a domain marker under `.job-apply-autopilot/domain-circuit-breakers/`,
+4. do not bypass CAPTCHA/MFA/security controls,
+5. continue unaffected domains/jobs.
+
+## Parallel-worker rule
+External ATS workers may run without a numeric concurrency cap, including multiple jobs on the same ATS domain. Every worker must check the shared domain marker immediately before final Submit. If another worker has tripped the circuit breaker, stop without submitting.
+
+This is a reactive safety mechanism, not a pre-emptive per-domain concurrency cap.
 
 ## Retry policy
-
 - ordinary form validation error: one corrective retry maximum,
-- upload/UI technical failure without security signal: up to two implementation attempts, then `blocked-technical`,
+- upload/UI technical failure without security signal: up to two implementation attempts,
 - spam/automation/security/rate-limit: zero retries,
-- failed CAPTCHA/MFA/security challenge: zero bypass attempts.
+- CAPTCHA/MFA/security challenge: zero bypass attempts.
 
 ## LinkedIn-specific
-If LinkedIn starts returning repeated 429s, account warnings, or unusual-activity signals:
-
-- stop job-submission/browser harvesting actions that caused the signal,
-- do not evade the limit through alternate URLs/endpoints,
-- end or sharply curtail the run rather than risking the account.
+LinkedIn Easy Apply remains coordinator-owned. If LinkedIn starts returning repeated 429s, account warnings, or unusual-activity signals, stop the actions causing the signal rather than attempting alternate endpoints or simultaneous Easy Apply workers.
 
 ## ATS-specific
-Do not replay POSTs, synthesize hidden security tokens, or probe anti-bot endpoints merely to force submission after an ATS rejected automation.
-
-A manual-needed role can be reported to the user at completion; the autonomous campaign should continue elsewhere.
+Do not replay POSTs, synthesize hidden security tokens, or probe anti-bot endpoints merely to force submission after an ATS rejects automation.

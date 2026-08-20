@@ -6,7 +6,8 @@ $targetDir = Join-Path $HOME '.config\opencode\agents'
 $names = @(
     'job-autopilot-assessor.md',
     'job-autopilot-eligibility.md',
-    'job-autopilot-resume.md'
+    'job-autopilot-resume.md',
+    'job-autopilot-external-apply.md'
 )
 
 $failed = $false
@@ -33,10 +34,18 @@ foreach ($name in $names) {
         $failed = $true
         continue
     }
-    if ($text -notmatch '(?m)^\s{2}"browseros-neo_\*":\s*deny\s*$') {
-        Write-Error "BROWSEROS DENY MISSING in $path"
-        $failed = $true
-        continue
+    if ($name -eq 'job-autopilot-external-apply.md') {
+        if ($text -notmatch '(?m)^\s{2}"browseros-neo_\*":\s*allow\s*$') {
+            Write-Error "EXTERNAL APPLICATOR BROWSEROS ALLOW MISSING in $path"
+            $failed = $true
+            continue
+        }
+    } else {
+        if ($text -notmatch '(?m)^\s{2}"browseros-neo_\*":\s*deny\s*$') {
+            Write-Error "BROWSEROS DENY MISSING in $path"
+            $failed = $true
+            continue
+        }
     }
     Write-Output "OK trusted-worker $path"
 }

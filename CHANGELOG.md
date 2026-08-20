@@ -1,3 +1,13 @@
+# V5.4 changes
+
+- Added trusted `job-autopilot-external-apply` subagent with BrowserOS access and final-submit authority for external ATS/company-site jobs.
+- Removed the skill-level concurrency cap for external applications: dispatch every ready external job concurrently; OpenCode/runtime resources are the only natural limit.
+- LinkedIn Easy Apply remains coordinator-owned.
+- External workers write per-job `application-result.json`; coordinator merges results into shared ledgers to avoid concurrent JSONL append races.
+- Added reactive shared per-domain circuit-breaker markers checked immediately before final Submit; this is not a pre-emptive per-domain concurrency cap.
+- Installer/verifier now includes the fourth external-applicator agent and verifies BrowserOS is allowed only for that worker.
+- Updated orchestration and anti-automation policies for parallel external submission.
+
 # V5.3 — Trusted worker write + scoring consistency
 
 - Fixed subagent `write`/`edit` failures caused by relative Windows workspace paths not matching the queue/generated permission globs.

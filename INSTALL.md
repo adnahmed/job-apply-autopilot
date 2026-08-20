@@ -1,13 +1,13 @@
-# Install Job Apply Autopilot V5.3
+# Install Job Apply Autopilot V5.4
 
-V5.3 keeps the bounded OpenCode subagent pipeline, fixes Windows PowerShell execution-policy handling, and gives the packaged workers trusted direct write permission so Windows path canonicalization cannot block their per-job outputs.
+V5.4 uses trusted OpenCode subagents for parallel assessment, eligibility research, resume generation, and end-to-end external ATS applications. External applications have no skill-imposed numeric concurrency cap; LinkedIn Easy Apply remains coordinator-owned.
 
 ## 1. Replace the installed skill
 
-Extract `job-apply-autopilot-v5.3.zip`, then run PowerShell from the extracted folder:
+Extract `job-apply-autopilot-v5.4.zip`, then run PowerShell from the extracted folder:
 
 ```powershell
-$src = ".\job-apply-autopilot-v5.3"
+$src = ".\job-apply-autopilot-v5.4"
 $dst = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 if (Test-Path $dst) {
@@ -32,7 +32,7 @@ Expected skill file:
 > Windows rule: always run packaged `.ps1` files as `pwsh -NoProfile -ExecutionPolicy Bypass -File ...`. `-ExecutionPolicy` belongs to `pwsh`; adding it after `& script.ps1` does not bypass policy.
 
 
-V5 ships three hidden subagents under `agents/`. Install them globally:
+V5.4 ships four hidden subagents under `agents/`. Install them globally:
 
 ```powershell
 $skill = "$HOME\.config\opencode\skills\job-apply-autopilot"
@@ -45,11 +45,12 @@ This installs:
 ~/.config/opencode/agents/job-autopilot-assessor.md
 ~/.config/opencode/agents/job-autopilot-eligibility.md
 ~/.config/opencode/agents/job-autopilot-resume.md
+~/.config/opencode/agents/job-autopilot-external-apply.md
 ```
 
 They are `hidden: true`, so they are intended for automatic Task invocation by the primary agent rather than normal `@` autocomplete. Restart OpenCode after installing them so the new agent definitions are loaded.
 
-V5.3 intentionally gives the three packaged workers `edit: allow`. The user trusts these workers; their one-job directory boundary is enforced by their instructions and by coordinator ownership, not by brittle relative-path permission globs. BrowserOS and nested Task calls remain denied in the worker definitions.
+V5.4 intentionally gives all four packaged workers `edit: allow`. The external applicator additionally has BrowserOS access and final-submit authority for its assigned external ATS job. Assessor, eligibility, and resume workers still deny BrowserOS. Nested Task calls remain denied for every worker.
 
 Verify the installation:
 
@@ -76,7 +77,7 @@ If BrowserOS neo already works, keep your existing MCP connection. Merge this pe
 }
 ```
 
-The worker definitions themselves deny BrowserOS. Only the coordinator should drive LinkedIn/ATS pages.
+The assessor, eligibility, and resume workers deny BrowserOS. `job-autopilot-external-apply` explicitly allows BrowserOS for external ATS/company-site jobs. LinkedIn Easy Apply remains coordinator-owned.
 
 ## 4. Verify canonical resumes
 
@@ -126,32 +127,33 @@ Runtime structure now includes a parallel work queue:
       resume.tex
       resume.pdf
       resume.log
+      application-result.json     # external ATS workers
+  domain-circuit-breakers/        # reactive per-domain markers
   applications.jsonl
   relocation-watchlist.jsonl
   domain-circuit-breakers.jsonl
 ```
 
-## 7. How V5 parallelizes
+## 7. How V5.4 parallelizes
 
-The coordinator harvests a batch of jobs in BrowserOS, then uses Task subagents for independent work:
+The coordinator discovers/dedupes jobs and creates isolated work items. Independent stages fan out across jobs. Once a validated tailored resume exists, routing splits:
 
 ```text
-Browser discovery (1 coordinator)
+Browser discovery / dedupe (coordinator)
         ↓
-  queue 4-8 jobs
+queue independent jobs
         ↓
-assess up to 4 in parallel
+assess / eligibility / resume workers fan out
         ↓
-eligibility research up to 3 in parallel when unclear
-        ↓
-coordinator final gate decision
-        ↓
-tailor/compile up to 3 resumes in parallel
-        ↓
-ATS/OAuth/form/submission one job at a time
+validated tailored resumes
+        ├── LinkedIn Easy Apply → coordinator
+        └── External ATS/company site → one external applicator per ready job
+                                      (dispatch ALL ready jobs concurrently)
 ```
 
-This avoids parallel Submit clicks, duplicate applications, shared-ledger races, and multiplying LinkedIn/ATS anti-bot traffic.
+There is **no skill-imposed numeric limit** on concurrent external ATS application workers. OpenCode/runtime/system capacity is the natural limit. Each external worker owns one job, its own BrowserOS tabs, OAuth/login/form/upload/Submit flow, and writes `application-result.json` in that job directory.
+
+Shared JSONL ledgers are still coordinator-written to avoid append races. A reactive domain circuit-breaker marker is checked immediately before final Submit; it does not impose a pre-emptive per-domain concurrency cap.
 
 ## 8. OAuth behavior
 
@@ -176,3 +178,8 @@ Use job-apply-autopilot. Apply to jobs.
 ```
 
 V5 should automatically use its packaged subagents when Task is available. If Task is unavailable, it performs the same stages serially.
+
+
+## V5.4 external ATS parallelism
+
+The installer now installs four hidden subagents, including `job-autopilot-external-apply`. External ATS/company-site applications may be submitted end to end by those workers with no skill-imposed numeric concurrency cap. LinkedIn Easy Apply remains coordinator-owned.

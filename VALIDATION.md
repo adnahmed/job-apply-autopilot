@@ -1,4 +1,4 @@
-# V5.3 validation additions
+# V5.4 validation additions
 
 - Packaged assessor/eligibility/resume definitions use `edit: allow`, avoiding Windows relative/canonical path mismatch failures.
 - BrowserOS remains denied for all three subagents; nested Task remains denied.
@@ -17,3 +17,11 @@ Validated policy invariants:
 - Direct-employer LinkedIn/Easy Apply does not require a duplicate ATS posting.
 - Company HQ/entity facts may not be asserted without supplied or researched evidence.
 - Ambiguous foreign roles still become watchlist rather than auto-submit.
+
+
+## V5.4 orchestration checks
+- `job-autopilot-external-apply.md` packaged and installed.
+- External applicator has `browseros-neo_*: allow`, `edit: allow`, `task: deny`.
+- Other workers retain BrowserOS deny.
+- No skill-imposed numeric external-application concurrency limit appears in orchestration policy.
+- LinkedIn Easy Apply is explicitly coordinator-owned.

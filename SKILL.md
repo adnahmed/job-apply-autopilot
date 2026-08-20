@@ -1,15 +1,15 @@
 ---
 name: job-apply-autopilot
-description: Autonomously discover, verify, parallel-assess, tailor fresh canonical-LaTeX resumes, and submit credible high-fit software-engineering job applications through BrowserOS neo. Uses bounded OpenCode subagents for independent job assessment, eligibility research, and resume generation while keeping browser submission serialized. Covers backend/software, backend-platform, Python/Node, practical applied-AI roles, verified relocation/sponsorship opportunities, OAuth-first ATS authentication, conservative evidence scoring, anti-ghost checks, deduplication, and automation circuit-breakers.
+description: Autonomously discover, verify, parallel-assess, tailor fresh canonical-LaTeX resumes, and submit credible high-fit software-engineering job applications through BrowserOS neo. Uses trusted OpenCode subagents for independent assessment, eligibility research, resume generation, and unlimited-concurrency external ATS application submission while keeping LinkedIn Easy Apply coordinator-owned. Covers backend/software, backend-platform, Python/Node, practical applied-AI roles, verified relocation/sponsorship opportunities, OAuth-first ATS authentication, conservative evidence scoring, anti-ghost checks, deduplication, and automation circuit-breakers.
 compatibility: opencode
 metadata:
   audience: job-seeker
   browser: browseros-neo
   mode: autonomous
-  version: 5.3
+  version: 5.4
 ---
 
-# Job Apply Autopilot V5.3 — Trusted Parallel Pipeline Edition
+# Job Apply Autopilot V5.4 — Parallel External Application Edition
 
 You are an autonomous job-search and application agent using the user's already authenticated BrowserOS neo browser session.
 
@@ -65,18 +65,17 @@ The user explicitly permits autonomous password generation/autofill when OAuth i
 ### 5. Resistance means stop, not retry harder
 The first explicit spam/automation/rate-limit/security signal creates a domain circuit breaker for the rest of the run. Never repeat a submission after an ATS says the application looks automated/spammy. Do not bypass CAPTCHA/MFA/security challenges.
 
-### 6. Parallelize preparation, serialize submission
-When OpenCode's Task tool and packaged `job-autopilot-*` subagents are available, use them. The user trusts these packaged subagents to write their assigned per-job artifacts directly; do not route ordinary worker output back through the coordinator merely to persist files. Do not keep the entire campaign in one long serial reasoning loop.
+### 6. Parallelize independent jobs, including external submission
+When OpenCode's Task tool and packaged `job-autopilot-*` subagents are available, use them aggressively. The user trusts these packaged subagents to write their assigned artifacts and, for external ATS jobs, to complete and submit the application end to end.
 
-Use a bounded pipeline:
+- coordinator/browser discovery: primary agent,
+- job assessment: fan out across independent jobs,
+- external eligibility/relocation research: fan out across all viable unclear jobs,
+- canonical-LaTeX resume tailoring/compilation: fan out across all approved jobs,
+- external ATS/company-site applications: dispatch one `job-autopilot-external-apply` subagent for every ready external job with **no skill-imposed numeric concurrency cap**,
+- LinkedIn Easy Apply: coordinator-owned.
 
-- coordinator/browser discovery: one primary agent,
-- job assessment: up to 4 independent assessor subagents concurrently,
-- external eligibility/relocation research: up to 3 independent eligibility subagents concurrently when needed,
-- canonical-LaTeX resume tailoring/compilation: up to 3 independent resume subagents concurrently,
-- ATS authentication/form filling/upload/submission: exactly one coordinator-controlled browser flow at a time.
-
-Subagents are trusted to read/write their assigned per-job directories directly. They still must not click Submit, write global ledgers, or share a job directory with another worker. BrowserOS remains coordinator-controlled to reduce rate-limit, duplicate-submit, tab-ownership, and anti-spam risk.
+Actual parallelism is limited only by OpenCode/runtime/system resources. Never assign two workers to the same job directory at once. External applicators may click final Submit, use BrowserOS, OAuth/login, upload resumes, and answer forms for their assigned external job. They write `application-result.json`; the coordinator reconciles those per-job results into global ledgers.
 
 # Default job-search scope
 
@@ -132,7 +131,7 @@ Use `references/parallel-orchestration.md`. The logical order for every job is u
 15. `PROMOTE_TO_GENERATED_JOB`
 16. `PARALLEL_CANONICAL_RESUME_TAILOR_AND_COMPILE`
 17. `AUTH_FLOW_PRECHECK`
-18. `SERIAL_APPLICATION`
+18. `ROUTE_APPLICATION` — Easy Apply to coordinator; external ATS to external-applicator subagent
 19. `POST_REDIRECT_IDENTITY_AND_ELIGIBILITY_RECHECK`
 20. `SUBMISSION_VERIFICATION`
 21. `COORDINATOR_SAFE_LOG`
@@ -160,13 +159,14 @@ Replace the generated `source.md` placeholder with the complete JD plus relevant
 
 When Task is available, launch independent workers together rather than waiting for each job serially:
 
-- `job-autopilot-assessor`: one queue directory per task, max 4 active.
-- `job-autopilot-eligibility`: only for work items whose eligibility remains `UNCLEAR`, max 3 active. After research completes, re-run the assessor once on that work item so assessment/score incorporate the evidence.
-- `job-autopilot-resume`: only after coordinator marks all hard gates passed and promotes the work item, max 3 active.
+- `job-autopilot-assessor`: one queue directory per task; fan out across complete work items.
+- `job-autopilot-eligibility`: only for viable work items whose eligibility remains `UNCLEAR`; fan out as needed. After research completes, re-run the assessor once on that work item.
+- `job-autopilot-resume`: only after coordinator marks all hard gates passed and promotes the work item; fan out across approved jobs.
+- `job-autopilot-external-apply`: after a generated external job has a validated tailored resume, dispatch one task per ready job immediately. There is no skill-level maximum number of concurrent external application workers.
 
 Each Task prompt must include exactly one work-item/generated directory path and tell the worker to load the **currently installed** `job-apply-autopilot` skill and follow its current policies. Keep Task prompts minimal and evidence-neutral. **Do not paste a coordinator-written assessment, eligibility conclusion, headquarters/office claim, scoring rule summary, or other “important context” into the worker prompt.** If a fact matters, persist its source in `job.json`, `source.md`, or `eligibility-research.json` so the worker can inspect it independently. This prevents stale-policy prompts and coordinator anchoring/hallucinations.
 
-Workers are trusted to write their own per-job outputs directly. Do not ask subagents to modify `applications.jsonl`, `relocation-watchlist.jsonl`, or `domain-circuit-breakers.jsonl`.
+Workers are trusted to write their own per-job outputs directly. External applicators are additionally trusted to use BrowserOS and click final Submit for external ATS jobs. Do not ask workers to append `applications.jsonl` or other shared JSONL ledgers; external applicators write `application-result.json` and may create/read shared per-domain circuit-breaker marker files.
 
 After a queue work item passes final adjudication, promote it:
 
@@ -180,6 +180,17 @@ $jobDir = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\prom
 Then dispatch `$jobDir` to one `job-autopilot-resume` worker.
 
 If custom subagents or Task are unavailable, execute the exact same stages serially. Do not weaken any gate.
+
+# Application routing and ownership
+
+After resume validation, classify the application route:
+
+- **LinkedIn Easy Apply:** keep with the coordinator. The coordinator uploads the unique tailored PDF, answers the Easy Apply flow, submits, verifies, and logs.
+- **External ATS / company website:** immediately dispatch `job-autopilot-external-apply` with the single generated job directory. Do not wait for other external jobs. Dispatch every ready external job concurrently.
+
+If an external worker discovers that the route actually resolves to Easy Apply, it must not submit; it writes `handoff-easy-apply` and returns the job to the coordinator.
+
+The coordinator should continue discovery/Easy Apply work while external applicators are running, then merge completed `application-result.json` files into the global application ledger.
 
 # Windows PowerShell invocation contract
 
