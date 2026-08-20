@@ -1,21 +1,23 @@
-# V4 change log
+# V5 change log — Parallel Pipeline Edition
 
-## Fixed from real-world campaign review
+## Parallel orchestration
 
-- Foreign `Remote` roles now require positive eligibility evidence before auto-submit.
-- Lack of a location question is explicitly non-evidence.
-- Global company / international team / accepted Pakistan address are explicitly non-evidence.
-- AIONIX-style `Remote-first in Australia` ambiguity now becomes watchlist, not auto-submit.
-- Relocation auto-apply requires explicit sponsorship, relocation, or international-hiring evidence.
-- Evidence classes changed to EXACT / DIRECT / ADJACENT / WEAK / NONE.
-- Central mandatory requirements cannot be satisfied by adjacent experience.
-- 85+ scores are defined as rare; default threshold changed to 74 with stricter calibration.
-- Default search broadened to backend/software, backend-platform, Python/Node and practical applied-AI lanes.
-- Staff/Principal/FDE/SRE/specialist roles are selective rather than default targets.
-- Resume tailoring is selection/reordering-first; specialized branding inflation is prohibited.
-- Per-job `tailoring-audit.json` added and compile script enforces it.
-- Compile script verifies immutable canonical audit hash.
-- LinkedIn OAuth/import is preferred before password ATS account creation.
-- Autonomous password generation/autofill remains allowed as fallback.
-- First spam/automation/rate-limit/security signal creates a domain circuit breaker; zero anti-bot submit retries.
-- `domain-circuit-breakers.jsonl` added to runtime workspace.
+- Added three hidden OpenCode subagents: `job-autopilot-assessor`, `job-autopilot-eligibility`, and `job-autopilot-resume`.
+- Added bounded concurrency: up to 4 assessment workers, 3 eligibility researchers, and 3 resume workers.
+- BrowserOS authentication, form filling, uploads, Submit actions, and global ledgers remain coordinator-only and serialized.
+- Added `.job-apply-autopilot/queue/` work items so workers never edit the same job directory.
+- Added `new-workitem.ps1` and `promote-workitem.ps1` for deterministic queue → generated transitions.
+- Added `install-subagents.ps1` to install the packaged agents into `~/.config/opencode/agents/`.
+- Added `references/parallel-orchestration.md`.
+- Worker agents cannot invoke other subagents, cannot write global ledgers, and cannot use BrowserOS.
+- Resume workers only run after the coordinator has passed every hard gate.
+- If Task/custom agents are unavailable, V5 falls back to the same pipeline serially.
+
+## Retained V4 safeguards
+
+- Positive foreign-job eligibility evidence remains mandatory.
+- LinkedIn OAuth/import remains preferred over password account creation.
+- Password generation/autofill remains allowed as fallback.
+- Conservative EXACT/DIRECT/ADJACENT/WEAK/NONE evidence scoring remains enforced.
+- Canonical LaTeX resumes remain immutable sources; each accepted job receives a fresh independent resume.
+- `tailoring-audit.json`, canonical SHA-256 checks, one-page compilation, ghost/identity gates, relocation policy, and domain circuit breakers remain in force.

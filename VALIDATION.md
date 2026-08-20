@@ -1,37 +1,54 @@
-# V4 Validation
+# Validation — Job Apply Autopilot V5
 
-## Canonical LaTeX
-The two canonical `.tex` files are carried forward unchanged from the user-supplied sources and their SHA-256 hashes remain recorded in `canonical/SHA256SUMS.txt`.
+Validated on 2026-08-20 before packaging.
 
-## V4 behavioral changes validated structurally
+## Package integrity
 
-- Broad engineering role lanes are present in `profile.yaml` and `SKILL.md`.
-- Positive eligibility evidence is required by `references/eligibility-policy.md`.
-- `Remote`, global-company status, international team distribution, address acceptance, and absence of a screening gate are explicitly marked non-evidence.
-- OAuth priority includes LinkedIn before password account creation.
-- Password generation/autofill remains allowed as fallback.
-- Evidence classes are EXACT / DIRECT / ADJACENT / WEAK / NONE.
-- Default calibrated auto-apply threshold is 74; 85+ is documented as rare.
-- Resume tailoring is selection-first and requires `tailoring-audit.json`.
-- Domain circuit breakers stop retries after spam/automation/rate-limit/security signals.
+- SKILL frontmatter parses as YAML.
+- Skill name remains `job-apply-autopilot`.
+- Metadata version is `5`.
+- Three packaged agent frontmatters parse as YAML.
+- All three agents are `mode: subagent` and `hidden: true`.
+- `opencode-config-snippet.jsonc` parses as JSON.
+- Canonical SHA-256 values still match `canonical/SHA256SUMS.txt`.
+- No known generated ATS password from the previous run is present in the package.
 
-## Script enforcement
+## Parallel architecture checks
 
-`scaffold-resume.ps1` creates:
+- assessor: BrowserOS denied; Task denied; no shell access.
+- eligibility researcher: BrowserOS denied; Task denied; web research allowed.
+- resume worker: BrowserOS denied; Task denied; only job-resume file work + compile command intended.
+- global application/watchlist/circuit-breaker ledgers are coordinator-only by policy.
+- browser submissions are serialized by policy.
+- queue work items isolate per-job assessment files.
+- generated folders isolate per-job resume files.
 
-- `assessment.json`
-- `fit-map.json`
-- `tailoring-audit.json`
-- immutable `canonical-source.tex`
-- working `resume.tex`
+## OpenCode compatibility basis
 
-`compile-resume.ps1` refuses compilation unless:
+OpenCode's current Agents documentation supports:
 
-- assessment status = passed,
-- all hard gates = true,
-- fit map status = complete and has requirements + score,
-- tailoring audit status = complete,
-- unsupported terms list is empty,
-- canonical audit copy hash matches the scaffold-time canonical hash.
+- `mode: subagent`,
+- automatic invocation by primary agents,
+- child sessions,
+- `hidden: true` programmatic subagents,
+- Task permission patterns,
+- per-agent permissions,
+- `steps` limits,
+- subagents inheriting the invoking primary model when no model override is specified.
 
-It then runs LaTeX and validates the generated PDF as before.
+The packaged workers intentionally omit a `model` override.
+
+## PowerShell note
+
+This ChatGPT container does not include Windows PowerShell/MiKTeX, so the newly added PowerShell queue/install scripts were statically reviewed rather than executed here. The canonical `.tex` files are byte-identical to the already validated V4 sources and their stored SHA-256 hashes still match.
+
+On the target Windows machine, run:
+
+```powershell
+$skill = "$HOME\.config\opencode\skills\job-apply-autopilot"
+& "$skill\scripts\verify-canonical.ps1"
+& "$skill\scripts\install-subagents.ps1"
+& "$skill\scripts\verify-subagents.ps1"
+```
+
+Then restart OpenCode and run the normal skill command.

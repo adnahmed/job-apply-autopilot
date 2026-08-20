@@ -1,0 +1,26 @@
+[CmdletBinding()]
+param()
+
+$ErrorActionPreference = 'Stop'
+$skillRoot = Split-Path -Parent $PSScriptRoot
+$sourceDir = Join-Path $skillRoot 'agents'
+$targetDir = Join-Path $HOME '.config\opencode\agents'
+New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$names = @(
+    'job-autopilot-assessor.md',
+    'job-autopilot-eligibility.md',
+    'job-autopilot-resume.md'
+)
+
+foreach ($name in $names) {
+    $src = Join-Path $sourceDir $name
+    if (-not (Test-Path -LiteralPath $src)) { throw "Missing packaged subagent: $src" }
+    $dst = Join-Path $targetDir $name
+    if (Test-Path -LiteralPath $dst) {
+        Copy-Item -LiteralPath $dst -Destination "$dst.backup-$stamp" -Force
+    }
+    Copy-Item -LiteralPath $src -Destination $dst -Force
+    Write-Output "Installed $dst"
+}

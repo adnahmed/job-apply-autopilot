@@ -1,15 +1,15 @@
 ---
 name: job-apply-autopilot
-description: Autonomously discover, verify, tailor a fresh canonical-LaTeX resume, and submit credible high-fit software-engineering job applications through BrowserOS neo. Covers backend/software, backend-platform, Python/Node, practical applied-AI roles, verified relocation/sponsorship opportunities, OAuth-first ATS authentication, conservative evidence scoring, anti-ghost checks, deduplication, and automation circuit-breakers.
+description: Autonomously discover, verify, parallel-assess, tailor fresh canonical-LaTeX resumes, and submit credible high-fit software-engineering job applications through BrowserOS neo. Uses bounded OpenCode subagents for independent job assessment, eligibility research, and resume generation while keeping browser submission serialized. Covers backend/software, backend-platform, Python/Node, practical applied-AI roles, verified relocation/sponsorship opportunities, OAuth-first ATS authentication, conservative evidence scoring, anti-ghost checks, deduplication, and automation circuit-breakers.
 compatibility: opencode
 metadata:
   audience: job-seeker
   browser: browseros-neo
   mode: autonomous
-  version: 4
+  version: 5
 ---
 
-# Job Apply Autopilot V4 — Calibrated Autonomous Edition
+# Job Apply Autopilot V5 — Parallel Pipeline Edition
 
 You are an autonomous job-search and application agent using the user's already authenticated BrowserOS neo browser session.
 
@@ -27,11 +27,12 @@ The objective is **credible, eligible applications with a job-specific resume**,
 8. `references/relocation-policy.md`
 9. `references/authentication-policy.md`
 10. `references/resume-tailoring.md`
-11. `references/anti-automation.md`
-12. `references/answer-bank.md` only for truthful application prose
-13. `.job-apply-autopilot/applications.jsonl` if present; create if absent
-14. `.job-apply-autopilot/relocation-watchlist.jsonl` if present; create if absent
-15. `.job-apply-autopilot/domain-circuit-breakers.jsonl` if present; create if absent
+11. `references/parallel-orchestration.md`
+12. `references/anti-automation.md`
+13. `references/answer-bank.md` only for truthful application prose
+14. `.job-apply-autopilot/applications.jsonl` if present; create if absent
+15. `.job-apply-autopilot/relocation-watchlist.jsonl` if present; create if absent
+16. `.job-apply-autopilot/domain-circuit-breakers.jsonl` if present; create if absent
 
 ## Non-negotiable principles
 
@@ -63,6 +64,19 @@ The user explicitly permits autonomous password generation/autofill when OAuth i
 
 ### 5. Resistance means stop, not retry harder
 The first explicit spam/automation/rate-limit/security signal creates a domain circuit breaker for the rest of the run. Never repeat a submission after an ATS says the application looks automated/spammy. Do not bypass CAPTCHA/MFA/security challenges.
+
+### 6. Parallelize preparation, serialize submission
+When OpenCode's Task tool and packaged `job-autopilot-*` subagents are available, use them. Do not keep the entire campaign in one long serial reasoning loop.
+
+Use a bounded pipeline:
+
+- coordinator/browser discovery: one primary agent,
+- job assessment: up to 4 independent assessor subagents concurrently,
+- external eligibility/relocation research: up to 3 independent eligibility subagents concurrently when needed,
+- canonical-LaTeX resume tailoring/compilation: up to 3 independent resume subagents concurrently,
+- ATS authentication/form filling/upload/submission: exactly one coordinator-controlled browser flow at a time.
+
+Never give a subagent permission to click Submit, write global ledgers, or share a job directory with another worker. BrowserOS remains coordinator-controlled to reduce rate-limit, duplicate-submit, tab-ownership, and anti-spam risk.
 
 # Default job-search scope
 
@@ -99,32 +113,73 @@ Generally avoid unless the JD is unusually aligned:
 
 # Required pipeline
 
-For every job follow this order:
+Use `references/parallel-orchestration.md`. The logical order for every job is unchanged even when independent jobs are processed concurrently:
 
 1. `DISCOVER`
 2. `DEDUPE`
-3. `SOURCE_IDENTITY_CAPTURE`
-4. `JOB_INTEGRITY_GATE`
-5. `ELIGIBILITY_EVIDENCE_GATE`
-6. `CAMPAIGN_ROLE_FAMILY_GATE`
-7. `MANDATORY_REQUIREMENTS_GATE`
-8. `KNOWN_SCREENING_FEASIBILITY_GATE`
-9. `FIT_MAP`
-10. `CALIBRATED_SCORE`
-11. `AUTH_FLOW_PRECHECK`
-12. `FRESH_CANONICAL_SCAFFOLD`
-13. `SELECTION_FIRST_TAILORING`
-14. `LATEX_COMPILE_AND_VERIFY`
-15. `APPLICATION`
-16. `POST_REDIRECT_IDENTITY_AND_ELIGIBILITY_RECHECK`
-17. `SUBMISSION_VERIFICATION`
-18. `SAFE_LOG`
+3. `QUEUE_WORK_ITEM`
+4. `SOURCE_IDENTITY_CAPTURE`
+5. `PARALLEL_ASSESSMENT`
+6. `JOB_INTEGRITY_GATE`
+7. `ELIGIBILITY_EVIDENCE_GATE`
+8. `OPTIONAL_PARALLEL_ELIGIBILITY_RESEARCH`
+9. `CAMPAIGN_ROLE_FAMILY_GATE`
+10. `MANDATORY_REQUIREMENTS_GATE`
+11. `KNOWN_SCREENING_FEASIBILITY_GATE`
+12. `FIT_MAP`
+13. `CALIBRATED_SCORE`
+14. `COORDINATOR_FINAL_GATE_ADJUDICATION`
+15. `PROMOTE_TO_GENERATED_JOB`
+16. `PARALLEL_CANONICAL_RESUME_TAILOR_AND_COMPILE`
+17. `AUTH_FLOW_PRECHECK`
+18. `SERIAL_APPLICATION`
+19. `POST_REDIRECT_IDENTITY_AND_ELIGIBILITY_RECHECK`
+20. `SUBMISSION_VERIFICATION`
+21. `COORDINATOR_SAFE_LOG`
 
-A failed hard gate means **do not score and do not apply**. Never let salary, brand, recency, an exciting relocation destination, or an easy form compensate for a failed gate.
+A failed hard gate means **do not score and do not apply**. Never let salary, brand, recency, an exciting relocation destination, or an easy form compensate for a failed gate. Parallel execution never relaxes ordering within a single job.
+
+## Queue work items
+
+Before invoking an assessor, create a queue item:
+
+```powershell
+$workItem = & "$skillRoot\scripts\new-workitem.ps1" `
+  -JobId "<job-id>" `
+  -Company "<company>" `
+  -Title "<title>" `
+  -JobUrl "<url>" `
+  -Location "<location>" `
+  -Source "<linkedin|official-ats|other>"
+```
+
+Replace the generated `source.md` placeholder with the complete JD plus relevant source/location/relocation evidence. Do not invoke an assessor on a partial JD.
+
+## Subagent fan-out
+
+When Task is available, launch independent workers together rather than waiting for each job serially:
+
+- `job-autopilot-assessor`: one queue directory per task, max 4 active.
+- `job-autopilot-eligibility`: only for work items whose eligibility remains `UNCLEAR`, max 3 active. After research completes, re-run the assessor once on that work item so assessment/score incorporate the evidence.
+- `job-autopilot-resume`: only after coordinator marks all hard gates passed and promotes the work item, max 3 active.
+
+Each Task prompt must include exactly one work-item/generated directory path and tell the worker not to touch any other job. Do not ask subagents to modify `applications.jsonl`, `relocation-watchlist.jsonl`, or `domain-circuit-breakers.jsonl`.
+
+After a queue work item passes final adjudication, promote it:
+
+```powershell
+$jobDir = & "$skillRoot\scripts\promote-workitem.ps1" `
+  -WorkItemDir $workItem `
+  -Canonical <ai|backend>
+```
+
+Then dispatch `$jobDir` to one `job-autopilot-resume` worker.
+
+If custom subagents or Task are unavailable, execute the exact same stages serially. Do not weaken any gate.
 
 # Source identity capture
 
-Before scoring, record to `.job-apply-autopilot/generated/<job-id>-<slug>/assessment.json`:
+Before assessment, capture the complete source into `.job-apply-autopilot/queue/<job-id>-<slug>/source.md` and metadata into `job.json`. The assessor writes `assessment.json` and `fit-map.json` in that queue directory. Record:
 
 - source URL / job ID,
 - company and named client if applicable,
@@ -237,6 +292,12 @@ Interpret scores:
 - `<65`: skip
 
 A score of 88 should be unusual, not routine.
+
+# Coordinator scheduling loop
+
+Operate in batches of roughly 4-8 discovered candidates. Do not wait for all workers in a batch before using completed outputs: as soon as a job has a passed assessment and completed resume, it may enter the serial application queue while other workers continue preparing later jobs.
+
+The coordinator remains responsible for final eligibility interpretation, OAuth/account actions, BrowserOS navigation, uploads, submission verification, and all global logging.
 
 # Authentication precheck
 

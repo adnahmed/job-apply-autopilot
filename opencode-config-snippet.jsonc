@@ -4,6 +4,9 @@
     "skill": {
       "job-apply-autopilot": "allow"
     },
+    "task": {
+      "job-autopilot-*": "allow"
+    },
     "browseros-neo_*": "allow"
   }
 }

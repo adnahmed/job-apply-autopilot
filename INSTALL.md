@@ -1,22 +1,13 @@
-# Install Job Apply Autopilot V4
+# Install Job Apply Autopilot V5
 
-V4 keeps the canonical LaTeX resume generator from V3 and fixes the real-world judgment issues found in the second campaign:
-
-- broader realistic engineering search lanes instead of AI-only,
-- positive eligibility evidence required before auto-apply,
-- explicit relocation/sponsorship evidence for foreign auto-apply,
-- conservative EXACT/DIRECT/ADJACENT evidence scoring,
-- selection-first resume tailoring,
-- LinkedIn OAuth/import before password account creation,
-- immediate circuit breakers for spam/automation/rate-limit signals,
-- compile-time fit-map + tailoring-audit enforcement.
+V5 adds bounded OpenCode subagent parallelism to V4's calibrated autonomous application pipeline.
 
 ## 1. Replace the installed skill
 
-Extract `job-apply-autopilot-v4.zip`, then run PowerShell from the extracted folder:
+Extract `job-apply-autopilot-v5.zip`, then run PowerShell from the extracted folder:
 
 ```powershell
-$src = ".\job-apply-autopilot-v4"
+$src = ".\job-apply-autopilot-v5"
 $dst = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 if (Test-Path $dst) {
@@ -33,47 +24,34 @@ Expected skill file:
 ~/.config/opencode/skills/job-apply-autopilot/SKILL.md
 ```
 
-## 2. Verify canonical resumes
+## 2. Install the packaged subagents
+
+V5 ships three hidden subagents under `agents/`. Install them globally:
 
 ```powershell
 $skill = "$HOME\.config\opencode\skills\job-apply-autopilot"
-& "$skill\scripts\verify-canonical.ps1"
+& "$skill\scripts\install-subagents.ps1"
 ```
 
-Both canonical `.tex` files should report `OK`.
-
-## 3. Check MiKTeX CLI
-
-```powershell
-pdflatex --version
-latexmk -v
-```
-
-If `latexmk` is unavailable/broken, the compile script falls back to two direct `pdflatex` passes.
-
-## 4. Keep your existing job-search workspace
-
-Do **not** wipe the V3 workspace if it already contains your application history. V4 can continue using it for deduplication.
-
-```powershell
-mkdir "$HOME\job-search" -Force
-cd "$HOME\job-search"
-& "$skill\scripts\init-workspace.ps1"
-```
-
-Runtime files:
+This installs:
 
 ```text
-.job-apply-autopilot/
-  applications.jsonl
-  relocation-watchlist.jsonl
-  domain-circuit-breakers.jsonl
-  generated/
+~/.config/opencode/agents/job-autopilot-assessor.md
+~/.config/opencode/agents/job-autopilot-eligibility.md
+~/.config/opencode/agents/job-autopilot-resume.md
 ```
 
-## 5. BrowserOS neo permissions
+They are `hidden: true`, so they are intended for automatic Task invocation by the primary agent rather than normal `@` autocomplete. Restart OpenCode after installing them so the new agent definitions are loaded.
 
-If BrowserOS neo already works in OpenCode, keep the existing connection. Example permission config:
+Verify the installation:
+
+```powershell
+& "$skill\scripts\verify-subagents.ps1"
+```
+
+## 3. OpenCode permissions
+
+If BrowserOS neo already works, keep your existing MCP connection. Merge this permission fragment into `opencode.json` if needed:
 
 ```jsonc
 {
@@ -82,14 +60,94 @@ If BrowserOS neo already works in OpenCode, keep the existing connection. Exampl
     "skill": {
       "job-apply-autopilot": "allow"
     },
+    "task": {
+      "job-autopilot-*": "allow"
+    },
     "browseros-neo_*": "allow"
   }
 }
 ```
 
-## 6. OAuth behavior
+The worker definitions themselves deny BrowserOS. Only the coordinator should drive LinkedIn/ATS pages.
 
-V4 checks ATS authentication in this order:
+## 4. Verify canonical resumes
+
+```powershell
+$skill = "$HOME\.config\opencode\skills\job-apply-autopilot"
+& "$skill\scripts\verify-canonical.ps1"
+```
+
+Both canonical `.tex` files should report `OK`.
+
+## 5. Check MiKTeX CLI
+
+```powershell
+pdflatex --version
+latexmk -v
+```
+
+If `latexmk` is unavailable/broken, the compile script falls back to two direct `pdflatex` passes.
+
+## 6. Keep your existing job-search workspace
+
+Do not wipe earlier application history. Initialize/upgrade the runtime directories:
+
+```powershell
+mkdir "$HOME\job-search" -Force
+cd "$HOME\job-search"
+& "$skill\scripts\init-workspace.ps1"
+```
+
+Runtime structure now includes a parallel work queue:
+
+```text
+.job-apply-autopilot/
+  queue/
+    <job-id>-<slug>/
+      job.json
+      source.md
+      assessment.json
+      fit-map.json
+      eligibility-research.json   # optional
+  generated/
+    <job-id>-<slug>/
+      assessment.json
+      fit-map.json
+      tailoring-audit.json
+      canonical-source.tex
+      resume.tex
+      resume.pdf
+      resume.log
+  applications.jsonl
+  relocation-watchlist.jsonl
+  domain-circuit-breakers.jsonl
+```
+
+## 7. How V5 parallelizes
+
+The coordinator harvests a batch of jobs in BrowserOS, then uses Task subagents for independent work:
+
+```text
+Browser discovery (1 coordinator)
+        ↓
+  queue 4-8 jobs
+        ↓
+assess up to 4 in parallel
+        ↓
+eligibility research up to 3 in parallel when unclear
+        ↓
+coordinator final gate decision
+        ↓
+tailor/compile up to 3 resumes in parallel
+        ↓
+ATS/OAuth/form/submission one job at a time
+```
+
+This avoids parallel Submit clicks, duplicate applications, shared-ledger races, and multiplying LinkedIn/ATS anti-bot traffic.
+
+## 8. OAuth behavior
+
+Authentication order remains:
 
 ```text
 existing ATS session
@@ -99,76 +157,14 @@ existing ATS session
 → generate/autofill password account
 ```
 
-It should not spend several minutes creating a candidate profile when a visible `Continue with LinkedIn` path can do the same job.
+OAuth success never substitutes for geographic eligibility evidence.
 
-OAuth/import success does not prove geographic eligibility; the job still needs positive hiring-location evidence.
+## 9. Recommended command
 
-## 7. Recommended default command
-
-This uses the full realistic profile rather than an AI-only campaign:
-
-```text
-Use job-apply-autopilot. Find and apply to up to 15 credible high-fit engineering jobs across my normal profile: backend/software, backend-platform, Python/Node, and practical applied-AI roles. Search Pakistan, explicitly worldwide remote roles, and verified visa-sponsorship/relocation opportunities. Use LinkedIn OAuth/import first when ATS sites offer it. Generate a fresh canonical-LaTeX resume for every accepted job. Do not infer worldwide eligibility from a Remote label, do not inflate adjacent experience, and do not lower standards to hit the target.
-```
-
-You can also simply say:
+The simple command remains enough:
 
 ```text
 Use job-apply-autopilot. Apply to jobs.
 ```
 
-The skill's defaults now cover the broad engineering lanes.
-
-## 8. Useful focused commands
-
-Backend/software only:
-
-```text
-Use job-apply-autopilot. Apply to up to 12 backend/software roles that fit my profile, Pakistan or explicitly worldwide remote, plus verified relocation/sponsorship opportunities.
-```
-
-Applied AI only:
-
-```text
-Use job-apply-autopilot. Apply to up to 10 practical Applied AI / AI Application / LLM-agent roles. Avoid ML research and deep model-training infrastructure roles.
-```
-
-Relocation hunter:
-
-```text
-Use job-apply-autopilot. Hunt for credible engineering roles with explicit visa sponsorship, immigration support, international hiring, or relocation assistance. Apply only when the technical fit is reasonable and the support is verified for the exact role.
-```
-
-Dry run:
-
-```text
-Use job-apply-autopilot. Dry run only: find 30 opportunities across my normal engineering profile and show the integrity, eligibility, mandatory-requirement and calibrated-fit decisions. Submit nothing.
-```
-
-## 9. Per-job resume artifacts
-
-Each accepted job gets its own clean canonical-derived folder:
-
-```text
-.job-apply-autopilot/generated/<job-id>-<slug>/
-  assessment.json
-  job.json
-  fit-map.json
-  tailoring-audit.json
-  canonical-source.tex
-  resume.tex
-  resume.pdf
-  resume.log
-```
-
-`compile-resume.ps1` now refuses to compile an application-ready resume until:
-
-- all hard gates are marked passed,
-- `fit-map.json` is complete with a score,
-- `tailoring-audit.json` is complete,
-- no unsupported terms are listed,
-- `canonical-source.tex` still matches the canonical SHA-256 recorded at scaffold time.
-
-## 10. Circuit-breaker behavior
-
-If an ATS says the application is possible spam/automation, or LinkedIn/ATS produces a rate-limit/security warning, V4 stops submitting on that domain for the current run and moves on. It does not click Submit four times.
+V5 should automatically use its packaged subagents when Task is available. If Task is unavailable, it performs the same stages serially.
