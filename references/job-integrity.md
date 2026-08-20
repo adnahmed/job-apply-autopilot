@@ -1,72 +1,69 @@
-# Job Integrity and Ghost/Talent-Pool Detection
+# Job Integrity / Ghost / Bait-and-Switch Policy V4
 
-This gate exists to avoid fake, ghost, evergreen, misleading, intermediary, expert-marketplace, and bait-and-switch applications.
+## Goal
+Avoid talent pools, expert marketplaces, ghost/syndicated jobs, misleading redirects, and recruiter posts that do not correspond to a coherent opening.
 
 ## Trust classes
 
 ### DIRECT_VERIFIED
-Named employer; job exists on employer's official careers/ATS or the application flow is clearly employer-controlled; title/location/responsibilities match.
-Default: eligible.
+Official employer posting or official ATS requisition; title/location/responsibilities match.
 
 ### DIRECT_REASONABLE
-Named employer and coherent opening, but official ATS verification is unavailable or unnecessary for Easy Apply. Company/posting signals are normal and internally consistent.
-Default: eligible.
+Strong evidence of a real employer opening, though some details may be sourced from LinkedIn before official redirect.
 
 ### AGENCY_NAMED_CLIENT
-Recruiter/agency clearly names the actual client and the role maps coherently to a real opening/client need.
-Default: eligible only at score >= 86 and after destination identity recheck.
+Agency/recruiter names the end client and the exact role remains coherent through the application path. Requires stronger score threshold.
 
 ### AGENCY_UNKNOWN_CLIENT
-"Hiring for a client" with no identifiable end-employer, vague project, or generic repeated description.
-Default: skip.
+Unknown employer/end-client or generic future-client wording. Skip by default.
 
 ### TALENT_POOL
-"Join our network", "curated pool", "we'll selectively speak", "future opportunities", "talent community", "bench", "roster", or no specific open requisition.
-Default: skip.
+`Join our network`, future opportunities, evergreen database, community/talent cloud, no concrete requisition. Skip.
 
 ### EXPERT_MARKETPLACE
-Application is primarily joining an expert/data/evaluation marketplace, model-evaluation pool, annotation network, RLHF contributor network, or generic contract expert roster rather than applying to a specific engineering opening.
-Default: skip for software-engineering campaigns.
+Expert/evaluator/data-labeling/RLHF marketplace or project-matching platform presented as a conventional engineering vacancy. Skip unless user explicitly requests this work category.
 
 ### JOB_AGGREGATOR_ONLY
-Intermediary application that does not lead to a verifiable employer or coherent named-client opening and mainly exists to collect applicant data/alerts.
-Default: skip.
+Aggregator quick-apply with no verified employer requisition. Prefer direct employer ATS; skip if the real opening cannot be verified.
 
 ### IDENTITY_MISMATCH
-Source and destination materially disagree on employer, role family, work type, location, responsibilities, or nature of the opportunity.
-Default: hard skip.
+Title, employer, location, employment type, or core work materially changes after redirect. Skip.
 
 ### SUSPICIOUS_REPOST_NETWORK
-Same generic role repeatedly posted across many locations/titles/companies, highly templated, evergreen, or redirecting to the same unrelated destination.
-Default: skip unless independently verified.
+Repeated generic job copied across many countries/titles or referral networks with no stable employer requisition. Skip/watchlist depending on evidence.
 
 ### UNVERIFIABLE
-Insufficient evidence to determine whether a real current opening exists.
-Default: skip.
+Cannot establish a concrete opening after reasonable verification. Skip.
 
-## Required checks
+## Redirect identity fingerprint
+Before leaving the source page capture:
 
-Before applying, ask:
-- Is there a specific role/requisition rather than a generic network?
-- Is the employer or named client identifiable?
-- Does the destination preserve the same job identity?
-- Are primary responsibilities consistent?
-- Is the application collecting information for this job or for a general marketplace/talent pool?
-- Does the posting repeatedly appear under many locations/titles with identical copy?
-- Is the redirect chain reasonable?
-- Is the compensation/work type consistent from source to destination?
+- company,
+- title,
+- location,
+- employment type,
+- top responsibilities,
+- mandatory technologies,
+- named client if applicable.
 
-## Known-pattern caution
-Treat expert marketplaces and broad AI-training/evaluation networks as `EXPERT_MARKETPLACE` by default for engineering campaigns unless the destination demonstrates a specific named engineering requisition.
+After redirect compare again. Material mismatch -> `IDENTITY_MISMATCH`.
 
-For `micro1.ai` specifically: default to `EXPERT_MARKETPLACE` when the destination is a domain-expert/evaluator/contributor workflow. Do not apply merely because the LinkedIn wrapper used an engineering title. Only override this if a specific end-client engineering requisition with matching title/responsibilities is clearly verified.
+## Ghost/syndication warning signals
+Increase suspicion when several are present:
 
-Do not turn this into a permanent company blacklist; classify each actual posting and destination.
+- generic `we are hiring for one of our clients` with no named client,
+- identical generic copy posted under many titles/countries,
+- evergreen expert network rather than one opening,
+- no requisition ID and no employer ATS presence,
+- application destination uses substantially different title/work,
+- screening questions are for evaluator/data-labeling work while source says software engineering,
+- recruiter/referral tracking dominates the destination,
+- role is repeatedly reposted without stable employer identity,
+- official employer careers search does not contain the opening and source is stale/syndicated.
 
-## Bait-and-switch examples
-Hard skip when:
-- "AI Machine Learning Engineer" -> "AI Domain Expert" / evaluator / annotation contributor
-- named company role -> generic recruiter network signup
-- full-time engineering -> hourly expert marketplace task pool
-- remote worldwide -> country-resident-only destination
-- software engineering -> professional writing / content review / rubric evaluation as primary work
+One signal alone does not prove a ghost job; classify on the combined evidence.
+
+## micro1-style failure pattern
+If a source says AI/ML/software engineer but the destination becomes a generic domain-expert/evaluation marketplace with RLHF/content-review/prompt-rating work, classify `IDENTITY_MISMATCH` or `EXPERT_MARKETPLACE` and stop.
+
+Do not rationalize the mismatch because the pay is attractive or some skills overlap.

@@ -1,27 +1,22 @@
-# Install Job Apply Autopilot V3 — Canonical Resume Edition
+# Install Job Apply Autopilot V4
 
-## What changed in V3
+V4 keeps the canonical LaTeX resume generator from V3 and fixes the real-world judgment issues found in the second campaign:
 
-Every accepted job now gets a brand-new resume regenerated from one of the two immutable canonical LaTeX files you supplied. Generated resumes never become future templates.
+- broader realistic engineering search lanes instead of AI-only,
+- positive eligibility evidence required before auto-apply,
+- explicit relocation/sponsorship evidence for foreign auto-apply,
+- conservative EXACT/DIRECT/ADJACENT evidence scoring,
+- selection-first resume tailoring,
+- LinkedIn OAuth/import before password account creation,
+- immediate circuit breakers for spam/automation/rate-limit signals,
+- compile-time fit-map + tailoring-audit enforcement.
 
-The flow is:
+## 1. Replace the installed skill
 
-```text
-job passes gates
-  -> requirement-to-canonical evidence map
-  -> copy untouched canonical .tex
-  -> tailor working resume.tex to exact JD
-  -> MiKTeX compile
-  -> one-page / text / truth checks
-  -> upload generated resume.pdf
-```
-
-## 1. Replace the old skill
-
-Extract `job-apply-autopilot-v3.zip`, then in PowerShell:
+Extract `job-apply-autopilot-v4.zip`, then run PowerShell from the extracted folder:
 
 ```powershell
-$src = ".\job-apply-autopilot-v3"
+$src = ".\job-apply-autopilot-v4"
 $dst = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 if (Test-Path $dst) {
@@ -32,31 +27,33 @@ if (Test-Path $dst) {
 Copy-Item -Recurse -Force $src $dst
 ```
 
-The important path must exist:
+Expected skill file:
 
 ```text
 ~/.config/opencode/skills/job-apply-autopilot/SKILL.md
 ```
 
-## 2. Verify the canonical resumes were not altered
+## 2. Verify canonical resumes
 
 ```powershell
 $skill = "$HOME\.config\opencode\skills\job-apply-autopilot"
 & "$skill\scripts\verify-canonical.ps1"
 ```
 
-It should report `OK` for both canonical `.tex` files.
+Both canonical `.tex` files should report `OK`.
 
 ## 3. Check MiKTeX CLI
 
 ```powershell
-latexmk -v
 pdflatex --version
+latexmk -v
 ```
 
-V3 prefers `latexmk` and falls back to two `pdflatex` passes.
+If `latexmk` is unavailable/broken, the compile script falls back to two direct `pdflatex` passes.
 
-## 4. Initialize the workspace
+## 4. Keep your existing job-search workspace
+
+Do **not** wipe the V3 workspace if it already contains your application history. V4 can continue using it for deduplication.
 
 ```powershell
 mkdir "$HOME\job-search" -Force
@@ -64,28 +61,19 @@ cd "$HOME\job-search"
 & "$skill\scripts\init-workspace.ps1"
 ```
 
-Runtime data appears under:
+Runtime files:
 
 ```text
-$HOME\job-search\.job-apply-autopilot\
+.job-apply-autopilot/
   applications.jsonl
   relocation-watchlist.jsonl
-  generated\
+  domain-circuit-breakers.jsonl
+  generated/
 ```
 
-## 5. Seed deduplication from the sanitized old ledger (optional)
+## 5. BrowserOS neo permissions
 
-```powershell
-Copy-Item `
-  "$skill\migration\applications.sanitized.jsonl" `
-  "$HOME\job-search\.job-apply-autopilot\applications.jsonl" -Force
-```
-
-Do not migrate the old unsanitized ledger because the previous run wrote sensitive free-text data into it.
-
-## 6. BrowserOS neo permission
-
-If your existing BrowserOS neo tools work, keep that connection. Example OpenCode permission config:
+If BrowserOS neo already works in OpenCode, keep the existing connection. Example permission config:
 
 ```jsonc
 {
@@ -99,55 +87,88 @@ If your existing BrowserOS neo tools work, keep that connection. Example OpenCod
 }
 ```
 
-## 7. Recommended commands
+## 6. OAuth behavior
 
-### Remote AI/LLM applications
+V4 checks ATS authentication in this order:
 
 ```text
-Use job-apply-autopilot. Apply to up to 15 high-fit AI Engineer / LLM Engineer jobs, remote only, posted in the last 7 days. Generate a fresh canonical-based resume for every application. Do not lower quality to hit 15.
+existing ATS session
+→ LinkedIn OAuth / Apply with LinkedIn
+→ Import profile/resume from LinkedIn
+→ other already-authenticated OAuth
+→ generate/autofill password account
 ```
 
-### Remote + sexy relocation opportunities
+It should not spend several minutes creating a candidate profile when a visible `Continue with LinkedIn` path can do the same job.
+
+OAuth/import success does not prove geographic eligibility; the job still needs positive hiring-location evidence.
+
+## 7. Recommended default command
+
+This uses the full realistic profile rather than an AI-only campaign:
 
 ```text
-Use job-apply-autopilot. Apply to up to 15 high-fit AI/LLM engineering jobs, remote or strong relocation opportunities, posted in the last 14 days. Prioritize explicit visa sponsorship, immigration support and relocation assistance. Generate a fresh canonical-based resume for every application.
+Use job-apply-autopilot. Find and apply to up to 15 credible high-fit engineering jobs across my normal profile: backend/software, backend-platform, Python/Node, and practical applied-AI roles. Search Pakistan, explicitly worldwide remote roles, and verified visa-sponsorship/relocation opportunities. Use LinkedIn OAuth/import first when ATS sites offer it. Generate a fresh canonical-LaTeX resume for every accepted job. Do not infer worldwide eligibility from a Remote label, do not inflate adjacent experience, and do not lower standards to hit the target.
 ```
 
-### Relocation hunter
+You can also simply say:
 
 ```text
-Use job-apply-autopilot. Hunt worldwide for high-fit AI/LLM engineering jobs with visa sponsorship or relocation assistance, last 14 days, minimum score 85. Apply autonomously when sponsorship/relocation is verified and regenerate my resume from canonical LaTeX for each job.
+Use job-apply-autopilot. Apply to jobs.
 ```
 
-### Dry run / quality audit
+The skill's defaults now cover the broad engineering lanes.
+
+## 8. Useful focused commands
+
+Backend/software only:
 
 ```text
-Use job-apply-autopilot. Dry run only: find 30 AI/LLM opportunities, run integrity, eligibility, relocation and canonical-evidence gates, and show which jobs would receive tailored resumes. Submit nothing.
+Use job-apply-autopilot. Apply to up to 12 backend/software roles that fit my profile, Pakistan or explicitly worldwide remote, plus verified relocation/sponsorship opportunities.
 ```
 
-## 8. Canonical resume locations
+Applied AI only:
 
 ```text
-canonical/ai-applied-canonical.tex
-canonical/backend-platform-canonical.tex
-canonical/canonical-facts.yaml
+Use job-apply-autopilot. Apply to up to 10 practical Applied AI / AI Application / LLM-agent roles. Avoid ML research and deep model-training infrastructure roles.
 ```
 
-These files are immutable during campaigns. Every job gets a fresh copy in its own generated folder.
-
-## 9. Per-job generated artifacts
-
-Example:
+Relocation hunter:
 
 ```text
-.job-apply-autopilot/generated/4451234567-example-ai-engineer/
+Use job-apply-autopilot. Hunt for credible engineering roles with explicit visa sponsorship, immigration support, international hiring, or relocation assistance. Apply only when the technical fit is reasonable and the support is verified for the exact role.
+```
+
+Dry run:
+
+```text
+Use job-apply-autopilot. Dry run only: find 30 opportunities across my normal engineering profile and show the integrity, eligibility, mandatory-requirement and calibrated-fit decisions. Submit nothing.
+```
+
+## 9. Per-job resume artifacts
+
+Each accepted job gets its own clean canonical-derived folder:
+
+```text
+.job-apply-autopilot/generated/<job-id>-<slug>/
   assessment.json
   job.json
   fit-map.json
+  tailoring-audit.json
   canonical-source.tex
   resume.tex
   resume.pdf
   resume.log
 ```
 
-`canonical-source.tex` is the untouched audit snapshot. `resume.tex` is the only file the agent tailors.
+`compile-resume.ps1` now refuses to compile an application-ready resume until:
+
+- all hard gates are marked passed,
+- `fit-map.json` is complete with a score,
+- `tailoring-audit.json` is complete,
+- no unsupported terms are listed,
+- `canonical-source.tex` still matches the canonical SHA-256 recorded at scaffold time.
+
+## 10. Circuit-breaker behavior
+
+If an ATS says the application is possible spam/automation, or LinkedIn/ATS produces a rate-limit/security warning, V4 stops submitting on that domain for the current run and moves on. It does not click Submit four times.

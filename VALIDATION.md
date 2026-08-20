@@ -1,10 +1,37 @@
-# Validation
+# V4 Validation
 
-Package build validation performed on the two exact uploaded canonical LaTeX sources:
+## Canonical LaTeX
+The two canonical `.tex` files are carried forward unchanged from the user-supplied sources and their SHA-256 hashes remain recorded in `canonical/SHA256SUMS.txt`.
 
-- `canonical/ai-applied-canonical.tex` -> compiled successfully -> 1 page.
-- `canonical/backend-platform-canonical.tex` -> compiled successfully -> 1 page.
+## V4 behavioral changes validated structurally
 
-Canonical SHA-256 hashes are recorded in `canonical/SHA256SUMS.txt` and enforced by `scripts/verify-canonical.ps1`.
+- Broad engineering role lanes are present in `profile.yaml` and `SKILL.md`.
+- Positive eligibility evidence is required by `references/eligibility-policy.md`.
+- `Remote`, global-company status, international team distribution, address acceptance, and absence of a screening gate are explicitly marked non-evidence.
+- OAuth priority includes LinkedIn before password account creation.
+- Password generation/autofill remains allowed as fallback.
+- Evidence classes are EXACT / DIRECT / ADJACENT / WEAK / NONE.
+- Default calibrated auto-apply threshold is 74; 85+ is documented as rare.
+- Resume tailoring is selection-first and requires `tailoring-audit.json`.
+- Domain circuit breakers stop retries after spam/automation/rate-limit/security signals.
 
-The PowerShell workflow is intended for the user's Windows/OpenCode/MiKTeX environment. The canonical LaTeX sources were additionally compiled in the build environment with `latexmk`/`pdflatex` to confirm syntax and page count.
+## Script enforcement
+
+`scaffold-resume.ps1` creates:
+
+- `assessment.json`
+- `fit-map.json`
+- `tailoring-audit.json`
+- immutable `canonical-source.tex`
+- working `resume.tex`
+
+`compile-resume.ps1` refuses compilation unless:
+
+- assessment status = passed,
+- all hard gates = true,
+- fit map status = complete and has requirements + score,
+- tailoring audit status = complete,
+- unsupported terms list is empty,
+- canonical audit copy hash matches the scaffold-time canonical hash.
+
+It then runs LaTeX and validates the generated PDF as before.

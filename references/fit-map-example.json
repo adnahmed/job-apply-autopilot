@@ -1,27 +1,21 @@
 {
-  "job_id": "4450000000",
-  "status": "complete",
+  "job_id": "example-123",
   "requirements": [
     {
-      "requirement": "Build production agentic workflows with Python/LangGraph",
+      "requirement": "Python backend services",
       "importance": "mandatory",
-      "canonical_ids": ["P1", "P2"],
-      "strength": "direct",
-      "ats_keyword_allowed": true
-    },
-    {
-      "requirement": "Operate reliable cloud services at production scale",
-      "importance": "mandatory",
-      "canonical_ids": ["H1", "H2", "H7"],
-      "strength": "direct",
+      "evidence_class": "EXACT",
+      "canonical_ids": ["skills:Python", "H1"],
       "ats_keyword_allowed": true
     },
     {
       "requirement": "Django",
-      "importance": "preferred",
-      "canonical_ids": [],
-      "strength": "none",
-      "ats_keyword_allowed": false
+      "importance": "mandatory",
+      "evidence_class": "ADJACENT",
+      "canonical_ids": ["skills:Python", "skills:FastAPI"],
+      "ats_keyword_allowed": false,
+      "notes": "Python web-backend experience is adjacent; no Django claim. If Django is central, fail gate."
     }
-  ]
+  ],
+  "gate_result": "fail-if-django-central"
 }

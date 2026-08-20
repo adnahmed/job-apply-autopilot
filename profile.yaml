@@ -1,4 +1,4 @@
-profile_version: 3
+profile_version: 4
 candidate:
   full_name: "Adnan Ahmed Khan"
   location:
@@ -26,6 +26,7 @@ current_employment:
   end_year: "Present"
   location: "Islamabad / Remote"
 
+resume_claim_authority: "canonical/canonical-facts.yaml"
 resume_generation:
   source_policy: "immutable-canonical-per-job"
   ai_canonical: "canonical/ai-applied-canonical.tex"
@@ -35,52 +36,101 @@ resume_generation:
   always_start_from_canonical: true
   preserve_canonical_audit_copy: true
   require_fit_map_before_tailoring: true
+  require_tailoring_audit: true
   stale_pdf_fallback_allowed: false
   compile_script: "scripts/compile-resume.ps1"
+  tailoring_style: "selection-first-conservative"
 
-# Canonical resume facts are authoritative for resume claims.
-# Read canonical/canonical-facts.yaml instead of inferring skills from this profile.
-resume_claim_authority: "canonical/canonical-facts.yaml"
-
-# Workflow preferences; these are not legal/work-authorization claims.
 autonomy:
   ask_user_questions: false
   submit_without_preview: true
   continue_after_skipped_application: true
+  requested_count_is_maximum_not_quota: true
   max_applications_per_run: 20
   max_external_applications_per_run: 10
-  minimum_match_score: 82
+  minimum_match_score: 74
   prefer_recent_days: 7
-  requested_count_is_maximum_not_quota: true
-  stop_on_rate_limit: true
+  stop_domain_on_first_automation_signal: true
   stop_on_account_security_warning: true
   never_bypass_captcha_or_security_challenge: true
+  ordinary_form_validation_retries: 1
+  anti_bot_submission_retries: 0
+
+authentication:
+  prefer_existing_session: true
+  prefer_linkedin_oauth: true
+  prefer_linkedin_profile_import: true
+  password_account_creation_allowed: true
+  password_generation_allowed: true
+  password_autofill_allowed: true
+  auth_priority:
+    - "existing-session"
+    - "linkedin-oauth"
+    - "linkedin-profile-import"
+    - "other-already-authenticated-oauth"
+    - "password-account"
 
 search_defaults:
-  primary_campaign: "AI/LLM engineering"
+  campaign_mode: "broad-engineering"
   locations:
-    - "Remote"
     - "Pakistan"
     - "Islamabad, Pakistan"
-  preferred_titles:
-    - "AI Engineer"
-    - "LLM Engineer"
+    - "Remote"
+  primary_role_lanes:
+    - "Backend Engineer"
+    - "Senior Backend Engineer"
+    - "Software Engineer"
+    - "Senior Software Engineer"
+    - "Python Engineer"
+    - "Python Backend Engineer"
+    - "Node.js Backend Engineer"
+    - "TypeScript Backend Engineer"
+    - "Backend Platform Engineer"
+    - "Platform Software Engineer"
     - "Applied AI Engineer"
     - "AI Application Engineer"
+    - "AI Engineer"
+    - "LLM Application Engineer"
     - "AI Agent Engineer"
-    - "Generative AI Engineer"
+  selective_role_lanes:
     - "Forward Deployed Engineer"
+    - "Technical Solutions Engineer"
+    - "Developer Platform Engineer"
+    - "Developer Infrastructure Engineer"
+    - "Distributed Systems Engineer"
+    - "Site Reliability Engineer"
+    - "Staff Software Engineer"
+    - "Principal Software Engineer"
+  generally_avoid:
+    - "Research Scientist"
+    - "ML Research Engineer"
+    - "CUDA Engineer"
+    - "GPU Infrastructure Engineer"
+    - "Deep Learning Training Engineer"
+    - "Data Scientist"
+    - "Frontend Engineer"
+    - "Mobile Engineer"
   excluded_job_types:
     - "internship"
     - "unpaid"
     - "commission-only"
     - "volunteer"
 
+eligibility:
+  require_positive_evidence_for_foreign_remote: true
+  absence_of_gate_is_not_evidence: true
+  global_company_is_not_evidence: true
+  international_team_is_not_evidence: true
+  address_form_acceptance_is_not_evidence: true
+  linkedin_worldwide_search_is_not_evidence: true
+  unclear_action: "watchlist"
+
 relocation:
   enabled_by_default: true
   keep_watchlist_even_during_remote_only_campaigns: true
   auto_apply_when_campaign_allows_relocation: true
-  require_explicit_sponsorship_or_international_hiring_for_auto_apply: true
+  require_explicit_sponsorship_relocation_or_international_hiring: true
+  no_fixed_country_preference: true
   positive_phrases:
     - "visa sponsorship"
     - "work visa sponsorship"
@@ -92,19 +142,18 @@ relocation:
     - "work permit support"
     - "visa transfer"
     - "relocation bonus"
-  no_fixed_country_preference: true
 
 answer_policy:
-  cover_letter: "Generate concise job-specific text using only verified canonical facts and the current verified job posting."
+  cover_letter: "Generate concise job-specific prose using only verified canonical facts and current verified job facts."
   demographic_optional: "Prefer not to answer / decline to self-identify."
   disability_optional: "Prefer not to answer / decline to self-identify."
   veteran_optional: "Prefer not to answer / decline to self-identify."
   gender_optional: "Prefer not to answer / decline to self-identify."
   race_ethnicity_optional: "Prefer not to answer / decline to self-identify."
   compensation_text: "Negotiable; open to a market-competitive package."
-  compensation_numeric: "Use a posted range only when present and required; otherwise do not invent a number. If no truthful numeric answer is available, skip."
-  start_date: "30 days after offer unless the form supports negotiable."
+  compensation_numeric: "Use a posted range when required and appropriate; otherwise do not invent current salary/CTC."
+  start_date: "30 days after offer unless negotiable is available."
   notice_period: "30 days when mandatory; otherwise choose negotiable if available."
   years_total_experience: "6+"
-  work_authorization: "Never infer. Answer only from verified saved data/current truthful form context."
-  factual_unknown_required: "Use verified data; choose N/A/prefer-not-to-answer when available; otherwise skip. Never fabricate."
+  work_authorization: "Never infer. Answer only from verified facts or the exact application context."
+  factual_unknown_required: "Use verified data; choose N/A/prefer-not-to-answer when available; otherwise skip."

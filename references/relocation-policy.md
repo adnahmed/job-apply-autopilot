@@ -1,73 +1,53 @@
-# Relocation and Visa-Sponsorship Policy
+# Relocation and Sponsorship Policy V4
 
-Relocation is a first-class opportunity lane.
+Relocation is a first-class search lane, but **explicit evidence is required for auto-application**.
 
-## Candidate preference
-The candidate is open to strong international relocation opportunities when the employer can realistically support the move. Do not assume eligibility; verify it from the posting/application.
+## Auto-applicable relocation states
 
-## Positive relocation signals
-Treat these as strong positive evidence:
+### SPONSORSHIP_EXPLICIT
+The exact role or official employer policy explicitly offers visa/work-permit sponsorship applicable to the role/location.
 
-- "visa sponsorship"
-- "work visa sponsorship"
-- "immigration support"
-- "relocation assistance"
-- "relocation package"
-- "global mobility"
-- "international candidates welcome"
-- "we sponsor"
-- "work permit support"
-- "visa transfer"
-- "relocation bonus"
-- employer states it hires from abroad for the specific location
+### RELOCATION_EXPLICIT
+The exact role explicitly offers relocation assistance/package/bonus or overseas relocation support.
 
-## Strong relocation candidate
-A relocation role can be submitted autonomously when all are true:
+### INTERNATIONAL_HIRING_EXPLICIT
+The exact role explicitly welcomes international candidates or states that the employer can hire outside the advertised country.
 
-1. integrity gate passes,
-2. technical score >= 82 (>=86 for agency-named-client),
-3. posting explicitly supports sponsorship/relocation/international hiring OR the application truthfully confirms sponsorship is available,
-4. no contradictory "must already be authorized" or local-residency requirement,
-5. role is full-time/credible and seniority fits.
+Only these states can auto-apply when relocation is enabled.
 
-## Relocation watchlist
-Always keep an eye out for excellent relocation roles, even during `remote only` campaigns.
+## Watchlist-only states
 
-Write a watchlist record when:
-- technical fit would be >=82,
-- integrity passes,
-- role is abroad and attractive,
-- sponsorship/relocation is explicit OR plausibly available but not yet verified.
+### RELOCATION_POSSIBLE_UNVERIFIED
+Attractive foreign role at a company known to hire internationally, but no exact-role evidence of sponsorship/relocation.
 
-Values:
-- `explicit-sponsored`
-- `explicit-relocation`
-- `international-hiring`
-- `unclear-research-needed`
-- `country-locked-no-sponsorship`
+### COUNTRY_SCOPE_UNCLEAR
+Remote/foreign role with unclear hiring geography.
 
-Only the first three are auto-applicable when relocation is enabled.
+### COUNTRY_LOCKED_NO_SUPPORT
+Role requires local residence/right-to-work and gives no sponsorship/relocation bridge.
 
-## Country-locked is not relocation
-These are NOT relocation opportunities by themselves:
-- "Remote - India" and "India-based candidates only"
-- "Remote - EU" with EU residency required
-- "Remote - US" with existing US work authorization required
-- "Remote - Spain" with Spain residency requirement
+The first two may enter `relocation-watchlist.jsonl`; the third is a skip.
 
-A country label plus remote status does not imply sponsorship.
+## Not relocation evidence
+Do not infer relocation from:
 
-## Campaign behavior
-- `remote only`: submit remote-only; watchlist relocation opportunities but do not submit them.
-- `remote or relocation` / `relocation welcome`: submit both high-fit remote roles and verified sponsored relocation roles.
-- no explicit location instruction: remote-first + relocation-enabled by default.
+- a global company,
+- offices in multiple countries,
+- employees/team members in multiple countries,
+- an ATS accepting a Pakistan address,
+- LinkedIn `Remote`,
+- LinkedIn `Worldwide`,
+- salary shown in another country,
+- no work-auth question,
+- no explicit exclusion found.
 
-## Search expansion for relocation-enabled campaigns
-In addition to normal title searches, periodically search combinations such as:
-- `<title> visa sponsorship`
-- `<title> relocation assistance`
-- `<title> international candidates`
-- `<title> immigration support`
-- `<title> relocation package`
+## Remote-only campaigns
+If user says `remote only`, do not submit non-remote relocation jobs. Keep strong explicit relocation opportunities on the watchlist.
 
-Do not target a specific country unless the user requests one. Let role quality and explicit sponsorship drive ranking.
+## Default campaigns
+If user does not specify location restrictions, search both:
+- Pakistan / explicitly worldwide remote,
+- verified relocation/sponsorship roles.
+
+## Relocation never repairs weak fit
+A glamorous destination or generous relocation package cannot override technical/seniority gates. A relocation role still needs the normal minimum technical score after gates pass.

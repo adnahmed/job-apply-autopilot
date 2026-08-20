@@ -12,16 +12,42 @@ $baseName = [System.IO.Path]::GetFileNameWithoutExtension($texName)
 $pdfPath = Join-Path $workDir "$baseName.pdf"
 $logPath = Join-Path $workDir "$baseName.log"
 $fitMapPath = Join-Path $workDir 'fit-map.json'
+$assessmentPath = Join-Path $workDir 'assessment.json'
+$tailoringAuditPath = Join-Path $workDir 'tailoring-audit.json'
+$jobMetaPath = Join-Path $workDir 'job.json'
+$canonicalAuditPath = Join-Path $workDir 'canonical-source.tex'
 
 $source = Get-Content -LiteralPath $TexPath -Raw
 if ($source -notmatch 'Adnan Ahmed Khan') { throw 'Candidate name is missing from resume.tex.' }
 if ($source -notmatch 'khanadnanahmed01@gmail\.com') { throw 'Candidate email is missing from resume.tex.' }
 
-if (Test-Path -LiteralPath $fitMapPath) {
-    $fit = Get-Content -LiteralPath $fitMapPath -Raw | ConvertFrom-Json
-    if ($fit.status -eq 'must-be-filled-before-resume-tailoring' -or $fit.requirements.Count -eq 0) {
-        throw 'fit-map.json has not been completed. Build the canonical evidence map before compiling.'
-    }
+foreach ($required in @($assessmentPath, $fitMapPath, $tailoringAuditPath, $jobMetaPath, $canonicalAuditPath)) {
+    if (-not (Test-Path -LiteralPath $required)) { throw "Required audit artifact missing: $required" }
+}
+
+$assessment = Get-Content -LiteralPath $assessmentPath -Raw | ConvertFrom-Json
+if ($assessment.status -ne 'passed') { throw 'assessment.json has not been marked passed.' }
+$gateNames = @('integrity','eligibility','role_family','mandatory_requirements','truth_feasibility')
+foreach ($gate in $gateNames) {
+    if (-not [bool]$assessment.hard_gates.$gate) { throw "Hard gate not passed: $gate" }
+}
+
+$fit = Get-Content -LiteralPath $fitMapPath -Raw | ConvertFrom-Json
+if ($fit.status -ne 'complete' -or $fit.requirements.Count -eq 0) {
+    throw 'fit-map.json is incomplete.'
+}
+if ($null -eq $fit.score) { throw 'fit-map.json is missing calibrated score.' }
+
+$tailor = Get-Content -LiteralPath $tailoringAuditPath -Raw | ConvertFrom-Json
+if ($tailor.status -ne 'complete') { throw 'tailoring-audit.json is incomplete.' }
+if ($tailor.unsupported_terms_added.Count -gt 0) {
+    throw 'tailoring-audit.json reports unsupported terms. Correct the resume before compiling.'
+}
+
+$jobMeta = Get-Content -LiteralPath $jobMetaPath -Raw | ConvertFrom-Json
+$auditHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $canonicalAuditPath).Hash.ToLowerInvariant()
+if ($auditHash -ne [string]$jobMeta.canonical_sha256) {
+    throw 'canonical-source.tex does not match the immutable canonical hash recorded at scaffold time.'
 }
 
 Push-Location $workDir

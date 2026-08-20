@@ -1,127 +1,137 @@
-# Canonical Per-Job Resume Tailoring — V3
+# Canonical Per-Job Resume Tailoring V4 — Selection First
 
 ## Goal
-Generate a fresh, truthful, ATS-friendly resume for each accepted job from an immutable canonical `.tex` source.
+Create a fresh, credible, ATS-readable resume for each accepted job without turning adjacent experience into a new specialist identity.
 
-Tailoring can improve relevance and keyword alignment; it cannot guarantee interviews or hiring.
-
-## Immutable source rule
-Every job starts from exactly one of:
+## Immutable source
+Every job starts from exactly one untouched canonical source:
 
 - `canonical/ai-applied-canonical.tex`
 - `canonical/backend-platform-canonical.tex`
 
-Never start from another generated `resume.tex` or `resume.pdf`.
+Never start from another generated resume.
 
-The scaffold must preserve an untouched `canonical-source.tex` beside the working `resume.tex`.
+The job folder must preserve `canonical-source.tex` unchanged.
 
-## Evidence rule
-Use `canonical/canonical-facts.yaml` as the claim whitelist.
+## Canonical evidence
+`canonical/canonical-facts.yaml` is the claim whitelist and truth ceiling.
 
-Every material resume claim must be supported by:
-- one or more canonical claim IDs, or
-- an exact supported skill from the canonical facts list.
+A canonical keyword being present does not automatically prove deep expertise, years of specialist experience, formal methodology, or a specialist career identity.
 
-Do not introduce technologies just because they appear in the JD.
+## Tailoring order
+Default to the least-transformative operation that improves relevance:
 
-## Mandatory fit-map before editing
-Create `fit-map.json` with each important JD requirement and its canonical evidence.
+1. select relevant canonical bullets,
+2. reorder bullets,
+3. reorder supported skills,
+4. select/reorder projects,
+5. remove irrelevant content,
+6. use exact supported terminology aliases,
+7. shorten wording while preserving meaning,
+8. only then lightly rewrite for clarity.
 
-For every requirement classify:
-- importance: mandatory / preferred / context
-- evidence strength: direct / strong-adjacent / weak-adjacent / none
-- canonical IDs
-- ATS keyword allowed: true/false
+Substantial rewriting is exceptional, not the default.
 
-If multiple central mandatory requirements have `none`, fail the technical gate instead of resume-tuning around the mismatch.
+## Headline calibration
+Use restrained market-facing headlines supported by the actual background.
 
-## ATS tailoring strategy
-Use the exact employer terminology when the meaning is supported.
+Preferred examples:
+- `Senior Backend Engineer`
+- `Backend & Platform Engineer`
+- `Software Engineer — Backend & Platform`
+- `Python / Backend Engineer`
+- `Software Engineer — Applied AI`
+- `Applied AI Engineer`
+- `AI Application Engineer`
 
-Good examples:
-- JD says `PostgreSQL`; canonical says `Postgres` -> use `PostgreSQL`.
-- JD says `agentic workflows`; canonical has LangGraph agent runtime/orchestration -> use the phrase naturally.
-- JD says `hybrid retrieval`; canonical has hybrid graph/vector retrieval -> use exact wording where appropriate.
+Avoid manufactured combinations such as:
+- `LLM Evaluation & Production Infrastructure Expert`
+- `Distributed AI Systems Architect`
+- `Staff AI Platform Engineer`
 
-Bad examples:
-- JD says `Django`; canonical has FastAPI -> do not add Django.
-- JD says `PyTorch training`; canonical has LLM applications -> do not add PyTorch/model training.
-- JD says `CUDA/vLLM/Triton`; canonical has AWS/Kubernetes -> do not add them.
+Do not mirror Staff/Principal/Lead/Research titles merely because the target JD uses them.
 
-## What may change per job
+## Summary
+Use 2-4 compact lines. Prefer canonical language and concrete facts.
 
-### Headline
-Choose a truthful market-facing headline reflecting the job and canonical background, e.g.:
-- AI Engineer | Applied AI, LangGraph & Production Systems
-- Applied AI Engineer | Agents, Knowledge Systems & Python
-- AI/Backend Engineer | Agentic Systems, FastAPI & AWS
-- Senior Backend & Platform Engineer | Python, Node.js, AWS & Distributed Systems
+Good summary ingredients:
+- actual broad role identity,
+- 3-5 directly supported technologies/capabilities,
+- 1-2 quantified production outcomes.
 
-Do not claim an exact formal title at an employer that was never held.
+Avoid adjective-heavy claims like `expert`, `world-class`, `deep`, `leading`, `specialist` unless the canonical source itself explicitly supports that characterization.
 
-### Summary
-Use 2-4 compact lines.
-Prioritize:
-- target role family,
-- 3-5 direct skills/evidence areas,
-- 1-2 strongest quantified production outcomes.
+## Skills
+Reorder only supported skills.
 
-Avoid generic adjective-heavy summaries.
+Exact aliases are fine:
+- Postgres -> PostgreSQL
+- Node -> Node.js
+- K8s -> Kubernetes
 
-### Skills
-Reorder supported skills to match the JD priority.
-Keep requested supported keywords verbatim when natural.
-Remove irrelevant skills before shrinking fonts.
+Do not insert unsupported JD technologies.
 
-### Experience bullets
-Select/reorder/rewrite canonical facts; preserve numbers and causal meaning.
-Prefer 4-6 HackOnTech bullets and 1-3 Creative IT Park bullets depending on space.
+## Experience bullets
+Prefer canonical bullet text verbatim or minimally shortened.
 
-For AI roles, prioritize H8 and AI-relevant platform/reliability facts.
-For platform roles, prioritize H2/H3/H5/H6/H7.
+A rewrite must preserve:
+- technology truth,
+- scope,
+- causal meaning,
+- numerical values,
+- ownership level,
+- team/leadership implications.
 
-### Projects
-Use only projects that add material evidence for the specific JD.
+Do not transform:
+- `built semantic mismatch checks` into `led formal LLM evaluation methodology`,
+- `owned a platform overhaul` into `set organization-wide architecture strategy`,
+- `worked on client projects` into `forward-deployed consulting leadership`.
 
-Typical selection:
-- agent/tool/browser roles -> P1/P2/P3
-- knowledge graph/retrieval -> P1/P3 and P7/P8 if relevant
-- orchestration/workflow -> P4 plus H3/H7
-- distributed/rendering/platform -> P5/P6 when relevant
-- multimodal/NLP -> H8
+## Projects
+Select projects only when they provide direct evidence for central JD needs. Do not use project names to imply professional years of specialist experience.
 
-### Education/languages
-Keep concise. Never alter degree or institution.
+## ATS terminology rule
+Use exact JD terms only when evidence class is `EXACT` or `DIRECT`.
 
-## One-page optimization order
-If the tailored resume exceeds one page:
+For `ADJACENT`, use the canonical terminology, not the employer's stronger/specialized term.
+
+Example:
+- JD formal ML evaluation + canonical semantic mismatch workflow -> keep `semantic mismatch/evaluation workflow`; do not rewrite to `statistical model evaluation framework`.
+
+## Tailoring audit
+Create `tailoring-audit.json` in every generated folder with:
+
+- canonical source,
+- headline chosen,
+- canonical claim IDs used,
+- bullets removed,
+- bullets reordered,
+- aliases introduced,
+- materially rewritten sentences and supporting IDs,
+- explicit `unsupported_terms_added: []`.
+
+If `unsupported_terms_added` is not empty, fix the resume before compile.
+
+## One-page optimization
+If over one page:
 1. remove least relevant project,
 2. remove least relevant bullet,
 3. compress skills,
 4. shorten summary,
-5. reduce vertical whitespace slightly,
-6. only then make small font/spacing adjustments.
+5. reduce spacing slightly,
+6. only then small font adjustments.
 
-Do not make the resume unreadably small.
+Never shrink into unreadability.
 
-## Per-job output requirements
-Each job directory should contain:
-- `assessment.json`
-- `job.json`
-- `fit-map.json`
-- `canonical-source.tex`
-- `resume.tex`
-- `resume.pdf`
-- `resume.log`
+## Final audit before upload
+Ask:
 
-The application log must record the generated PDF path and canonical source used.
-
-## Final truth audit
-Before upload compare `resume.tex` against `canonical-facts.yaml` and ask:
-- Did I add any technology not supported?
-- Did I inflate years, ownership, leadership, scale, domain expertise, or management?
+- Did the headline overstate seniority or specialization?
+- Did an ADJACENT requirement become a DIRECT-sounding claim?
+- Did I add unsupported technology or domain terms?
 - Did I change employer/title/dates?
-- Did I imply work authorization or relocation status?
-- Did I change quantitative outcomes?
+- Did I imply people management?
+- Did I change numbers?
+- Did I use a previous generated resume as source?
 
-If yes, correct it before application.
+Any `yes` -> correct before applying.

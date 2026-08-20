@@ -1,34 +1,21 @@
 {
-  "job_id": "4450000000",
-  "source": {
-    "platform": "linkedin",
-    "company": "Example Co",
-    "title": "Applied AI Engineer",
-    "location": "London, UK",
-    "workplace": "Hybrid",
-    "job_url": "https://...",
-    "employment_type": "Full-time",
-    "posted_age": "4 hours",
-    "defining_requirements": ["Python", "LangGraph/agents", "FastAPI", "AWS"]
+  "job_id": "example-123",
+  "company": "Example Co",
+  "title": "Senior Backend Engineer",
+  "trust_class": "DIRECT_VERIFIED",
+  "eligibility_state": "WORLDWIDE_EXPLICIT",
+  "eligibility_evidence": {
+    "source": "official ATS",
+    "text_summary": "Role explicitly states remote worldwide / candidates globally."
   },
-  "integrity": {
-    "trust_class": "DIRECT_VERIFIED",
-    "passed": true,
-    "evidence": ["official ATS matches source title/company/location"]
+  "role_family": "backend",
+  "hard_gates": {
+    "integrity": true,
+    "eligibility": true,
+    "role_family": true,
+    "mandatory_requirements": true,
+    "truth_feasibility": true
   },
-  "eligibility": {
-    "passed": true,
-    "mode": "relocation",
-    "relocation_status": "explicit-sponsored",
-    "evidence": ["visa sponsorship available", "relocation assistance"]
-  },
-  "campaign_intent": {"passed": true, "role_family": "Applied AI Engineer"},
-  "technical_hard_requirements": {"passed": true, "unsupported_mandatory": []},
-  "canonical_evidence": {
-    "source": "canonical/ai-applied-canonical.tex",
-    "claim_ids": ["P1", "P2", "H1", "H7"]
-  },
-  "score": 91,
-  "decision": "apply",
-  "generated_resume": ".job-apply-autopilot/generated/4450000000-example-co-applied-ai-engineer/resume.pdf"
+  "score": 79,
+  "decision": "apply"
 }

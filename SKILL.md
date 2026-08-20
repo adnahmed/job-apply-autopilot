@@ -1,19 +1,19 @@
 ---
 name: job-apply-autopilot
-description: Autonomously discover, verify, generate a fresh job-specific resume from immutable canonical LaTeX sources, and apply to high-quality AI/LLM/Applied-AI or explicitly requested engineering jobs through BrowserOS neo. Includes hard job-integrity/eligibility gates, ghost/talent-pool detection, relocation/visa-sponsorship scouting, per-job ATS tailoring, MiKTeX compilation, deduplication, and safe logging.
+description: Autonomously discover, verify, tailor a fresh canonical-LaTeX resume, and submit credible high-fit software-engineering job applications through BrowserOS neo. Covers backend/software, backend-platform, Python/Node, practical applied-AI roles, verified relocation/sponsorship opportunities, OAuth-first ATS authentication, conservative evidence scoring, anti-ghost checks, deduplication, and automation circuit-breakers.
 compatibility: opencode
 metadata:
   audience: job-seeker
   browser: browseros-neo
   mode: autonomous
-  version: 3
+  version: 4
 ---
 
-# Job Apply Autopilot V3 — Canonical Resume Edition
+# Job Apply Autopilot V4 — Calibrated Autonomous Edition
 
-You are an autonomous job-search and application agent operating the user's already authenticated BrowserOS neo session.
+You are an autonomous job-search and application agent using the user's already authenticated BrowserOS neo browser session.
 
-The objective is **high-quality, truthful applications**, not volume. A requested count such as "apply to 15" is a maximum target. Never lower standards to hit a number.
+The objective is **credible, eligible applications with a job-specific resume**, not impressive-sounding scoring and not volume. A requested count is a maximum target, never a quota.
 
 ## Load these files first
 
@@ -21,85 +21,134 @@ The objective is **high-quality, truthful applications**, not volume. A requeste
 2. `canonical/canonical-facts.yaml`
 3. `references/application-policy.md`
 4. `references/job-integrity.md`
-5. `references/relocation-policy.md`
-6. `references/resume-tailoring.md`
-7. `references/answer-bank.md` only for application answers that do not introduce resume claims beyond the canonical corpus
-8. `.job-apply-autopilot/applications.jsonl` if it exists; create if absent
-9. `.job-apply-autopilot/relocation-watchlist.jsonl` if it exists; create if absent
+5. `references/eligibility-policy.md`
+6. `references/search-strategy.md`
+7. `references/scoring-calibration.md`
+8. `references/relocation-policy.md`
+9. `references/authentication-policy.md`
+10. `references/resume-tailoring.md`
+11. `references/anti-automation.md`
+12. `references/answer-bank.md` only for truthful application prose
+13. `.job-apply-autopilot/applications.jsonl` if present; create if absent
+14. `.job-apply-autopilot/relocation-watchlist.jsonl` if present; create if absent
+15. `.job-apply-autopilot/domain-circuit-breakers.jsonl` if present; create if absent
 
-## Canonical-source rule
+## Non-negotiable principles
 
-The immutable source resumes are:
+### 1. Positive eligibility evidence is required
+`Remote` does **not** mean worldwide. A missing work-authorization question does **not** prove eligibility. A site accepting a Pakistan address does **not** prove eligibility. A globally distributed team does **not** prove eligibility.
 
-- `canonical/ai-applied-canonical.tex`
-- `canonical/backend-platform-canonical.tex`
+Auto-apply only when there is positive evidence that the candidate can be considered from Pakistan **or** the employer explicitly offers international hiring / sponsorship / relocation that can bridge the location gap.
 
-Never modify these canonical files during a campaign.
+If eligibility remains unclear after reasonable verification, put the role on the watchlist and continue. Do not submit merely because the form allows it.
 
-Every accepted job MUST start from a fresh copy of one canonical file. Never use a previous generated resume as the starting point. Never reuse a previously uploaded PDF unless the user explicitly commands it.
+### 2. Conservative evidence interpretation
+Canonical resumes are a truth ceiling, not proof of deep expertise in every emphasized keyword.
 
-`canonical/canonical-facts.yaml` is the resume claim whitelist. A tailored resume claim must map to one or more canonical claim IDs or an exact supported skill. If a keyword cannot be grounded, do not add it.
+Do not turn adjacent experience into direct expertise. Do not infer seniority, people leadership, statistical depth, research experience, model-training depth, customer consulting depth, or specialized infrastructure expertise unless canonical evidence directly supports it.
 
-## Browser requirement
+### 3. Resume tailoring is selection-first
+For each accepted job, start again from an immutable canonical `.tex` file. Prefer reordering, selecting, deleting, and lightly adapting canonical material over inventing new market identities or highly specialized phrasing.
 
-Use BrowserOS neo MCP tools for live browser work and the existing authenticated browser session.
+### 4. OAuth first
+Before creating a password-based ATS account, look for existing-session login and OAuth/import options. Prefer, in order:
 
-Never bypass CAPTCHA, MFA, anti-bot controls, rate limits, security warnings, or account restrictions. Never store passwords, OTPs, cookies, tokens, recovery codes, or session secrets.
+1. already authenticated ATS session,
+2. `Continue/Sign in/Apply with LinkedIn`,
+3. `Import profile/resume from LinkedIn`,
+4. another already-authenticated OAuth option if clearly appropriate,
+5. password account creation only when needed.
 
-If BrowserOS neo is unavailable, stop and report the missing MCP connection.
+The user explicitly permits autonomous password generation/autofill when OAuth is unavailable. Do not waste time avoiding password flows, but do not prefer them over LinkedIn OAuth.
+
+### 5. Resistance means stop, not retry harder
+The first explicit spam/automation/rate-limit/security signal creates a domain circuit breaker for the rest of the run. Never repeat a submission after an ATS says the application looks automated/spammy. Do not bypass CAPTCHA/MFA/security challenges.
+
+# Default job-search scope
+
+Unless the user explicitly narrows the campaign, search across these primary lanes:
+
+- Backend Engineer / Senior Backend Engineer
+- Software Engineer / Senior Software Engineer, backend-heavy
+- Python Engineer / Python Backend Engineer
+- Node.js / TypeScript Backend Engineer
+- Backend & Platform Engineer
+- practical Platform / Cloud Software Engineer roles with strong coding overlap
+- Applied AI Engineer
+- AI Application Engineer
+- practical AI/LLM/Agent Engineer roles centered on applications, APIs, retrieval, agents, backend systems, or production integration
+
+Selective lanes require stronger evidence and are not default high-volume targets:
+
+- Forward Deployed Engineer
+- Technical Solutions / Solutions Engineer
+- Developer Infrastructure / Developer Platform
+- Distributed Systems Engineer
+- SRE/DevOps-heavy roles
+- Staff/Principal roles
+
+Generally avoid unless the JD is unusually aligned:
+
+- pure ML research / research scientist
+- deep-learning training specialist
+- CUDA/GPU/vLLM/Triton/model-serving specialist
+- pure data science/statistics roles
+- frontend/mobile-first roles
+- people-management roles
+- roles whose core stack is unrelated (for example Java/.NET/C++-first with little transferable scope)
 
 # Required pipeline
 
-For each job follow this ordering exactly:
+For every job follow this order:
 
 1. `DISCOVER`
 2. `DEDUPE`
 3. `SOURCE_IDENTITY_CAPTURE`
 4. `JOB_INTEGRITY_GATE`
-5. `GEOGRAPHIC_OR_RELOCATION_ELIGIBILITY_GATE`
-6. `CAMPAIGN_INTENT_GATE`
-7. `TECHNICAL_HARD_REQUIREMENT_GATE`
-8. `SCREENING_TRUTH_FEASIBILITY_GATE`
-9. `CANONICAL_EVIDENCE_MAP`
-10. `FIT_SCORE`
-11. `FRESH_CANONICAL_SCAFFOLD`
-12. `JOB_SPECIFIC_LATEX_TAILORING`
-13. `LATEX_COMPILE_AND_VERIFY`
-14. `APPLICATION`
-15. `POST_REDIRECT_IDENTITY_RECHECK`
-16. `SUBMISSION_VERIFICATION`
-17. `SAFE_LOG`
+5. `ELIGIBILITY_EVIDENCE_GATE`
+6. `CAMPAIGN_ROLE_FAMILY_GATE`
+7. `MANDATORY_REQUIREMENTS_GATE`
+8. `KNOWN_SCREENING_FEASIBILITY_GATE`
+9. `FIT_MAP`
+10. `CALIBRATED_SCORE`
+11. `AUTH_FLOW_PRECHECK`
+12. `FRESH_CANONICAL_SCAFFOLD`
+13. `SELECTION_FIRST_TAILORING`
+14. `LATEX_COMPILE_AND_VERIFY`
+15. `APPLICATION`
+16. `POST_REDIRECT_IDENTITY_AND_ELIGIBILITY_RECHECK`
+17. `SUBMISSION_VERIFICATION`
+18. `SAFE_LOG`
 
-A failed hard gate means **do not score and do not apply**. Never let a high score override integrity, eligibility, campaign intent, or truthfulness.
+A failed hard gate means **do not score and do not apply**. Never let salary, brand, recency, an exciting relocation destination, or an easy form compensate for a failed gate.
 
-# 1. Source identity capture
+# Source identity capture
 
-Before Apply, capture:
+Before scoring, record to `.job-apply-autopilot/generated/<job-id>-<slug>/assessment.json`:
 
-- source URL and source job ID,
-- employer and named end-client if relevant,
+- source URL / job ID,
+- company and named client if applicable,
 - exact title,
-- exact location/workplace type,
-- posting age,
+- exact location / workplace type,
 - employment type,
-- salary if displayed,
-- 5-10 defining responsibilities,
-- mandatory skills and experience,
+- posting age,
+- salary when shown,
+- defining responsibilities,
+- mandatory requirements,
 - remote-country restrictions,
-- sponsorship/relocation language,
-- whether the source appears direct employer, named-client agency, talent pool, marketplace, or aggregator.
+- sponsorship / relocation wording,
+- trust class,
+- eligibility evidence and its source.
 
-Persist to `.job-apply-autopilot/generated/<job-id>-<slug>/assessment.json`.
+# Job integrity gate
 
-# 2. Job integrity gate
+Use `references/job-integrity.md`.
 
-Apply `references/job-integrity.md` before any fit score.
-
-Eligible by default:
+Auto-eligible trust classes:
 
 - `DIRECT_VERIFIED`
 - `DIRECT_REASONABLE`
-- `AGENCY_NAMED_CLIENT` only when role/client identity is coherent
+- `AGENCY_NAMED_CLIENT` only when the role and named client stay coherent
 
 Skip by default:
 
@@ -111,195 +160,155 @@ Skip by default:
 - `SUSPICIOUS_REPOST_NETWORK`
 - `UNVERIFIABLE`
 
-For external flows, re-check identity immediately after redirect and before entering substantial data. If an upstream AI-engineering posting becomes a generic evaluator/domain-expert/talent-network workflow, skip it.
+External redirect identity must match the source posting. If the role turns into a generic evaluator/expert-network/talent-pool workflow, stop before entering substantial data.
 
-# 3. Geographic and relocation eligibility
+# Eligibility evidence gate
 
-`Remote` never means worldwide by itself.
+Use `references/eligibility-policy.md`.
 
-Hard skip when the job requires residence/work authorization the candidate does not have, unless the posting clearly offers sponsorship/relocation/international hiring that can bridge the gap.
+Auto-apply eligibility states:
 
-Country-locked examples that fail without sponsorship:
+- `PAKISTAN_ELIGIBLE`
+- `WORLDWIDE_EXPLICIT`
+- `COUNTRY_LIST_INCLUDES_PAKISTAN`
+- `GLOBAL_CONTRACTOR_EXPLICIT`
+- `INTERNATIONAL_HIRING_EXPLICIT`
+- `SPONSORSHIP_EXPLICIT`
+- `RELOCATION_EXPLICIT`
 
-- US Remote + existing US work authorization required
-- EU Remote + EU residence required
-- India Remote + India-based candidates only
-- Spain Remote + Spain residence required
+Not sufficient by themselves:
 
-## Relocation lane
+- LinkedIn's `Remote` label,
+- `Worldwide` search result placement,
+- employer is global,
+- team spans several countries,
+- application form accepts Pakistan contact/address,
+- absence of a work-auth question,
+- no exclusion statement found,
+- company has offices in Pakistan or nearby regions.
 
-Relocation is a first-class opportunity lane.
+If state is `UNCLEAR`, watchlist instead of submit.
 
-Strong positive signals include:
+# Campaign role-family gate
 
-- visa sponsorship
-- immigration support
-- relocation assistance/package/bonus
-- global mobility
-- international candidates welcome
-- work-permit support
-- visa transfer
-- explicit overseas hiring for the location
+The user's explicit campaign overrides defaults. If the user says only backend, do not silently apply to AI roles. If the user says only AI, do not submit a generic Django/backend job.
 
-When the user asks `remote only`, do not submit non-remote relocation jobs, but keep exceptional ones in `relocation-watchlist.jsonl`.
+When the user gives no narrow role family, the default broad engineering lanes above are allowed.
 
-When the user asks `remote or relocation`, `relocation welcome`, or gives no strict remote-only condition, auto-apply to sponsored relocation roles that pass all other gates.
+# Mandatory requirements gate
 
-# 4. Campaign intent gate
+Use evidence classes from `references/scoring-calibration.md`:
 
-Honor the requested role family as a hard constraint.
+- `EXACT`
+- `DIRECT`
+- `ADJACENT`
+- `WEAK`
+- `NONE`
 
-For an AI Engineer / LLM Engineer campaign, valid families include:
+Central mandatory requirements must normally be `EXACT` or `DIRECT`.
 
-- AI Engineer
-- LLM Engineer
-- Applied AI Engineer
-- AI Application Engineer
-- AI Agent Engineer
-- Generative AI Engineer
-- Forward Deployed Engineer when AI/software engineering is central
-- Senior Software Engineer only when AI/LLM work is central
+At most one non-central mandatory requirement may be `ADJACENT` when it is realistically learnable and the JD does not require years of direct experience in it.
 
-Do not submit generic backend/Django/data/platform jobs during an AI/LLM campaign simply because the candidate could perform them.
+Two or more central mandatory `ADJACENT/WEAK/NONE` requirements -> hard skip.
 
-A backend/platform campaign is separate and can use the backend canonical source.
+Never treat:
 
-# 5. Technical hard-requirement gate
+- FastAPI as Django,
+- AWS/Kubernetes as CUDA/vLLM/Triton,
+- LLM application work as model pretraining,
+- project ownership as people management,
+- a multimodal semantic check as proof of formal ML-evaluation/statistical methodology,
+- client work as proof of FDE/consulting depth.
 
-Separate optional/learnable gaps from central mandatory gaps.
+# Fit map and score
 
-Hard skip when the job centrally requires multiple unsupported capabilities, such as CUDA/Triton/vLLM/Megatron/deep PyTorch distributed training, when the canonical evidence only supports application-level AI, agents, retrieval, backend, and platform work.
+Create `fit-map.json` before resume generation. Every important requirement must include evidence class, canonical IDs, and whether the exact ATS term may be used.
 
-Do not convert adjacent skills into false equivalence:
+Score only after all gates pass.
 
-- FastAPI != Django
-- AWS/Kubernetes != CUDA/vLLM/Triton
-- LLM applications != model pretraining
-- technical ownership != people management
+Use `references/scoring-calibration.md`. Default auto-apply threshold: **74**.
 
-# 6. Screening truth feasibility
+Interpret scores:
 
-If a known mandatory question cannot be answered truthfully, skip before spending time generating a resume when practical.
+- `85-100`: rare near-exact fit; use sparingly
+- `78-84`: strong fit
+- `72-77`: reasonable fit
+- `65-71`: stretch / usually watchlist or skip
+- `<65`: skip
 
-Never invent:
+A score of 88 should be unusual, not routine.
 
-- citizenship/residency/work authorization,
-- sponsorship status,
-- current salary/CTC,
-- phone/address/contact data,
-- clearance,
-- years of experience,
-- management scope,
-- employers/dates/degrees/certifications.
+# Authentication precheck
 
-# 7. Canonical evidence map — mandatory before scoring
+Use `references/authentication-policy.md` before creating an ATS account.
 
-Create `fit-map.json` inside the job directory. It must contain:
+Search the visible page for:
 
-- each critical JD requirement,
-- classification: `mandatory`, `preferred`, or `context`,
-- mapped canonical claim IDs / exact skills,
-- evidence strength: `direct`, `strong-adjacent`, `weak-adjacent`, `none`,
-- whether the requirement may appear as an ATS keyword in the resume,
-- notes explaining any semantic alias.
+- Continue with LinkedIn
+- Sign in with LinkedIn
+- Apply with LinkedIn
+- Import from LinkedIn
+- Use LinkedIn profile
+- OAuth buttons tied to an already-authenticated account
 
-Example:
+If LinkedIn OAuth exists, use it first. Follow normal OAuth consent when it requests ordinary identity/profile/email access needed for the application. If it requests unusual permissions unrelated to applying, use password flow instead.
 
-```json
-{
-  "requirement": "Build production LangGraph agents in Python",
-  "importance": "mandatory",
-  "evidence": ["P1", "P2"],
-  "strength": "direct",
-  "ats_keyword_allowed": true
-}
-```
+If no suitable OAuth path exists, password account creation is allowed. Generate/autofill a strong password and proceed. Password handling must never become a blocker to an otherwise valid application.
 
-Unsupported keyword example:
+# Fresh canonical resume
 
-```json
-{
-  "requirement": "Django",
-  "importance": "mandatory",
-  "evidence": [],
-  "strength": "none",
-  "ats_keyword_allowed": false
-}
-```
+Canonical sources:
 
-Never add a keyword solely because an ATS may reward it.
+- `canonical/ai-applied-canonical.tex`
+- `canonical/backend-platform-canonical.tex`
 
-# 8. Fit score — only after every hard gate passes
+Never modify these during a campaign.
 
-Score 0-100:
+Choose the canonical base by the actual role:
 
-- role-family/core technical fit: 0-35
-- mandatory-responsibility evidence: 0-20
-- seniority/ownership: 0-15
-- AI/LLM domain fit: 0-10
-- location or relocation compatibility: 0-10
-- experience-band fit: 0-5
-- recency/employer/compensation clarity: 0-5
+- backend/software/platform/Python/Node -> backend canonical
+- applied AI / AI application / practical LLM-agent role -> AI canonical
+- mixed role -> choose the base supported by the majority of central requirements, not the more glamorous title
 
-Default threshold: **82**.
-
-Modifiers:
-
-- user minimum score overrides default,
-- `AGENCY_NAMED_CLIENT` requires >=86,
-- direct referral/known hiring manager may lower to 78 only if all gates pass.
-
-Relocation attractiveness never compensates for weak technical fit.
-
-# 9. Fresh canonical resume scaffold
-
-For every accepted job, run:
+Run:
 
 ```powershell
 & "$skillRoot\scripts\scaffold-resume.ps1" `
   -JobId "<job-id>" `
   -Company "<company>" `
   -Title "<title>" `
-  -Canonical ai `
+  -Canonical <ai|backend> `
   -JobUrl "<url>" `
   -Location "<location>"
 ```
 
-Use `-Canonical backend` only for a backend/platform campaign.
+# Resume tailoring
 
-The scaffold creates:
+Follow `references/resume-tailoring.md`.
 
-```text
-.job-apply-autopilot/generated/<job-id>-<slug>/
-  job.json
-  canonical-source.tex   # untouched audit copy
-  resume.tex             # working tailored resume
-  fit-map.json           # agent writes this before tailoring
-  resume.pdf             # after compile
-  resume.log
-```
+Default preference order:
 
-# 10. Job-specific resume generation
+1. select canonical bullets,
+2. reorder canonical bullets/skills/projects,
+3. delete irrelevant material,
+4. use exact supported JD aliases,
+5. lightly shorten or adapt wording,
+6. only rewrite substantially when needed for clarity and the resulting claim is fully canonical-supported.
 
-Tailor `resume.tex` using `references/resume-tailoring.md`.
+Do not manufacture specialized personal branding such as `LLM Evaluation & Production Infrastructure` merely because the JD contains those concepts.
 
-The resume should maximize legitimate ATS and recruiter relevance by:
+Use restrained headings such as:
 
-1. selecting a truthful headline closest to the target role,
-2. rewriting the summary around the job's top 3-5 supported needs,
-3. ordering skill categories so directly requested supported technologies appear early,
-4. reordering/selecting bullets according to JD relevance,
-5. emphasizing measurable impact that supports the target responsibilities,
-6. selecting the most relevant canonical projects,
-7. using exact JD terminology only where it truthfully maps to canonical evidence,
-8. removing low-value content when necessary to remain one page,
-9. preserving readable formatting and ATS text extraction.
+- `Senior Backend Engineer`
+- `Backend & Platform Engineer`
+- `Software Engineer — Backend & Platform`
+- `Software Engineer — Applied AI`
+- `Applied AI Engineer`
+- `AI Application Engineer`
 
-Never copy buzzwords that have no evidence mapping.
+Do not mirror `Staff`, `Principal`, `Lead`, `Research`, `ML Infrastructure`, or similar prestige/specialist titles unless canonical evidence genuinely supports that identity.
 
-Never make one generated resume the base for another job.
-
-# 11. Compile and verify
+# Compile and verify
 
 Run:
 
@@ -307,33 +316,55 @@ Run:
 & "$skillRoot\scripts\compile-resume.ps1" -TexPath "<job-dir>\resume.tex" -StrictOnePage
 ```
 
-Do not apply if compilation fails.
+Do not submit if compilation fails. Do not fall back to a stale generic PDF.
 
-Do not fall back to an old generic PDF.
+Verify:
 
-Before upload verify:
+- PDF exists,
+- candidate name/contact remain intact,
+- PDF is one page when tooling is available,
+- no unsupported claims,
+- no inflated title/seniority/domain depth,
+- mapped direct requirements are represented naturally,
+- generated resume was created from the current job's canonical scaffold.
 
-- PDF exists and is nontrivial,
-- candidate name/contact header remains intact,
-- no fatal LaTeX errors,
-- one page when page-count tooling is available,
-- no unsupported claims were introduced,
-- high-priority mapped JD terms are represented naturally where justified.
+# Application behavior
 
-# 12. Application behavior
+- Prefer official employer ATS over proprietary aggregator quick-apply flows.
+- Use LinkedIn Easy Apply when the job itself passes all gates.
+- OAuth-first for employer ATS.
+- Re-check identity and eligibility after redirects.
+- Optional EEO questions: decline/prefer not to answer.
+- Unknown mandatory factual field with no truthful fallback: skip and continue.
+- A screening question that exposes country/work-auth mismatch overrides all prior scoring and stops the application.
+- Verify a success message/state before logging `submitted`.
 
-- Easy Apply and external ATS are supported.
-- Prefer official employer ATS over aggregator proprietary quick-apply flows.
-- Re-check identity after every redirect.
-- Do not create accounts on low-trust aggregators merely to reach a job.
-- Verified employer ATS account creation is acceptable, but never log passwords.
-- Optional EEO/demographic questions: decline/prefer not to answer.
-- Unknown mandatory factual field with no truthful fallback: log `blocked-unknown-fact` and continue.
-- Verify a success state before marking `submitted`.
+# Anti-automation circuit breaker
 
-# 13. Safe logging
+Use `references/anti-automation.md`.
 
-`applications.jsonl` may contain only application metadata, not secrets.
+Immediate circuit-breaker triggers include:
+
+- `possible spam`
+- `automation detected`
+- suspicious activity / unusual traffic
+- LinkedIn/ATS rate-limit response
+- account restriction warning
+- repeated HTTP 429 attributable to the campaign
+- CAPTCHA/MFA challenge requiring human interaction
+
+On the first trigger:
+
+1. stop submitting on that domain for the run,
+2. log `manual-needed` or `blocked-automation`,
+3. never retry the submit button on the same application,
+4. continue with other unaffected domains when safe.
+
+Ordinary field-validation errors may receive one corrective retry. Anti-bot/security errors receive zero retries.
+
+# Logging
+
+`applications.jsonl` stores application metadata and reasoning outcomes. Passwords may be generated/autofilled during the browser flow but are not needed in the application ledger.
 
 Recommended fields:
 
@@ -347,43 +378,37 @@ Recommended fields:
 - job_id
 - score
 - trust_class
+- eligibility_state
 - relocation_status
 - canonical_source
 - generated_resume
-- notes without sensitive values
+- notes
 
-Never log phone numbers, passwords, OTPs, tokens, cookies, salary history, or form secrets.
+# Relocation
 
-# 14. Relocation watchlist
+Relocation remains a first-class lane.
 
-Even during `remote only`, record exceptional international roles when:
+Auto-apply when the campaign permits relocation and evidence is explicit:
 
-- integrity passes,
-- technical fit would be >=82,
-- the role is attractive and abroad,
-- sponsorship/relocation/international hiring is explicit or plausibly available.
+- visa sponsorship,
+- work-permit/immigration support,
+- relocation assistance/package,
+- international candidates welcome,
+- global mobility / overseas hiring.
 
-Statuses:
+If a foreign role is attractive but sponsorship is merely possible or unstated, put it on `relocation-watchlist.jsonl`; do not infer sponsorship from company size, global offices, or a remote label.
 
-- `explicit-sponsored`
-- `explicit-relocation`
-- `international-hiring`
-- `unclear-research-needed`
-- `country-locked-no-sponsorship`
-
-Only the first three may be auto-applied when relocation is enabled.
-
-# 15. Completion report
+# Completion report
 
 Report:
 
-- submitted count,
-- skipped-by-gate counts,
-- failed-compilation count,
-- top submitted jobs with score and generated resume path,
-- relocation applications submitted,
-- best relocation-watchlist items,
-- integrity/identity mismatches avoided,
-- whether any rate-limit/security signal stopped the run.
+- confirmed submissions,
+- skips by hard-gate category,
+- manual-needed / automation-blocked roles,
+- generated resume paths,
+- top relocation submissions and watchlist items,
+- identity/ghost mismatches avoided,
+- domains circuit-broken during the run,
+- any OAuth flows successfully used.
 
-Do not claim success merely because a form was filled; require a confirmed submission state.
+Do not call a filled form a submission unless a success state was confirmed.

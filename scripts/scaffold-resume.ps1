@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory=$true)][string]$JobId,
     [Parameter(Mandatory=$true)][string]$Company,
     [Parameter(Mandatory=$true)][string]$Title,
-    [ValidateSet('ai','backend')][string]$Canonical = 'ai',
+    [ValidateSet('ai','backend')][string]$Canonical = 'backend',
     [string]$JobUrl = '',
     [string]$Location = '',
     [string]$Workspace = (Get-Location).Path
@@ -50,15 +50,46 @@ $meta = [ordered]@{
     canonical_path = $canonicalPath
     canonical_sha256 = $hash
     created_at = (Get-Date).ToUniversalTime().ToString('o')
-    status = 'canonical-scaffolded-awaiting-fit-map-and-tailoring'
+    status = 'canonical-scaffolded-awaiting-assessment-fit-map-and-tailoring'
 }
-$meta | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $jobDir 'job.json') -Encoding UTF8
+$meta | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $jobDir 'job.json') -Encoding UTF8
+
+$assessment = [ordered]@{
+    job_id = $JobId
+    trust_class = ''
+    eligibility_state = ''
+    eligibility_evidence = @()
+    hard_gates = [ordered]@{
+        integrity = $false
+        eligibility = $false
+        role_family = $false
+        mandatory_requirements = $false
+        truth_feasibility = $false
+    }
+    status = 'must-pass-hard-gates-before-score-or-tailoring'
+}
+$assessment | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $jobDir 'assessment.json') -Encoding UTF8
 
 $fitMap = [ordered]@{
     job_id = $JobId
     requirements = @()
+    score = $null
     status = 'must-be-filled-before-resume-tailoring'
 }
 $fitMap | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $jobDir 'fit-map.json') -Encoding UTF8
+
+$tailoringAudit = [ordered]@{
+    job_id = $JobId
+    canonical_source = $canonicalPath
+    headline = ''
+    canonical_claim_ids_used = @()
+    bullets_removed = @()
+    bullets_reordered = @()
+    aliases_introduced = @()
+    material_rewrites = @()
+    unsupported_terms_added = @()
+    status = 'must-be-completed-before-compile'
+}
+$tailoringAudit | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $jobDir 'tailoring-audit.json') -Encoding UTF8
 
 Write-Output $texPath

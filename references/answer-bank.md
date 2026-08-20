@@ -3,7 +3,7 @@
 Use concise source material from `canonical/canonical-facts.yaml`. Do not introduce resume/application claims that contradict or exceed the canonical corpus.
 
 ## Professional summary
-AI and backend/platform engineer with 6+ years shipping Python/Node.js systems, distributed platforms, and production AI/NLP/agent work. Canonical evidence includes LangGraph browser-agent runtime work, Graphiti/Neo4j temporal memory and hybrid graph/vector retrieval, multimodal semantic-mismatch detection, FastAPI/Node.js services, AWS/Kubernetes, and high-throughput production systems.
+Software engineer with 6+ years focused on backend/platform systems in Python/Node.js, with additional applied-AI/agent project experience. Canonical evidence includes FastAPI/Node.js services, AWS/Kubernetes, production reliability work, LangGraph browser-agent runtime work, Graphiti/Neo4j memory/retrieval, and multimodal semantic-mismatch detection. Choose the backend/platform or applied-AI emphasis according to the actual job rather than presenting every area as equal depth.
 
 ## Quantified evidence
 - 50k-100k DAU and 500-800 RPS peak.
