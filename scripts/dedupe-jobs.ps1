@@ -4,6 +4,13 @@ param(
     [string]$Workspace = (Get-Location).Path
 )
 $ErrorActionPreference = 'Stop'
+
+# Treat an explicitly empty -Workspace exactly like an omitted one.
+# This matters when callers pass an unset PowerShell variable such as -Workspace "$workspace".
+if ([string]::IsNullOrWhiteSpace($Workspace)) {
+    $Workspace = (Get-Location).Path
+}
+
 $Workspace = (Resolve-Path -LiteralPath $Workspace).Path
 $root = Join-Path $Workspace '.job-apply-autopilot'
 if (-not (Test-Path -LiteralPath $root)) { throw "No job-apply-autopilot runtime at $root" }

@@ -138,3 +138,8 @@ Ask:
 - Did I use a previous generated resume as source?
 
 Any `yes` -> correct before applying.
+
+
+## Dynamic public project evidence
+
+Canonical resumes remain the immutable starting documents and professional-employment truth authority. A tailored resume may additionally use verified public project evidence under `candidate-evidence-policy.md` when the per-job evidence report marks the claim `resume_eligible: true` and supplies an `allowed_resume_claim`. Keep those claims in project/skills context unless canonical professional evidence independently supports employer association. Record every public evidence ID/URL in `tailoring-audit.json`.

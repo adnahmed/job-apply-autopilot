@@ -1,4 +1,4 @@
-# Autonomous Application Policy V5.9
+# Autonomous Application Policy V5.10
 
 ## Principle
 Quality and eligibility beat volume. Requested application count is a maximum target, never a quota.
@@ -28,7 +28,7 @@ Do not infer:
 - specialized domain expertise from one adjacent project.
 
 ## Truthfulness
-Never invent or inflate citizenship, residency, work authorization, sponsorship status, employer/title/dates, management scope, degree/certification, experience years, technology depth, domain experience, salary history, clearance, or identity/contact information.
+Never invent citizenship, residency, work authorization, sponsorship status, employer/title/dates, management scope, degree/certification, salary history, clearance, or identity/contact information. For matching, derive overall engineering tenure from canonical employment history and do not maintain per-technology year counters. Public project evidence may establish real technology capability even when the resume omits it. Do not fabricate a precise technology-specific duration on a form when no truthful duration can be supported.
 
 ## Passwords and authentication
 Password creation/autofill is allowed. Prefer existing sessions and LinkedIn OAuth/import first because they are faster and reduce form friction. Passwords should not be the reason an otherwise valid application stalls.
@@ -42,7 +42,7 @@ Use conservative score bands:
 - 65-71: stretch
 - below 65: skip
 
-Default auto-apply threshold: 74 after every hard gate passes.
+Default auto-apply threshold: 72 after every true hard blocker/gate passes. A few learnable technical stretches are scoring penalties, not automatic hard failures.
 
 ## Application throughput and LinkedIn pacing
 - requested count = maximum, never a quota
@@ -62,3 +62,8 @@ Try, in order:
 4. otherwise skip.
 
 Never fabricate to complete a form.
+
+
+## Verified public project evidence
+
+Follow `candidate-evidence-policy.md`. Screening answers may use verified public project evidence when the question asks whether the candidate has used/built/worked with a technology or project capability. For fit/gating, technology-specific year requirements use the global engineering-tenure + capability model rather than per-skill chronology. Do not fabricate a precise per-technology duration, employer usage, production scale, management, or domain ownership when those dimensions are unsupported.

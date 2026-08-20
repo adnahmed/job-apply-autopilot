@@ -1,4 +1,23 @@
+# V5.10 — Live Evidence + Interview-Likelihood Edition
+
+- Added hidden `job-autopilot-evidence` worker for targeted first-party GitHub/deployment/portfolio/candidate-authored LinkedIn verification whenever a technical gap would otherwise cause a false hard rejection.
+- No hardcoded repository/project inventory. Candidate public identities come from canonical facts and relevant current repositories/projects are discovered dynamically.
+- Added reusable `.job-apply-autopilot/candidate-evidence.json`, per-job `candidate-evidence-research.json`, and coordinator-owned `scripts/merge-candidate-evidence.ps1`.
+- Changed experience matching to a global engineering-tenure band derived from canonical employment history; no separately calculated years for each technology.
+- `N+ years <technology>` is assessed as global tenure + verified capability for fit; undocumented exact first-use dates are not a hard rejection.
+- Relaxed technical hard gates for interview likelihood: a few learnable gaps become score penalties; true identity/credential/work-auth/management/defining-specialist blockers remain hard gates.
+- Auto-apply threshold adjusted from 74 to 72.
+- Added policy-version-aware reassessment for existing queue items that were technically skipped under older scoring rules while integrity and eligibility passed; old location/work-auth/identity/security skips stay terminal.
+- Preserved V5.9.1 continuation, LinkedIn governor, and completely uncapped external ATS/company-site throughput.
+
 # V5.9.0 — LinkedIn Governor + Durable Continuation Edition
+
+## V5.9.1 — Empty-workspace hardening
+
+- All scripts that accept `-Workspace` now treat `$null`, `""`, or whitespace exactly like an omitted argument and fall back to the caller's current directory.
+- Fixes `Join-Path ... Path because it is an empty string` in `init-workspace.ps1` and `Resolve-Path ... LiteralPath because it is an empty string` in `session-state.ps1` when a caller passes an unset `$workspace` variable.
+- The authoritative workspace contract is unchanged: the coordinator's initial current working directory is the workspace.
+
 
 - Removed the old global `max_applications_per_run` and `max_external_applications_per_run` limits. External ATS/company-site applications now have no skill-imposed per-run, per-day, or concurrency maximum.
 - Added persistent `linkedin-activity-state.json` plus `scripts/linkedin-governor.ps1`; Easy Apply pacing survives OpenCode restarts.

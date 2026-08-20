@@ -2,6 +2,13 @@
 param([string]$Workspace = (Get-Location).Path)
 
 $ErrorActionPreference = 'Stop'
+
+# Treat an explicitly empty -Workspace exactly like an omitted one.
+# This matters when callers pass an unset PowerShell variable such as -Workspace "$workspace".
+if ([string]::IsNullOrWhiteSpace($Workspace)) {
+    $Workspace = (Get-Location).Path
+}
+
 $Workspace = (Resolve-Path -LiteralPath $Workspace).Path
 $root = Join-Path $Workspace '.job-apply-autopilot'
 if (-not (Test-Path -LiteralPath $root)) {
@@ -83,6 +90,7 @@ $ledgerPath = Join-Path $root 'applications.jsonl'
 $ledgerCount = 0
 $submittedCount = 0
 $ledgerIds = @{}
+$ledgerLastStatus = @{}
 $ledgerEasyApplySubmissions = @()
 if (Test-Path -LiteralPath $ledgerPath) {
     foreach ($line in Get-Content -LiteralPath $ledgerPath) {
@@ -93,7 +101,7 @@ if (Test-Path -LiteralPath $ledgerPath) {
             $isSubmitted = ($row.status -eq 'submitted' -or $row.submitted -eq $true)
             if ($isSubmitted) { $submittedCount++ }
             if ($isSubmitted -and ([string]$row.source) -match 'linkedin.*easy.*apply' -and $row.timestamp) { $ledgerEasyApplySubmissions += [string]$row.timestamp }
-            if ($null -ne $row.job_id) { $ledgerIds[[string]$row.job_id] = $true }
+            if ($null -ne $row.job_id) { $jid = [string]$row.job_id; $ledgerIds[$jid] = $true; $ledgerLastStatus[$jid] = [string]$row.status }
         } catch {}
     }
 }
@@ -107,15 +115,30 @@ if (Test-Path -LiteralPath $queueRoot) {
         $fit = Read-JsonSafe (Join-Path $dir.FullName 'fit-map.json')
         $eligibilityPath = Join-Path $dir.FullName 'eligibility-research.json'
         $hasEligibilityResearch = Test-Path -LiteralPath $eligibilityPath
+        $candidateEvidencePath = Join-Path $dir.FullName 'candidate-evidence-research.json'
+        $hasCandidateEvidence = Test-Path -LiteralPath $candidateEvidencePath
         $id = if ($job -and $job.job_id) { [string]$job.job_id } else { $dir.Name.Split('-')[0] }
         $status = if ($assessment -and $assessment.status) { [string]$assessment.status } else { 'unassessed' }
         $already = $ledgerIds.ContainsKey($id)
-        $terminal = $status -in @('failed','rejected','skipped','submitted','blocked')
-        $actionable = (-not $already -and -not $terminal)
+        $priorLedgerStatus = if ($ledgerLastStatus.ContainsKey($id)) { [string]$ledgerLastStatus[$id] } else { $null }
+        $policyVersion = if ($assessment -and ($assessment.PSObject.Properties.Name -contains 'policy_version')) { [string]$assessment.policy_version } else { '' }
+        $oldPolicy = ($policyVersion -ne '5.10')
+        $integrityPassed = ($assessment -and [bool]$assessment.hard_gates.integrity)
+        $eligibilityPassed = ($assessment -and [bool]$assessment.hard_gates.eligibility)
+        $technicalGateFailed = ($assessment -and ((-not [bool]$assessment.hard_gates.mandatory_requirements) -or (-not [bool]$assessment.hard_gates.truth_feasibility) -or (-not [bool]$assessment.hard_gates.role_family)))
+        $technicalLedgerStatuses = @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family')
+        $ledgerAllowsPolicyReassessment = (-not $already -or $priorLedgerStatus -in $technicalLedgerStatuses)
+        $policyReassessment = ($status -in @('failed','rejected','skipped') -and $oldPolicy -and $integrityPassed -and $eligibilityPassed -and $technicalGateFailed -and $ledgerAllowsPolicyReassessment)
+        $terminal = ($status -in @('failed','rejected','skipped','submitted','blocked') -and -not $policyReassessment)
+        $actionable = ($policyReassessment -or (-not $already -and -not $terminal))
         $stage = $null
         if ($actionable) {
-            if ($status -in @('pending','unassessed','captured-awaiting-source-and-assessment')) {
+            if ($policyReassessment) {
+                $stage = 'policy_reassessment_pending'
+            } elseif ($status -in @('pending','unassessed','captured-awaiting-source-and-assessment')) {
                 $stage = 'assessment_pending'
+            } elseif ($status -eq 'needs-evidence') {
+                $stage = if ($hasCandidateEvidence) { 'reassessment_pending' } else { 'candidate_evidence_pending' }
             } elseif ($status -eq 'needs-research') {
                 $stage = if ($hasEligibilityResearch) { 'reassessment_pending' } else { 'eligibility_research_pending' }
             } elseif ($status -eq 'passed') {
@@ -131,8 +154,12 @@ if (Test-Path -LiteralPath $queueRoot) {
             assessment_status = $status
             score = if ($fit) { $fit.score } else { $null }
             already_in_ledger = $already
+            prior_ledger_status = $priorLedgerStatus
+            assessment_policy_version = $policyVersion
+            policy_reassessment = $policyReassessment
             actionable = $actionable
             stage = $stage
+            has_candidate_evidence = $hasCandidateEvidence
             path = $dir.FullName
         }
     }
@@ -147,7 +174,9 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $progress = Read-JsonSafe (Join-Path $dir.FullName 'application-progress.json')
         $artifact = Read-JsonSafe (Join-Path $dir.FullName 'resume-artifact.json')
         $id = if ($job -and $job.job_id) { [string]$job.job_id } else { $dir.Name.Split('-')[0] }
-        $already = $ledgerIds.ContainsKey($id)
+        $priorLedgerStatus = if ($ledgerLastStatus.ContainsKey($id)) { [string]$ledgerLastStatus[$id] } else { $null }
+        $allowAfterPriorSkip = ($job -and ($job.PSObject.Properties.Name -contains 'allow_after_prior_skip') -and [bool]$job.allow_after_prior_skip -and $priorLedgerStatus -in @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family'))
+        $already = ($ledgerIds.ContainsKey($id) -and -not $allowAfterPriorSkip)
         $resultStatus = if ($result -and $result.status) { [string]$result.status } else { $null }
         $needsReconcile = (($null -ne $result) -and -not $already)
         $terminalResult = $resultStatus -in @('submitted','handoff-easy-apply','blocked-auth','blocked-security','blocked-automation','blocked-domain-circuit-breaker','blocked-identity-mismatch','blocked-work-auth','blocked-unknown-fact','blocked-technical','skipped-ineligible','failed')
@@ -172,6 +201,8 @@ if (Test-Path -LiteralPath $generatedRoot) {
             application_status = $resultStatus
             progress_stage = if ($progress -and $progress.stage) { [string]$progress.stage } elseif ($progress -and $progress.last_confirmed_stage) { [string]$progress.last_confirmed_stage } else { $null }
             already_in_ledger = $already
+            prior_ledger_status = $priorLedgerStatus
+            allow_after_prior_skip = $allowAfterPriorSkip
             needs_reconcile = $needsReconcile
             actionable = $actionable
             stage = $stage

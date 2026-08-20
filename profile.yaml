@@ -1,4 +1,4 @@
-profile_version: 5
+profile_version: 7
 candidate:
   full_name: "Adnan Ahmed Khan"
   location:
@@ -7,7 +7,6 @@ candidate:
   email: "khanadnanahmed01@gmail.com"
   linkedin: "https://www.linkedin.com/in/adnahmed"
   github: "https://github.com/adnahmed"
-  total_experience_years: "6+"
   languages:
     - language: "Urdu"
       proficiency: "native"
@@ -26,7 +25,17 @@ current_employment:
   end_year: "Present"
   location: "Islamabad / Remote"
 
-resume_claim_authority: "canonical/canonical-facts.yaml"
+resume_claim_authority: "canonical professional facts plus verified public project evidence under references/candidate-evidence-policy.md"
+
+public_evidence:
+  enabled: true
+  identity_source: "canonical/canonical-facts.yaml#identity"
+  cache_path: ".job-apply-autopilot/candidate-evidence.json"
+  refresh_days: 7
+  refresh_before_technical_hard_fail: true
+  discovery_mode: "dynamic-first-party"
+  source_policy: "discover current first-party GitHub repositories, deployments, portfolio material, and attributable candidate-authored LinkedIn material from the identities stored in canonical facts; do not maintain a hardcoded project list"
+
 resume_generation:
   source_policy: "immutable-canonical-per-job"
   ai_canonical: "canonical/ai-applied-canonical.tex"
@@ -52,7 +61,7 @@ autonomy:
   linkedin_easy_apply_max_successful_per_hour: 4
   linkedin_easy_apply_max_successful_rolling_24h: 20
   linkedin_easy_apply_min_seconds_between_submissions: 600
-  minimum_match_score: 74
+  minimum_match_score: 72
   prefer_recent_days: 7
   stop_domain_on_first_automation_signal: true
   stop_on_account_security_warning: true
@@ -85,6 +94,8 @@ search_defaults:
     - "Senior Backend Engineer"
     - "Software Engineer"
     - "Senior Software Engineer"
+    - "Full Stack Software Engineer"
+    - "Full Stack Engineer"
     - "Python Engineer"
     - "Python Backend Engineer"
     - "Node.js Backend Engineer"
@@ -158,6 +169,6 @@ answer_policy:
   compensation_numeric: "Use a posted range when required and appropriate; otherwise do not invent current salary/CTC."
   start_date: "30 days after offer unless negotiable is available."
   notice_period: "30 days when mandatory; otherwise choose negotiable if available."
-  years_total_experience: "6+"
+  years_total_experience: "derive-from-canonical-employment-history"
   work_authorization: "Never infer. Answer only from verified facts or the exact application context."
   factual_unknown_required: "Use verified data; choose N/A/prefer-not-to-answer when available; otherwise skip."

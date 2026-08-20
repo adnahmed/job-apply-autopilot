@@ -1,13 +1,13 @@
-# Install Job Apply Autopilot V5.9
+# Install Job Apply Autopilot V5.10
 
-V5.9 keeps the trusted parallel/external-apply architecture and authoritative continuation snapshot, adds a persistent LinkedIn Easy Apply activity governor, removes all numeric limits on external ATS/company-site applications, and makes continuation snapshots stage-aware so interrupted sessions can dispatch the correct worker immediately.
+V5.10 keeps the trusted parallel/external-apply architecture, authoritative continuation snapshot, persistent LinkedIn Easy Apply governor, and uncapped external ATS/company-site throughput. It adds dynamic first-party candidate evidence lookup, a reusable evidence cache, global-tenure + capability matching instead of years-per-skill gating, and interview-likelihood scoring that tolerates a few learnable stretches.
 
 ## 1. Replace the installed skill
 
-Extract `job-apply-autopilot-v5.9.zip`, then run PowerShell from the extracted folder:
+Extract `job-apply-autopilot-v5.10.zip`, then run PowerShell from the extracted folder:
 
 ```powershell
-$src = ".\job-apply-autopilot-v5.9"
+$src = ".\job-apply-autopilot-v5.10"
 $dst = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 if (Test-Path $dst) {
@@ -35,12 +35,13 @@ Installed hidden workers:
 
 ```text
 job-autopilot-assessor
+job-autopilot-evidence
 job-autopilot-eligibility
 job-autopilot-resume
 job-autopilot-external-apply
 ```
 
-All four remain trusted writers for their assigned job artifacts. `job-autopilot-external-apply` additionally has BrowserOS and final-submit authority for external ATS/company-site applications. LinkedIn Easy Apply stays coordinator-owned. External ATS workers have no skill-imposed concurrency cap.
+All five remain trusted writers for their assigned job artifacts. `job-autopilot-external-apply` additionally has BrowserOS and final-submit authority for external ATS/company-site applications. LinkedIn Easy Apply stays coordinator-owned. External ATS workers have no skill-imposed concurrency cap.
 
 Restart OpenCode after installing the agent definitions.
 
@@ -76,7 +77,7 @@ $workspace = (Get-Location).Path
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\init-workspace.ps1" -Workspace "$workspace"
 ```
 
-For continuation sessions, V5.9 uses one authoritative, stage-aware state decision instead of reconstructing campaign state manually:
+For continuation sessions, V5.10 uses one authoritative, stage-aware state decision instead of reconstructing campaign state manually:
 
 ```powershell
 $workspace = (Get-Location).Path
@@ -87,7 +88,7 @@ The JSON returns one `next_action` (`reconcile`, `resume-generated`, `process-qu
 
 The coordinator treats `<current-directory>\.job-apply-autopilot` as the single runtime tree. The current directory at skill start is authoritative; it must not scan home directories or guess alternate workspace locations.
 
-V5.9 runtime structure:
+V5.10 runtime structure:
 
 ```text
 .job-apply-autopilot/
@@ -98,6 +99,7 @@ V5.9 runtime structure:
       assessment.json
       fit-map.json
       eligibility-research.json      # optional
+      candidate-evidence-research.json # optional live technical evidence
   generated/
     <job-id>-<slug>/
       job.json
@@ -118,9 +120,23 @@ V5.9 runtime structure:
   domain-circuit-breakers.jsonl
   campaign-stats.json
   linkedin-activity-state.json       # persistent rolling Easy Apply governor
+  candidate-evidence.json            # reusable verified public technical evidence cache
 ```
 
-## 6. Resume compilation
+## 6. Live candidate evidence
+
+V5.10 does not hardcode a project list. Candidate GitHub/LinkedIn identities are read from `canonical/canonical-facts.yaml`; when a technical gap would otherwise cause rejection, `job-autopilot-evidence` dynamically discovers current first-party repositories/deployments/public posts relevant to that requirement.
+
+Evidence workers write per-job reports only. Merge a completed report sequentially:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skill\scripts\merge-candidate-evidence.ps1" `
+  -EvidenceFile "<queue-job>\candidate-evidence-research.json"
+```
+
+Then re-run the assessor. Overall engineering tenure is derived from canonical employment history; the skill does not maintain years-per-technology counters.
+
+## 7. Resume compilation
 
 MiKTeX CLI should expose `pdflatex`; `latexmk` is optional. The compiler automatically falls back to two direct `pdflatex` passes if `latexmk` exists but fails.
 
@@ -142,7 +158,7 @@ If a first compile is over one page, `-AutoCompact` permits one layout-only fall
 
 The application-facing file is **not** generic `resume.pdf`. The compiler creates a unique professional file plus `resume-artifact.json`; LinkedIn/ATS workers must upload that exact artifact.
 
-## 7. ATS eligibility adapters
+## 8. ATS eligibility adapters
 
 Read-only adapter guidance lives in:
 
@@ -158,7 +174,7 @@ Observed high-value patterns include:
 
 Use official structured evidence before opening an application when it can settle the geographic gate cheaply.
 
-## 8. BrowserOS playbook
+## 9. BrowserOS playbook
 
 Real-world browser techniques are persisted in:
 
@@ -176,14 +192,14 @@ It covers:
 - known unavailable CDP DOM methods,
 - timeout behavior.
 
-## 9. External ATS checkpointing
+## 10. External ATS checkpointing
 
 `job-autopilot-external-apply` now has a larger step budget and maintains `application-progress.json` after important stages. If a worker is re-dispatched, it resumes from the last verified state. If the last checkpoint is `submit-clicked`, it verifies success before ever clicking Submit again.
 
 This prevents a worker step limit from causing duplicate submissions or forcing the coordinator to reconstruct the entire flow.
 
 
-## 10. LinkedIn Easy Apply governor
+## 11. LinkedIn Easy Apply governor
 
 LinkedIn Easy Apply is deliberately separate from external ATS throughput. External ATS/company-site applications have **no skill-imposed per-run, daily, or concurrency limit**.
 
@@ -241,3 +257,14 @@ New work items can record `-DiscoveryLane` and `-SearchQuery`; that metadata is 
 ```text
 Use job-apply-autopilot. Continue applying to jobs.
 ```
+
+## V5.10 workspace-safe initialization
+
+When the shell is already in the chosen campaign workspace, prefer omitting `-Workspace` entirely:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\init-workspace.ps1"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\session-state.ps1"
+```
+
+All workspace-aware scripts also defensively treat an explicitly empty `-Workspace` value as the caller's current directory.

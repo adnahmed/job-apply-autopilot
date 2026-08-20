@@ -1,21 +1,62 @@
 {
+  "policy_version": "5.10",
   "job_id": "example-123",
   "requirements": [
     {
       "requirement": "Python backend services",
-      "importance": "mandatory",
+      "importance": "central",
       "evidence_class": "EXACT",
-      "canonical_ids": ["skills:Python", "H1"],
+      "evidence_scope": "professional",
+      "canonical_ids": [
+        "skills:Python",
+        "H1"
+      ],
+      "public_evidence_ids": [],
       "ats_keyword_allowed": true
     },
     {
+      "requirement": "React UI implementation",
+      "importance": "central",
+      "evidence_class": "DIRECT",
+      "evidence_scope": "verified_project",
+      "canonical_ids": [],
+      "public_evidence_ids": [
+        "pub-example-react"
+      ],
+      "public_evidence_urls": [
+        "https://github.com/example/repo"
+      ],
+      "ats_keyword_allowed": true,
+      "notes": "Substantial first-party project evidence; do not imply employer association."
+    },
+    {
+      "requirement": "3+ years React",
+      "importance": "central",
+      "evidence_class": "DIRECT",
+      "evidence_scope": "mixed",
+      "canonical_ids": [
+        "experience:employment-dates"
+      ],
+      "public_evidence_ids": [
+        "pub-example-react"
+      ],
+      "ats_keyword_allowed": true,
+      "notes": "Fit uses global engineering-tenure band plus verified React capability. Do not claim an exact React duration unless independently supported."
+    },
+    {
       "requirement": "Django",
-      "importance": "mandatory",
+      "importance": "non-central",
       "evidence_class": "ADJACENT",
-      "canonical_ids": ["skills:Python", "skills:FastAPI"],
+      "evidence_scope": "professional",
+      "canonical_ids": [
+        "skills:Python",
+        "skills:FastAPI"
+      ],
+      "public_evidence_ids": [],
       "ats_keyword_allowed": false,
-      "notes": "Python web-backend experience is adjacent; no Django claim. If Django is central, fail gate."
+      "notes": "Learnable framework gap; score penalty, not automatic failure unless Django defines the role."
     }
   ],
-  "gate_result": "fail-if-django-central"
+  "score": 76,
+  "status": "passed"
 }

@@ -13,6 +13,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Treat an explicitly empty -Workspace exactly like an omitted one.
+# This matters when callers pass an unset PowerShell variable such as -Workspace "$workspace".
+if ([string]::IsNullOrWhiteSpace($Workspace)) {
+    $Workspace = (Get-Location).Path
+}
+
+
 function Convert-ToSlug([string]$Text) {
     $slug = $Text.ToLowerInvariant() -replace '[^a-z0-9]+','-'
     $slug = $slug.Trim('-')
@@ -47,6 +54,8 @@ $assessment = [ordered]@{
     eligibility_state = 'UNCLEAR'
     eligibility_evidence = @()
     needs_external_research = $false
+    needs_candidate_evidence = $false
+    candidate_evidence_requirements = @()
     hard_gates = [ordered]@{
         integrity = $false
         eligibility = $false

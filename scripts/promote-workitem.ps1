@@ -6,6 +6,13 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Treat an explicitly empty -Workspace exactly like an omitted one.
+# This matters when callers pass an unset PowerShell variable such as -Workspace "$workspace".
+if ([string]::IsNullOrWhiteSpace($Workspace)) {
+    $Workspace = (Get-Location).Path
+}
+
 $WorkItemDir = (Resolve-Path -LiteralPath $WorkItemDir).Path
 $skillRoot = Split-Path -Parent $PSScriptRoot
 
@@ -26,7 +33,7 @@ if ($assessment.status -ne 'passed') { throw 'Work item assessment is not passed
 foreach ($gate in @('integrity','eligibility','role_family','mandatory_requirements','truth_feasibility')) {
     if (-not [bool]$assessment.hard_gates.$gate) { throw "Work item hard gate not passed: $gate" }
 }
-if ($fit.status -ne 'complete' -or $null -eq $fit.score) { throw 'Work item fit-map is incomplete.' }
+if ($fit.status -notin @('complete','passed') -or $null -eq $fit.score) { throw 'Work item fit-map is incomplete.' }
 
 $scaffold = Join-Path $skillRoot 'scripts\scaffold-resume.ps1'
 $pwsh = (Get-Command pwsh -ErrorAction Stop).Source
@@ -43,6 +50,25 @@ if (Test-Path -LiteralPath $generatedJobPath) {
             $generatedJob | Add-Member -NotePropertyName $name -NotePropertyValue $job.$name -Force
         }
     }
+    # V5.10 policy migrations may legitimately reopen a prior technical/fit skip.
+    # Carry an override only for those non-submission technical skip statuses so a restart
+    # after promotion does not hide the newly approved generated job.
+    $ledgerPath = Join-Path (Join-Path $Workspace '.job-apply-autopilot') 'applications.jsonl'
+    $lastLedgerStatus = $null
+    if (Test-Path -LiteralPath $ledgerPath) {
+        foreach ($line in Get-Content -LiteralPath $ledgerPath) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            try {
+                $row = $line | ConvertFrom-Json
+                if ([string]$row.job_id -eq [string]$job.job_id) { $lastLedgerStatus = [string]$row.status }
+            } catch {}
+        }
+    }
+    $technicalPriorSkips = @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family')
+    if (($assessment.PSObject.Properties.Name -contains 'policy_version') -and [string]$assessment.policy_version -eq '5.10' -and $lastLedgerStatus -in $technicalPriorSkips) {
+        $generatedJob | Add-Member -NotePropertyName 'allow_after_prior_skip' -NotePropertyValue $true -Force
+        $generatedJob | Add-Member -NotePropertyName 'prior_ledger_status' -NotePropertyValue $lastLedgerStatus -Force
+    }
     $generatedJob | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $generatedJobPath -Encoding UTF8
 }
 
@@ -52,6 +78,10 @@ Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $generatedDir 'source
 $eligibilityResearch = Join-Path $WorkItemDir 'eligibility-research.json'
 if (Test-Path -LiteralPath $eligibilityResearch) {
     Copy-Item -LiteralPath $eligibilityResearch -Destination (Join-Path $generatedDir 'eligibility-research.json') -Force
+}
+$candidateEvidenceResearch = Join-Path $WorkItemDir 'candidate-evidence-research.json'
+if (Test-Path -LiteralPath $candidateEvidenceResearch) {
+    Copy-Item -LiteralPath $candidateEvidenceResearch -Destination (Join-Path $generatedDir 'candidate-evidence-research.json') -Force
 }
 
 Write-Output $generatedDir

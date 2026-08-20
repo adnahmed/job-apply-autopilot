@@ -2,6 +2,13 @@
 param([string]$Workspace = (Get-Location).Path)
 
 $ErrorActionPreference = 'Stop'
+
+# Treat an explicitly empty -Workspace exactly like an omitted one.
+# This matters when callers pass an unset PowerShell variable such as -Workspace "$workspace".
+if ([string]::IsNullOrWhiteSpace($Workspace)) {
+    $Workspace = (Get-Location).Path
+}
+
 $root = Join-Path $Workspace '.job-apply-autopilot'
 $generated = Join-Path $root 'generated'
 $queue = Join-Path $root 'queue'
@@ -15,6 +22,7 @@ $relocLog = Join-Path $root 'relocation-watchlist.jsonl'
 $circuitLog = Join-Path $root 'domain-circuit-breakers.jsonl'
 $statsPath = Join-Path $root 'campaign-stats.json'
 $linkedinStatePath = Join-Path $root 'linkedin-activity-state.json'
+$candidateEvidencePath = Join-Path $root 'candidate-evidence.json'
 
 foreach ($path in @($appLog, $relocLog, $circuitLog)) {
     if (-not (Test-Path -LiteralPath $path)) { New-Item -ItemType File -Path $path | Out-Null }
@@ -24,6 +32,16 @@ foreach ($path in @($appLog, $relocLog, $circuitLog)) {
 if (-not (Test-Path -LiteralPath $statsPath)) {
     [ordered]@{ generated_at = $null; total_decisions = 0; submitted = 0; blocked = 0; skipped = 0; submission_rate = 0; statuses = @(); by_source = @(); by_discovery_lane = @() } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statsPath -Encoding UTF8
 }
+if (-not (Test-Path -LiteralPath $candidateEvidencePath)) {
+    [ordered]@{
+        version = 1
+        refreshed_at = $null
+        refresh_reason = 'not-yet-refreshed'
+        sources = @()
+        claims = @()
+    } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $candidateEvidencePath -Encoding UTF8
+}
+
 if (-not (Test-Path -LiteralPath $linkedinStatePath)) {
     $easyApplySeed = @()
     if (Test-Path -LiteralPath $appLog) {
@@ -52,3 +70,4 @@ Write-Output "Generated resumes: $generated"
 Write-Output "Campaign stats: $statsPath"
 
 Write-Output "LinkedIn activity state: $linkedinStatePath"
+Write-Output "Candidate evidence cache: $candidateEvidencePath"

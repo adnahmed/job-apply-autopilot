@@ -3,7 +3,7 @@
 Use concise source material from `canonical/canonical-facts.yaml`. Do not introduce resume/application claims that contradict or exceed the canonical corpus.
 
 ## Professional summary
-Software engineer with 6+ years focused on backend/platform systems in Python/Node.js, with additional applied-AI/agent project experience. Canonical evidence includes FastAPI/Node.js services, AWS/Kubernetes, production reliability work, LangGraph browser-agent runtime work, Graphiti/Neo4j memory/retrieval, and multimodal semantic-mismatch detection. Choose the backend/platform or applied-AI emphasis according to the actual job rather than presenting every area as equal depth.
+Derive the candidate's current overall professional software-engineering tenure from `canonical/canonical-facts.yaml` employment dates at runtime; do not store a literal total here. Describe the candidate as a software engineer focused on backend/platform systems in Python/Node.js with additional applied-AI/agent and verified public-project breadth as current evidence supports. Choose the backend/platform, full-stack, or applied-AI emphasis according to the actual job rather than presenting every area as equal depth.
 
 ## Quantified evidence
 - 50k-100k DAU and 500-800 RPS peak.

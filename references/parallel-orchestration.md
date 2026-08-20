@@ -1,4 +1,4 @@
-# Parallel Orchestration V5.9
+# Parallel Orchestration V5.10
 
 ## Goal
 Use OpenCode subagents as trusted job workers. Parallelize all independent work, including end-to-end external ATS applications. Keep LinkedIn Easy Apply under the primary coordinator because Easy Apply shares one LinkedIn surface/session and benefits from centralized dedupe/resume-selection control.
@@ -11,6 +11,9 @@ One queued job per child session. Reads captured source data and canonical facts
 ### job-autopilot-eligibility
 One unclear job per child session. Researches official eligibility/relocation evidence; writes eligibility-research.json.
 
+### job-autopilot-evidence
+One queued job per child session, only when assessment returns `needs-evidence`. Dynamically verifies current first-party GitHub/deployment/portfolio/candidate-authored public evidence for requested technical gaps and writes `candidate-evidence-research.json`. It never edits the shared evidence cache.
+
 ### job-autopilot-resume
 One approved job per child session. Tailors and compiles the fresh canonical LaTeX resume in that job's unique generated folder.
 
@@ -22,6 +25,7 @@ The primary agent owns:
 - discovery and dedupe,
 - queue creation and source capture,
 - final gate adjudication,
+- sequential merge of completed candidate-evidence reports into the shared evidence cache,
 - promotion to generated folders,
 - LinkedIn Easy Apply submissions,
 - dispatch of external ATS applicators,
@@ -35,7 +39,7 @@ There is **no skill-imposed numeric concurrency limit for external ATS applicati
 
 When multiple approved external jobs have valid tailored resumes, dispatch one `job-autopilot-external-apply` task for **every ready job** without waiting for earlier external tasks to finish. Actual concurrency is limited only by OpenCode/runtime/system resources.
 
-Assessment, eligibility, and resume stages may also be fanned out aggressively across independent jobs. Avoid assigning two workers to the same job directory at the same time.
+Assessment, eligibility, candidate-evidence, and resume stages may also be fanned out aggressively across independent jobs. Avoid assigning two workers to the same job directory at the same time.
 
 LinkedIn Easy Apply remains coordinator-owned and may be processed sequentially **only when the LinkedIn activity governor allows it**, while external ATS subagents run concurrently in the background/task pool. LinkedIn pacing never reduces external ATS concurrency or count.
 
@@ -52,15 +56,17 @@ Unlimited fan-out does not waive anti-automation rules.
 1. Coordinator harvests credible jobs and creates one queue directory per job.
 2. Fan out assessors across all complete work items.
 3. Fan out eligibility researchers for all `UNCLEAR` jobs that remain otherwise viable.
-4. Re-assess researched jobs and perform coordinator final adjudication.
-5. Promote every accepted work item.
-6. Fan out resume workers across all promoted jobs.
-7. As soon as a resume is ready:
+4. Fan out `job-autopilot-evidence` for all otherwise-viable `needs-evidence` jobs. Each evidence worker writes only its per-job report.
+5. As each evidence report completes, coordinator merges it sequentially with `scripts/merge-candidate-evidence.ps1`, then re-runs the assessor on that job.
+6. Re-assess researched jobs and perform coordinator final adjudication.
+7. Promote every accepted work item.
+8. Fan out resume workers across all promoted jobs.
+9. As soon as a resume is ready:
    - LinkedIn Easy Apply -> coordinator queue; submit only when `linkedin-governor.ps1 -Action Status` allows it.
    - External ATS/company site -> immediately dispatch `job-autopilot-external-apply` with no numeric limit.
-8. External applicators run concurrently with each other and with ongoing assessment/resume preparation.
-9. Coordinator periodically reads completed `application-result.json` files and safely merges them into `applications.jsonl`, then refreshes `campaign-stats.json`.
-10. Continue discovering/preparing while external application tasks are in flight. If LinkedIn Easy Apply is cooling down or paused, continue external ATS work and preparation rather than ending the campaign.
+10. External applicators run concurrently with each other and with ongoing assessment/evidence/resume preparation.
+11. Coordinator periodically reads completed `application-result.json` files and safely merges them into `applications.jsonl`, then refreshes `campaign-stats.json`.
+12. Continue discovering/preparing while external application tasks are in flight. If LinkedIn Easy Apply is cooling down or paused, continue external ATS work and preparation rather than ending the campaign.
 
 ## Task-prompt hygiene
 Pass one directory path, not a pre-baked verdict. Example external applicator Task prompt:

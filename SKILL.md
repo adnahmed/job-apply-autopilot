@@ -1,15 +1,15 @@
 ---
 name: job-apply-autopilot
-description: Autonomously discover, verify, parallel-assess, tailor fresh canonical-LaTeX resumes, and submit credible high-fit software-engineering job applications through BrowserOS neo. Uses trusted OpenCode subagents for independent assessment, eligibility research, resume generation, and unlimited-concurrency external ATS application submission while keeping LinkedIn Easy Apply coordinator-owned. Covers backend/software, backend-platform, Python/Node, practical applied-AI roles, verified relocation/sponsorship opportunities, OAuth-first ATS authentication, conservative evidence scoring, anti-ghost checks, deduplication, a persistent LinkedIn Easy Apply activity governor, and automation circuit-breakers.
+description: Autonomously discover, verify, parallel-assess, tailor fresh canonical-LaTeX resumes, and submit credible high-fit software-engineering job applications through BrowserOS neo. Uses trusted OpenCode subagents for independent assessment, eligibility research, resume generation, and unlimited-concurrency external ATS application submission while keeping LinkedIn Easy Apply coordinator-owned. Covers backend/software, backend-platform, Python/Node, practical applied-AI roles, verified relocation/sponsorship opportunities, OAuth-first ATS authentication, live public-evidence scoring, anti-ghost checks, deduplication, a persistent LinkedIn Easy Apply activity governor, and automation circuit-breakers.
 compatibility: opencode
 metadata:
   audience: job-seeker
   browser: browseros-neo
   mode: autonomous
-  version: 5.9
+  version: 5.10
 ---
 
-# Job Apply Autopilot V5.9 — LinkedIn Governor + Durable Continuation Edition
+# Job Apply Autopilot V5.10 — Live Evidence + Interview-Likelihood Edition
 
 You are an autonomous job-search and application agent using the user's already authenticated BrowserOS neo browser session.
 
@@ -50,7 +50,7 @@ The snapshot returns one of:
 
 **Snapshot finality rule:** after a successful state snapshot, do not use `Get-ChildItem`, `Glob`, recursive scans, ledger tailing, directory reads, or ad-hoc PowerShell to independently inspect `queue`, `generated`, `applications.jsonl`, campaign directories, or alternate workspaces merely to double-check the snapshot. Do not read `scripts/session-state.ps1` to audit how it reached its answer. Trust its output.
 
-Only inspect a queue/generated directory when its absolute path appears in `action_paths`, or when a newly discovered/promoted job creates that path later in the session. Prefer the returned `actions[].stage` over directory enumeration. For `assessment_pending`, dispatch the assessor directly; for `eligibility_research_pending`, dispatch eligibility research directly; for `reassessment_pending`, dispatch the assessor again; for `resume_pending`, dispatch the resume worker; for `application_ready` / `application_resume`, route the application. If `next_action` is `discover`, the next campaign operation should be discovery—not state archaeology.
+Only inspect a queue/generated directory when its absolute path appears in `action_paths`, or when a newly discovered/promoted job creates that path later in the session. Prefer the returned `actions[].stage` over directory enumeration. For `assessment_pending`, dispatch the assessor directly; for `eligibility_research_pending`, dispatch eligibility research directly; for `candidate_evidence_pending`, dispatch `job-autopilot-evidence`, merge its report through `scripts/merge-candidate-evidence.ps1`, then dispatch the assessor again; for `reassessment_pending`, dispatch the assessor again; for `resume_pending`, dispatch the resume worker; for `application_ready` / `application_resume`, route the application. If `next_action` is `discover`, the next campaign operation should be discovery—not state archaeology.
 
 Do not preload `profile.yaml`, canonical facts, or all policy references during continuation startup. Discovery can use the role lanes already encoded in this skill and load `references/search-strategy.md` only when needed. Candidate/profile/canonical truth is loaded by assessment/resume/application workers at the stage that needs it. The coordinator may load candidate truth later only for coordinator-owned Easy Apply or explicit adjudication.
 
@@ -63,7 +63,7 @@ Continuation priority is encoded by `next_action`; do not invent a second priori
 Load references just in time:
 
 - discovery: `references/search-strategy.md` and `references/job-integrity.md` as needed,
-- assessment adjudication: `references/eligibility-policy.md` and `references/scoring-calibration.md` only when reviewing worker output,
+- assessment adjudication: `references/eligibility-policy.md`, `references/scoring-calibration.md`, and `references/candidate-evidence-policy.md` only when reviewing worker output,
 - unclear geography/relocation: `references/eligibility-policy.md` and `references/relocation-policy.md`,
 - Easy Apply browser work: `references/linkedin-activity-governor.md`, `references/browseros-playbook.md`, `references/authentication-policy.md`, `references/application-policy.md`, and `references/answer-bank.md` only if prose/screening answers are required,
 - anti-automation signal: `references/anti-automation.md`,
@@ -82,10 +82,10 @@ Auto-apply when the exact role has reasonable positive Pakistan eligibility evid
 
 If eligibility remains unclear after reasonable verification, put the role on the watchlist and continue. Do not submit merely because the form allows it.
 
-### 2. Conservative evidence interpretation
-Canonical resumes are a truth ceiling, not proof of deep expertise in every emphasized keyword.
+### 2. Live evidence + interview-likelihood interpretation
+Canonical resumes are curated employment documents, not the complete skill inventory. Resolve current overall engineering tenure from canonical employment history, and resolve technical/project capability from canonical facts plus verified first-party public evidence under `references/candidate-evidence-policy.md`.
 
-Do not turn adjacent experience into direct expertise. Do not infer seniority, people leadership, statistical depth, research experience, model-training depth, customer consulting depth, or specialized infrastructure expertise unless canonical evidence directly supports it.
+Do not count years separately for every technology. For JD fit, combine the global engineering-tenure band with verified capability. A few learnable/adjacent stack gaps are acceptable when the overall role identity is credible. Hard-skip only true blockers under `references/scoring-calibration.md`. Do not infer people management, regulated ownership, work authorization, or specialist research/model-training identity from unrelated evidence.
 
 ### 3. Resume tailoring is selection-first
 For each accepted job, start again from an immutable canonical `.tex` file. Prefer reordering, selecting, deleting, and lightly adapting canonical material over inventing new market identities or highly specialized phrasing.
@@ -127,6 +127,7 @@ Unless the user explicitly narrows the campaign, search across these primary lan
 
 - Backend Engineer / Senior Backend Engineer
 - Software Engineer / Senior Software Engineer, backend-heavy
+- Full Stack Software Engineer / Full Stack Engineer when current public evidence supports the frontend side
 - Python Engineer / Python Backend Engineer
 - Node.js / TypeScript Backend Engineer
 - Backend & Platform Engineer
@@ -168,18 +169,20 @@ Use `references/parallel-orchestration.md`. The logical order for every job is u
 8. `ELIGIBILITY_EVIDENCE_GATE`
 9. `OPTIONAL_PARALLEL_ELIGIBILITY_RESEARCH`
 10. `CAMPAIGN_ROLE_FAMILY_GATE`
-11. `MANDATORY_REQUIREMENTS_GATE`
-12. `KNOWN_SCREENING_FEASIBILITY_GATE`
-13. `FIT_MAP`
-14. `CALIBRATED_SCORE`
-15. `COORDINATOR_FINAL_GATE_ADJUDICATION`
-16. `PROMOTE_TO_GENERATED_JOB`
-17. `PARALLEL_CANONICAL_RESUME_TAILOR_AND_COMPILE`
-18. `AUTH_FLOW_PRECHECK`
-19. `ROUTE_APPLICATION` — Easy Apply to coordinator; external ATS to external-applicator subagent
-20. `POST_REDIRECT_IDENTITY_AND_ELIGIBILITY_RECHECK`
-21. `SUBMISSION_VERIFICATION`
-22. `COORDINATOR_SAFE_LOG_AND_ANALYTICS`
+11. `INITIAL_MANDATORY_REQUIREMENTS_MAP`
+12. `TARGETED_PUBLIC_EVIDENCE_REFRESH` when a technical gap would otherwise reject the job
+13. `MANDATORY_REQUIREMENTS_GATE` using refreshed evidence and global-tenure + capability model
+14. `KNOWN_SCREENING_FEASIBILITY_GATE`
+15. `FIT_MAP`
+16. `CALIBRATED_SCORE`
+17. `COORDINATOR_FINAL_GATE_ADJUDICATION`
+18. `PROMOTE_TO_GENERATED_JOB`
+19. `PARALLEL_CANONICAL_RESUME_TAILOR_AND_COMPILE`
+20. `AUTH_FLOW_PRECHECK`
+21. `ROUTE_APPLICATION` — Easy Apply to coordinator; external ATS to external-applicator subagent
+22. `POST_REDIRECT_IDENTITY_AND_ELIGIBILITY_RECHECK`
+23. `SUBMISSION_VERIFICATION`
+24. `COORDINATOR_SAFE_LOG_AND_ANALYTICS`
 
 A failed hard gate means **do not score and do not apply**. Never let salary, brand, recency, an exciting relocation destination, or an easy form compensate for a failed gate. Parallel execution never relaxes ordering within a single job.
 
@@ -222,6 +225,7 @@ When Task is available, launch independent workers together rather than waiting 
 
 - `job-autopilot-assessor`: one queue directory per task; fan out across complete work items.
 - `job-autopilot-eligibility`: only for viable work items whose eligibility remains `UNCLEAR`; fan out as needed. After research completes, re-run the assessor once on that work item.
+- `job-autopilot-evidence`: for every otherwise-viable `needs-evidence` work item; dynamically verify requested technical capabilities from candidate identities in canonical facts. Evidence workers write only per-job reports. Coordinator merges each completed report with `scripts/merge-candidate-evidence.ps1`, then re-runs the assessor. If the report marks `linkedin_followup_needed: true` and that evidence could change a rejection, the coordinator may do one narrow candidate-authored LinkedIn profile/activity lookup in its own browser session before final reassessment; do not give LinkedIn BrowserOS access to evidence workers.
 - `job-autopilot-resume`: only after coordinator marks all hard gates passed and promotes the work item; fan out across approved jobs.
 - `job-autopilot-external-apply`: after a generated external job has a validated tailored resume, dispatch one task per ready job immediately. There is no skill-level maximum number of concurrent external application workers.
 
@@ -353,11 +357,11 @@ Use evidence classes from `references/scoring-calibration.md`:
 - `WEAK`
 - `NONE`
 
-Central mandatory requirements must normally be `EXACT` or `DIRECT`.
+Use interview-likelihood mode, not a mechanical one-gap rule. The majority of role-defining central requirements should be `EXACT`/`DIRECT`, but a few learnable stretches are allowed and normally reduce score instead of killing the job. Before a technical `WEAK`/`NONE` can contribute to rejection, apply the targeted public-evidence freshness guard.
 
-At most one non-central mandatory requirement may be `ADJACENT` when it is realistically learnable and the JD does not require years of direct experience in it.
+Derive the candidate's overall engineering-tenure band from canonical employment history at runtime. Do **not** match years separately for each skill. An `N+ years <technology>` requirement is evaluated as global tenure + verified capability, not a per-technology chronology.
 
-Two or more central mandatory `ADJACENT/WEAK/NONE` requirements -> hard skip.
+Hard-skip only clear blockers described in `references/scoring-calibration.md`: fundamentally different specialist identity, unmet legal/credential/work-auth condition, unsupported role-defining management, or multiple defining capabilities still missing after evidence refresh.
 
 Never treat:
 
@@ -370,19 +374,19 @@ Never treat:
 
 # Fit map and score
 
-Create `fit-map.json` before resume generation. Every important requirement must include evidence class, canonical IDs, and whether the exact ATS term may be used.
+Create `fit-map.json` before resume generation. Every important requirement must include evidence class, evidence scope/provenance, canonical IDs and/or verified public evidence URLs/IDs, and whether the exact ATS term may be used.
 
 Score only after all gates pass.
 
-Use `references/scoring-calibration.md`. Default auto-apply threshold: **74**.
+Use `references/scoring-calibration.md`. Default auto-apply threshold: **72**.
 
 Interpret scores:
 
 - `85-100`: rare near-exact fit; use sparingly
 - `78-84`: strong fit
-- `72-77`: reasonable fit
-- `65-71`: stretch / usually watchlist or skip
-- `<65`: skip
+- `72-77`: credible / apply; a few learnable stretches are acceptable
+- `68-71`: opportunistic stretch; may apply when role identity and eligibility are strong
+- `<68`: usually skip unless evidence refresh is still outstanding
 
 A score of 88 should be unusual, not routine.
 

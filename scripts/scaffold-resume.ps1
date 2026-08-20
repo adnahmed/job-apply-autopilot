@@ -10,6 +10,13 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Treat an explicitly empty -Workspace exactly like an omitted one.
+# This matters when callers pass an unset PowerShell variable such as -Workspace "$workspace".
+if ([string]::IsNullOrWhiteSpace($Workspace)) {
+    $Workspace = (Get-Location).Path
+}
+
 $skillRoot = Split-Path -Parent $PSScriptRoot
 $canonicalPath = if ($Canonical -eq 'backend') {
     Join-Path $skillRoot 'canonical\backend-platform-canonical.tex'

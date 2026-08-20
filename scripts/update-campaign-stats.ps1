@@ -2,6 +2,13 @@
 param([string]$Workspace = (Get-Location).Path)
 
 $ErrorActionPreference = 'Stop'
+
+# Treat an explicitly empty -Workspace exactly like an omitted one.
+# This matters when callers pass an unset PowerShell variable such as -Workspace "$workspace".
+if ([string]::IsNullOrWhiteSpace($Workspace)) {
+    $Workspace = (Get-Location).Path
+}
+
 $root = Join-Path $Workspace '.job-apply-autopilot'
 $appLog = Join-Path $root 'applications.jsonl'
 $outPath = Join-Path $root 'campaign-stats.json'

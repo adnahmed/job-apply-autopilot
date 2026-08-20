@@ -1,14 +1,23 @@
 {
+  "policy_version": "5.10",
   "job_id": "example-123",
   "company": "Example Co",
-  "title": "Senior Backend Engineer",
+  "title": "Full Stack Software Engineer",
   "trust_class": "DIRECT_VERIFIED",
   "eligibility_state": "WORLDWIDE_EXPLICIT",
   "eligibility_evidence": {
     "source": "official ATS",
     "text_summary": "Role explicitly states remote worldwide / candidates globally."
   },
-  "role_family": "backend",
+  "role_family": "fullstack-software-engineering",
+  "global_experience_band": {
+    "source": "canonical employment history",
+    "meets_role_band": true,
+    "note": "Derived at runtime; no per-technology year accounting."
+  },
+  "needs_external_research": false,
+  "needs_candidate_evidence": false,
+  "candidate_evidence_requirements": [],
   "hard_gates": {
     "integrity": true,
     "eligibility": true,
@@ -16,6 +25,7 @@
     "mandatory_requirements": true,
     "truth_feasibility": true
   },
-  "score": 79,
+  "score": 76,
+  "status": "passed",
   "decision": "apply"
 }
