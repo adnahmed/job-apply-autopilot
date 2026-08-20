@@ -1,0 +1,167 @@
+version: 1
+policy: "Only claims supported by these canonical facts may be added to a tailored resume. Rewording is allowed; invention is not."
+identity:
+  full_name: "Adnan Ahmed Khan"
+  location: "Islamabad, Pakistan"
+  email: "khanadnanahmed01@gmail.com"
+  linkedin: "https://linkedin.com/in/adnahmed"
+  github: "https://github.com/adnahmed"
+  education: "BS Computer Science — PMAS Arid Agriculture University, Rawalpindi"
+  languages: ["Urdu (native)", "English (professional)"]
+experience:
+  hackontech:
+    employer: "HackOnTech"
+    dates: "2023-Present"
+    title: "Senior Software Engineer, Backend & Platform"
+    evidence:
+      - id: H1
+        claim: "Core backend/platform ownership for products serving 50k-100k DAU and 500-800 RPS peak."
+      - id: H2
+        claim: "Led a zero-to-one overhaul into six high-throughput Docker/EKS microservices with zero-downtime releases."
+      - id: H3
+        claim: "Reduced failed cross-service operations by 80%, from about 150 daily failures to under 30 in the backend canonical wording."
+      - id: H4
+        claim: "Reduced payment failures from about 5% to 2% using retries, rollbacks, and workflow recovery."
+      - id: H5
+        claim: "Reduced PostgreSQL/Redis query latency from 30+ seconds to under 1 second using indexing/caching/pooling/service decomposition."
+      - id: H6
+        claim: "Reduced AWS spend by 25% through EKS rightsizing/autoscaling while preserving service objectives/SLOs."
+      - id: H7
+        claim: "Reduced MTTR from about 45 minutes to under 10 minutes using tracing, dashboards, and service-level observability."
+      - id: H8
+        claim: "Built a multimodal NLP workflow that generates video descriptions, compares them with user-supplied text, and flags suspected semantic mismatches."
+  creative_it_park:
+    employer: "Creative IT Park"
+    dates: "2021-2023"
+    title: "Backend Developer"
+    evidence:
+      - id: C1
+        claim: "Delivered Python/Node.js backend and ETL platforms for university, government, and healthcare systems."
+      - id: C2
+        claim: "Improved information discovery/search latency using Elasticsearch, Redis, optimized data access, and caching."
+      - id: C3
+        claim: "Hardened Kafka pipelines with retries/circuit breakers during downstream failures."
+      - id: C4
+        claim: "Secured healthcare ETL/data flows with encrypted flows and fine-grained AWS access controls."
+      - id: C5
+        claim: "Operated Kubernetes deployments with health gating."
+  geekgenix:
+    employer: "GeekGenix"
+    dates: "2020-2021"
+    title: "Backend Developer"
+    evidence:
+      - id: G1
+        claim: "Built Express/MongoDB APIs."
+      - id: G2
+        claim: "Built Stripe checkout and webhook reconciliation workflows."
+      - id: G3
+        claim: "Implemented Passport.js authentication."
+      - id: G4
+        claim: "Built Jest-tested customer workflows."
+projects:
+  verifiable_browser_agent:
+    name: "Verifiable Browser Agent Runtime"
+    evidence:
+      - id: P1
+        claim: "Architected an asynchronous agent runtime/platform using Python, LangGraph, FastAPI, Playwright, Chroma, Graphiti, and Neo4j."
+      - id: P2
+        claim: "Implemented capture/assessment/policy gating/execution, semantic pre/post-condition or effect verification, and bounded/distributed recovery."
+      - id: P3
+        claim: "Integrated Graphiti/Neo4j temporal memory and vector retrieval to persist verified/failed episodes and reuse grounded evidence across sessions."
+  openclaw_workflow:
+    name: "openclaw-workflow"
+    evidence:
+      - id: P4
+        claim: "Engineered an orchestration runtime with dependency graphs, resumable execution, retries, and output gates."
+  vidx:
+    name: "Vidx"
+    evidence:
+      - id: P5
+        claim: "Architected a 4K distributed rendering platform and reduced peak memory 40% under GPU-bound burst loads."
+  pdf_annotate:
+    name: "pdf-annotate.js"
+    evidence:
+      - id: P6
+        claim: "Designed a collaboration engine with conflict-safe sync, spatial indexing, and 60fps rendering."
+  remote_proctoring:
+    name: "Remote Proctoring & Collusion Detection"
+    evidence:
+      - id: P7
+        claim: "Built a real-time proctoring system using Neo4j, OpenVINO, and WebRTC."
+      - id: P8
+        claim: "Modeled students/exam takers/social relationships in Neo4j and updated the graph during exams to surface potentially collusive patterns and time-mapped incidents."
+skills:
+  exact_or_explicitly_supported:
+    - Python
+    - TypeScript
+    - JavaScript
+    - Node.js
+    - Nest.js
+    - FastAPI
+    - Express
+    - REST
+    - PostgreSQL
+    - Postgres
+    - Redis
+    - Kafka
+    - Elasticsearch
+    - MongoDB
+    - DynamoDB
+    - AWS
+    - EKS
+    - ECS
+    - Lambda
+    - RDS
+    - Docker
+    - Kubernetes
+    - Terraform
+    - Helm
+    - GitHub Actions
+    - ArgoCD
+    - Prometheus
+    - Grafana
+    - Jaeger
+    - Datadog
+    - ELK
+    - Jest
+    - Temporal
+    - Step Functions
+    - LangGraph
+    - Playwright
+    - Graphiti
+    - Neo4j
+    - Chroma
+    - OpenVINO
+    - WebRTC
+    - WebSockets
+    - FFmpeg
+    - distributed systems
+    - microservices
+    - event-driven design
+    - idempotency
+    - retries
+    - workflow orchestration
+    - embeddings
+    - prompt engineering
+    - multimodal video understanding
+    - semantic consistency
+    - semantic drift detection
+    - temporal knowledge graphs
+    - graph modeling
+    - hybrid graph/vector retrieval
+aliases:
+  allowed:
+    - from: "Postgres"
+      to: "PostgreSQL"
+    - from: "hybrid graph/vector retrieval"
+      to: "hybrid retrieval"
+    - from: "semantic post-condition verification"
+      to: "semantic effect verification"
+    - from: "LLM applications"
+      to: "LLM application engineering"
+  prohibited_examples:
+    - "FastAPI -> Django"
+    - "AWS/Kubernetes -> CUDA/vLLM/Triton"
+    - "LLM API/application work -> PyTorch model training"
+    - "technical ownership -> people management"
+    - "remote work -> country work authorization"

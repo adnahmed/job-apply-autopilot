@@ -1,82 +1,75 @@
-# Autonomous application policy
+# Autonomous Application Policy V3
 
-## Objective
-Apply to high-fit jobs end-to-end using BrowserOS neo, including LinkedIn Easy Apply and external ATS sites, without asking the user routine questions.
+## Principle
+Quality beats volume. The requested application count is a maximum target, never a quota.
 
-## Non-negotiable truthfulness
-Never invent candidate facts. A fully autonomous run means the agent resolves fields using verified profile data, existing truthful LinkedIn/saved-application data, non-disclosure choices, or skips only the blocked application and continues. It does **not** mean making up a phone number, address, citizenship, work authorization, visa status, security clearance, education, employer, dates, skill duration, or other factual claim.
+## Hard gates before scoring
+A job must pass all of these before any numeric fit score is computed:
 
-## Security boundaries
-- Never request, reveal, copy, or store account passwords, one-time codes, or recovery secrets in logs.
-- Never bypass CAPTCHA, MFA, anti-bot checks, or account-security warnings.
-- If a CAPTCHA/MFA/security challenge blocks an application, mark it `blocked-security`, leave that application, and continue with other jobs when safe.
-- If LinkedIn or an ATS indicates rate limiting, automation detection, or account restriction risk, end the run cleanly.
+1. Job integrity / identity
+2. Geographic and work eligibility
+3. Campaign role-family intent
+4. Mandatory technical requirements
+5. Truthful-answer feasibility for known mandatory screening constraints
 
-## Targeting and quality
-- Default to roles matching AI/LLM/agent engineering, senior backend, platform, Python/FastAPI, TypeScript/Node.js, AWS/Kubernetes, distributed systems, RAG, Graphiti/Neo4j.
-- Prefer remote roles, Pakistan roles, and Islamabad roles.
-- Do not apply to internship, unpaid, volunteer, or commission-only jobs.
-- Do not apply twice to the same company/title/location combination or same canonical job URL.
-- Score before applying. Minimum 70/100.
+A hard-gate failure is final for that posting unless new evidence materially changes the facts.
 
-### Match score
-- Core technical match: 0-40
-- Relevant seniority/scope: 0-15
-- AI/agent or backend/platform domain fit: 0-15
-- Location/remote compatibility: 0-10
-- Experience requirement fit: 0-10
-- Recency: 0-5
-- Clear compensation or strong company fit: 0-5
+## Truthfulness
+Never invent or inflate:
 
-Subtract 25 for a hard mismatch such as a mandatory technology/domain with no adjacent experience. Skip below threshold.
+- citizenship or residency,
+- work authorization / sponsorship status,
+- relocation status,
+- employer, title, dates, management scope,
+- degree/certification,
+- years of experience,
+- technologies or domains,
+- salary history,
+- security clearance,
+- phone/address/contact information.
 
-## Resume selection
-- AI Engineer / LLM / agents / RAG / GenAI -> `resumes/ai-engineer.pdf`
-- AI Application Engineer / AI product engineering / integrations -> `resumes/ai-application-engineer.pdf`
-- Mixed AI + backend/platform -> `resumes/ai-backend-engineer.pdf`
-- Senior Backend / Platform / Distributed Systems -> `resumes/backend-platform-general.pdf`
-- Collaboration/SaaS/backend roles close to the Happeo-style profile -> `resumes/backend-platform-happeo.pdf`
+Existing saved LinkedIn answers may be reused only when consistent with `profile.yaml` and the current application.
 
-Use the closest variant without rewriting the PDF unless the job explicitly requires a text resume and the browser form accepts generated text.
+## Security
+Never store or reveal passwords, OTPs, cookies, auth tokens, recovery secrets, or session material.
+Never bypass CAPTCHA/MFA/rate limits/automation warnings.
 
-## Application answers
-- Use `profile.yaml` as the source of truth.
-- Reuse previously saved LinkedIn Easy Apply answers only if they do not conflict with `profile.yaml`.
-- Optional demographic/EEO questions: choose the available decline/prefer-not-to-answer option.
-- Cover letters and free-text questions: generate concise tailored text based only on verified profile facts and the job description.
-- “Why this role/company?”: mention 2-3 concrete responsibilities/technologies from the posting and connect them to verified experience.
-- Experience-year questions: answer conservatively. Never state more than the candidate’s total 6+ years; for a technology, infer only from dated jobs/projects where support exists.
-- Salary: use posting midpoint when a numeric answer is mandatory. If no range is posted, research a current market median for exact title/location; save the source/assumption in the log. Prefer “Negotiable” when text is allowed.
-- Start date/notice: use negotiable if offered, otherwise 30 days after offer.
-- Work authorization/sponsorship/citizenship/clearance: use existing verified saved data if present. Never infer these from residence. If mandatory and unknown with no non-disclosure option, skip that application and continue.
-- Phone/address: use verified LinkedIn contact info or previously saved application data if present. Never fabricate.
+## Score after gates pass
+- Role-family / core technical fit: 0-35
+- Mandatory-responsibility evidence: 0-20
+- Seniority / ownership: 0-15
+- AI/LLM domain fit: 0-10
+- Remote/relocation compatibility: 0-10
+- Experience band: 0-5
+- Recency / employer / compensation clarity: 0-5
 
-## LinkedIn Easy Apply flow
-1. Search with defaults in `profile.yaml`, prioritizing postings from the last 7 days.
-2. Open a candidate job in the BrowserOS neo agent session.
-3. Capture title, company, location, canonical URL, seniority, description, requirements, date posted, and salary if shown.
-4. Check dedupe state and compute match score.
-5. If score >= 70 and no hard exclusion, click Easy Apply.
-6. Select/upload the best resume variant.
-7. Complete every page using verified/autonomous policies.
-8. Review only for internal consistency; do not pause for user approval.
-9. Submit.
-10. Verify success via confirmation state/message, then append the log entry.
-11. Continue until run limit, exhaustion of good matches, rate limit, or security warning.
+Default threshold: 82.
+Agency with named client: threshold 86.
+Direct referral / known hiring manager: threshold may be 78 if all gates pass.
 
-## External ATS flow
-1. From LinkedIn or other source, open the external application in the same BrowserOS neo session/group.
-2. Identify ATS/provider and company job ID if possible.
-3. Create/sign in only when the site supports passwordless/OAuth/session-based access already available. Do not invent credentials or handle secrets.
-4. Populate profile/resume, upload the best resume, generate verified free-text responses, and submit.
-5. If the ATS requires a new password or security verification not already available, mark `blocked-auth` and continue to the next job.
-6. Verify submission confirmation and log it.
+## Scoring discipline
+Do not award points because a title merely contains "AI" or "ML". Evidence must map to actual responsibilities.
+Do not treat adjacent experience as equivalent to a mandatory specialized skill.
+Do not let recency, salary, brand, or relocation desirability compensate for a core technical mismatch.
 
-## Application logging
-Maintain `.job-apply-autopilot/applications.jsonl`, one JSON object per job:
+## Campaign isolation
+The campaign request defines the role family. Do not broaden it silently.
 
-```json
-{"timestamp":"ISO-8601","status":"submitted|skipped-low-fit|blocked-auth|blocked-security|blocked-unknown-fact|failed","source":"linkedin-easy-apply|external","company":"...","title":"...","location":"...","job_url":"...","job_id":"...","score":0,"resume":"...","notes":"..."}
-```
+Examples:
+- AI/LLM campaign -> no generic Django/backend/data job unless AI/LLM engineering is genuinely central.
+- Backend/platform campaign -> AI exposure is a bonus, not required.
 
-Before applying, dedupe by canonical URL/job ID and secondarily by normalized company+title+location.
+## Application limits
+- requested count = maximum target
+- default max submissions/run = 20
+- default max external/run = 10
+- stop safely on account/security/rate-limit signals
+
+## Unknown required facts
+Try, in order:
+1. `profile.yaml`
+2. truthful saved LinkedIn/application data
+3. explicit non-disclosure / N/A option
+4. otherwise skip `blocked-unknown-fact`
+
+Never fabricate to complete a form.

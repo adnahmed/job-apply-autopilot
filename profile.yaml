@@ -1,4 +1,4 @@
-profile_version: 1
+profile_version: 3
 candidate:
   full_name: "Adnan Ahmed Khan"
   location:
@@ -7,7 +7,6 @@ candidate:
   email: "khanadnanahmed01@gmail.com"
   linkedin: "https://www.linkedin.com/in/adnahmed"
   github: "https://github.com/adnahmed"
-  headline: "AI & Backend Engineer | Production LLM Systems, Agents & Cloud Platforms"
   total_experience_years: "6+"
   languages:
     - language: "Urdu"
@@ -25,141 +24,40 @@ current_employment:
   title: "Senior Software Engineer, Backend & Platform"
   start_year: 2023
   end_year: "Present"
-  location: "Remote / Islamabad"
+  location: "Islamabad / Remote"
 
-experience:
-  - company: "HackOnTech"
-    title: "Senior Software Engineer, Backend & Platform"
-    dates: "2023-Present"
-    facts:
-      - "Own core backend/platform engineering for B2B/G2G systems serving 50k-100k daily users and 500-800 RPS peak traffic."
-      - "Led a 0-to-1 overhaul into six high-throughput microservices with zero-downtime releases."
-      - "Engineered resilient distributed workflows with idempotency, retries, rollbacks and recovery, cutting failed cross-service operations by 80%."
-      - "Reduced payment failures from about 5% to 2%."
-      - "Reduced PostgreSQL/Redis query latency from 30+ seconds to under 1 second."
-      - "Reduced AWS spend by 25%."
-      - "Cut MTTR from about 45 minutes to under 10 minutes using tracing, dashboards and service-level observability."
-      - "Built a multimodal NLP workflow that generates descriptions from video, compares them with user-provided text, and flags suspected semantic mismatches."
-  - company: "Creative IT Park"
-    title: "Backend Developer"
-    dates: "2021-2023"
-    facts:
-      - "Delivered Python/FastAPI and Node.js backend platforms for government, university and healthcare clients."
-      - "Hardened Kafka notification pipelines during downstream failures."
-      - "Optimized Elasticsearch/data access and caching to reduce public-portal latency."
-      - "Secured healthcare ETL workflows with encrypted data flows and fine-grained AWS IAM controls."
-  - company: "GeekGenix"
-    title: "Backend Developer"
-    dates: "2020-2021"
-    facts:
-      - "Built Express/MongoDB APIs, Stripe checkout and webhook reconciliation, Passport.js authentication, and tested customer workflows."
+resume_generation:
+  source_policy: "immutable-canonical-per-job"
+  ai_canonical: "canonical/ai-applied-canonical.tex"
+  backend_canonical: "canonical/backend-platform-canonical.tex"
+  canonical_fact_index: "canonical/canonical-facts.yaml"
+  always_generate_per_job: true
+  always_start_from_canonical: true
+  preserve_canonical_audit_copy: true
+  require_fit_map_before_tailoring: true
+  stale_pdf_fallback_allowed: false
+  compile_script: "scripts/compile-resume.ps1"
 
-skills:
-  ai_llm:
-    - "LLM applications"
-    - "AI agents"
-    - "multi-agent workflows"
-    - "LangGraph"
-    - "LangChain"
-    - "CrewAI"
-    - "OpenClaw"
-    - "prompt engineering"
-    - "context engineering"
-    - "tool calling"
-    - "structured outputs"
-    - "model routing"
-    - "RAG"
-    - "embeddings"
-    - "ChromaDB"
-    - "Graphiti"
-    - "Neo4j"
-    - "multimodal NLP"
-    - "semantic consistency / drift detection"
-  backend:
-    - "Python 3.12"
-    - "FastAPI"
-    - "TypeScript"
-    - "JavaScript"
-    - "Node.js"
-    - "Nest.js"
-    - "Express"
-    - "REST APIs"
-    - "async HTTP/httpx"
-    - "WebSockets"
-    - "microservices"
-    - "workflow orchestration"
-    - "Playwright"
-  cloud_platform:
-    - "AWS"
-    - "EKS"
-    - "ECS"
-    - "Lambda"
-    - "RDS"
-    - "Docker"
-    - "Kubernetes"
-    - "Terraform"
-    - "Helm"
-    - "GitHub Actions"
-    - "ArgoCD"
-  data_reliability:
-    - "PostgreSQL"
-    - "Redis"
-    - "Kafka"
-    - "Elasticsearch"
-    - "MongoDB"
-    - "DynamoDB"
-    - "Temporal"
-    - "AWS Step Functions"
-    - "idempotency"
-    - "retries"
-    - "distributed state"
-    - "Prometheus"
-    - "Grafana"
-    - "Jaeger"
-    - "pytest"
-    - "Jest"
+# Canonical resume facts are authoritative for resume claims.
+# Read canonical/canonical-facts.yaml instead of inferring skills from this profile.
+resume_claim_authority: "canonical/canonical-facts.yaml"
 
-projects:
-  - name: "Verifiable Browser Agent Runtime"
-    tech: ["Python", "LangGraph", "FastAPI", "Playwright", "Chroma", "Graphiti", "Neo4j"]
-    facts:
-      - "Engineered an asynchronous agent platform with grounded browser actions, semantic pre/post-condition verification, bounded recovery, and multi-agent critic/reducer reasoning."
-      - "Built an OpenAI-style FastAPI responses gateway with streaming, tool calls, model/capability routing, retries, transcripts, embeddings, and vector retrieval."
-      - "Designed distributed workers with leases, heartbeats, encrypted shared state, replay/snapshots, and automated quality checks."
-  - name: "openclaw-workflow"
-    tech: ["TypeScript", "Redis", "MCP", "JSON Schema"]
-    facts:
-      - "Architected YAML/JSON-driven LLM pipelines with dependency graphs, parallel execution, per-step model overrides, retries/timeouts, cancellation, output gates, durable Redis/MCP state, schema validation, and partial resume."
-  - name: "_tasks"
-    tech: ["Python 3.12", "LangGraph", "LangChain Core", "CrewAI", "Pydantic", "GitHub Actions"]
-    facts:
-      - "Built an agent automation platform with supervisor/worker/reducer architecture, browser-driven task graphs, LLM tool calling, model discovery, cost routing, transcript logging, structured outputs, relevance scoring and ATS resume tuning."
-  - name: "Remote Proctoring & Collusion Detection"
-    tech: ["Neo4j", "OpenVINO", "WebRTC"]
-    facts:
-      - "Built a real-time proctoring system and modeled exam and social relationships in Neo4j to surface potentially collusive patterns and time-mapped incidents."
-
-resume_variants:
-  ai_engineer: "resumes/ai-engineer.pdf"
-  ai_application_engineer: "resumes/ai-application-engineer.pdf"
-  ai_backend_engineer: "resumes/ai-backend-engineer.pdf"
-  backend_platform_general: "resumes/backend-platform-general.pdf"
-  backend_platform_happeo: "resumes/backend-platform-happeo.pdf"
-
-# Autonomous defaults. These are workflow policies, not claims about the candidate.
+# Workflow preferences; these are not legal/work-authorization claims.
 autonomy:
   ask_user_questions: false
   submit_without_preview: true
   continue_after_skipped_application: true
   max_applications_per_run: 20
   max_external_applications_per_run: 10
-  minimum_match_score: 70
+  minimum_match_score: 82
   prefer_recent_days: 7
+  requested_count_is_maximum_not_quota: true
   stop_on_rate_limit: true
   stop_on_account_security_warning: true
   never_bypass_captcha_or_security_challenge: true
 
 search_defaults:
+  primary_campaign: "AI/LLM engineering"
   locations:
     - "Remote"
     - "Pakistan"
@@ -171,41 +69,42 @@ search_defaults:
     - "AI Application Engineer"
     - "AI Agent Engineer"
     - "Generative AI Engineer"
-    - "Senior Backend Engineer"
-    - "Backend Engineer"
-    - "Platform Engineer"
-    - "Senior Software Engineer"
-  positive_keywords:
-    - "Python"
-    - "FastAPI"
-    - "LLM"
-    - "LangGraph"
-    - "LangChain"
-    - "AI agents"
-    - "RAG"
-    - "TypeScript"
-    - "Node.js"
-    - "AWS"
-    - "Kubernetes"
-    - "distributed systems"
-    - "Neo4j"
+    - "Forward Deployed Engineer"
   excluded_job_types:
     - "internship"
     - "unpaid"
     - "commission-only"
     - "volunteer"
-  relocation_policy: "Do not apply to roles requiring on-site presence outside Islamabad unless the posting explicitly allows remote work."
+
+relocation:
+  enabled_by_default: true
+  keep_watchlist_even_during_remote_only_campaigns: true
+  auto_apply_when_campaign_allows_relocation: true
+  require_explicit_sponsorship_or_international_hiring_for_auto_apply: true
+  positive_phrases:
+    - "visa sponsorship"
+    - "work visa sponsorship"
+    - "immigration support"
+    - "relocation assistance"
+    - "relocation package"
+    - "global mobility"
+    - "international candidates welcome"
+    - "work permit support"
+    - "visa transfer"
+    - "relocation bonus"
+  no_fixed_country_preference: true
 
 answer_policy:
-  cover_letter: "Generate a concise, job-specific cover letter using only verified facts from this profile and the selected resume."
+  cover_letter: "Generate concise job-specific text using only verified canonical facts and the current verified job posting."
   demographic_optional: "Prefer not to answer / decline to self-identify."
   disability_optional: "Prefer not to answer / decline to self-identify."
   veteran_optional: "Prefer not to answer / decline to self-identify."
   gender_optional: "Prefer not to answer / decline to self-identify."
   race_ethnicity_optional: "Prefer not to answer / decline to self-identify."
   compensation_text: "Negotiable; open to a market-competitive package."
-  compensation_numeric: "If the job posting contains a range, use the midpoint. If no range exists, research a current market median for the exact title/location and use the median; record the source in the log."
-  start_date: "30 days after offer unless the form supports 'negotiable'."
-  notice_period: "30 days when a numeric/text answer is mandatory; otherwise choose negotiable if available."
+  compensation_numeric: "Use a posted range only when present and required; otherwise do not invent a number. If no truthful numeric answer is available, skip."
+  start_date: "30 days after offer unless the form supports negotiable."
+  notice_period: "30 days when mandatory; otherwise choose negotiable if available."
   years_total_experience: "6+"
-  factual_unknown_required: "First try existing truthful data from LinkedIn profile/contact info or previously saved application answers. If still unknown and the field has a 'prefer not to answer'/'not applicable' option, use it. Otherwise abandon only that application, log the blocker, and continue. Never fabricate identity, work authorization, sponsorship need, citizenship, clearance, phone number, address, dates, degrees, employers, or years of experience."
+  work_authorization: "Never infer. Answer only from verified saved data/current truthful form context."
+  factual_unknown_required: "Use verified data; choose N/A/prefer-not-to-answer when available; otherwise skip. Never fabricate."

@@ -1,40 +1,41 @@
-# Verified answer bank
+# Verified answer bank — canonical aligned
 
-Use these as concise source material, not as claims beyond the evidence.
+Use concise source material from `canonical/canonical-facts.yaml`. Do not introduce resume/application claims that contradict or exceed the canonical corpus.
 
 ## Professional summary
-AI and backend/platform engineer with 6+ years building Python/TypeScript services, distributed systems, AWS platforms, and production-oriented LLM/agent workflows. Hands-on with LangGraph/LangChain, tool calling, structured outputs, model routing, RAG/vector retrieval, Graphiti/Neo4j, FastAPI, Node.js, Kubernetes and production reliability.
+AI and backend/platform engineer with 6+ years shipping Python/Node.js systems, distributed platforms, and production AI/NLP/agent work. Canonical evidence includes LangGraph browser-agent runtime work, Graphiti/Neo4j temporal memory and hybrid graph/vector retrieval, multimodal semantic-mismatch detection, FastAPI/Node.js services, AWS/Kubernetes, and high-throughput production systems.
 
-## High-value quantified evidence
-- Operated systems serving 50k-100k daily users and 500-800 RPS peak traffic.
-- Reduced failed cross-service operations by 80%.
-- Reduced PostgreSQL/Redis query latency from 30+ seconds to under 1 second.
-- Reduced AWS spend by 25%.
-- Reduced MTTR from about 45 minutes to under 10 minutes.
-- Led a 0-to-1 overhaul into six microservices with zero-downtime releases.
+## Quantified evidence
+- 50k-100k DAU and 500-800 RPS peak.
+- Failed cross-service operations reduced 80%.
+- PostgreSQL/Redis query latency reduced from 30+ seconds to under 1 second.
+- AWS spend reduced 25%.
+- MTTR reduced from about 45 minutes to under 10 minutes.
+- Payment failures reduced from about 5% to 2%.
+- Six-service zero-to-one microservice overhaul with zero-downtime releases.
 
-## AI/agent evidence
-- Built an asynchronous verifiable browser-agent runtime with LangGraph, grounded Playwright actions, semantic pre/post-condition verification and bounded recovery.
-- Built an OpenAI-style FastAPI responses gateway with streaming, tool calls, model/capability routing, retries, transcripts, embeddings and vector retrieval.
-- Architected a YAML/JSON multi-agent workflow orchestrator with dependency graphs, parallel execution, retries/timeouts, output gates and durable Redis/MCP state.
-- Built a Python agent automation platform using LangGraph, LangChain Core, CrewAI and Pydantic, including job-application/browser task graphs and ATS relevance scoring.
-- Built a multimodal NLP workflow that compares generated video descriptions with user-provided text and flags suspected semantic mismatches.
+## AI / agent evidence
+- Verifiable Browser Agent Runtime: Python, LangGraph, FastAPI, Playwright, Chroma, Graphiti, Neo4j; semantic effect/post-condition verification and bounded/distributed recovery.
+- Graphiti/Neo4j temporal memory plus vector retrieval for verified and failed episodes.
+- Multimodal NLP workflow that compares generated video descriptions with user-provided text and flags semantic mismatches.
+- openclaw-workflow orchestration runtime with dependency graphs, resumable execution, retries, and output gates.
+- Remote proctoring/collusion system using Neo4j, OpenVINO, and WebRTC.
 
 ## Backend/platform evidence
-- Production ownership across Python/FastAPI, TypeScript/Node.js/Nest.js, AWS EKS/Lambda, PostgreSQL, Redis and distributed workflows.
-- Resilience with idempotency, retries, rollbacks, recovery, tracing, dashboards and service-level observability.
-- Kafka, Elasticsearch, MongoDB, DynamoDB, Terraform, Helm, ArgoCD, Prometheus, Grafana and Jaeger.
+- Python, FastAPI, TypeScript/JavaScript, Node.js, Nest.js, Express and REST.
+- AWS EKS/ECS/Lambda/RDS, Docker, Kubernetes, Terraform, Helm, GitHub Actions, ArgoCD.
+- PostgreSQL, Redis, Kafka, Elasticsearch, MongoDB, DynamoDB.
+- Distributed systems, microservices, idempotency, retries, workflow orchestration, observability.
 
-## Example short-answer structures
-
+## Short-answer construction
 ### Why are you a good fit?
-Use 2-3 job-specific overlaps + one quantified result. Keep to 80-130 words unless the form imposes another limit.
+Use 2-3 direct requirement overlaps from the canonical evidence map plus one quantified outcome. 80-130 words unless the form requires otherwise.
 
 ### Why this company?
-Reference only facts visible on the job/company page. Connect their product/problem to a verified project or production responsibility. Avoid generic praise.
+Reference only facts visible on the verified job/company page. Connect the company's problem to one canonical claim. Avoid generic praise.
 
-### Describe an AI/LLM project
-Prefer Verifiable Browser Agent Runtime for agent/tool-calling roles; openclaw-workflow for orchestration/multi-agent roles; multimodal semantic-mismatch workflow for applied NLP/multimodal roles.
+### Describe an AI project
+Use Verifiable Browser Agent Runtime for agent/tool/knowledge-memory roles, the multimodal workflow for NLP/multimodal roles, or openclaw-workflow for orchestration roles.
 
 ### Describe scale/reliability work
-Use 50k-100k DAU, 500-800 RPS, 80% failed-op reduction, 30s+ to <1s query reduction, 25% AWS savings, and MTTR ~45m to <10m when relevant.
+Use the canonical quantified production outcomes only when relevant.

@@ -1,0 +1,155 @@
+\documentclass[10pt,letterpaper]{article}
+
+% --- Packages ---
+\usepackage[top=0.6in, bottom=0.6in, left=0.6in, right=0.6in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[none]{hyphenat}
+
+% --- Page Setup ---
+\pagestyle{empty}
+\pagenumbering{gobble}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\raggedright
+
+% --- Symbols ---
+\newcommand{\zeroone}{\ensuremath{0\rightarrow1}}
+
+% --- List Spacing ---
+\setlist[itemize]{
+  topsep=4pt,
+  itemsep=4pt,
+  parsep=0pt,
+  partopsep=0pt,
+  left=1.05em,
+  label=\textbullet
+}
+
+% --- Section Formatting ---
+\newcommand{\titlerulewithspace}{%
+  \vspace{3pt}%
+  \titlerule
+}
+
+\titleformat{\section}
+  {\normalsize\bfseries\uppercase}
+  {}
+  {0em}
+  {}
+  [\titlerulewithspace]
+
+\titlespacing*{\section}
+  {0pt}
+  {9pt plus 3pt minus 2pt}
+  {5pt plus 2pt}
+
+% --- Hyphenation / Overflow Control ---
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+\emergencystretch=3em
+
+\begin{document}
+\small
+
+% --- Header ---
+\begin{center}
+  {\Large\bfseries Adnan Ahmed Khan}\\[0.15em]
+  {\normalsize Senior Backend \& Platform Engineer | Node.js, Python, AWS, Distributed Systems}\\[0.2em]
+  Islamabad, Pakistan \quad|\quad Remote Friendly\\[0.2em]
+  \href{mailto:khanadnanahmed01@gmail.com}{khanadnanahmed01@gmail.com}
+  \quad|\quad
+  \href{https://linkedin.com/in/adnahmed}{linkedin.com/in/adnahmed}
+  \quad|\quad
+  \href{https://github.com/adnahmed}{github.com/adnahmed}
+\end{center}
+
+% --- Summary ---
+\section*{Summary}
+Senior Backend \& Platform Engineer with 6+ years building high-throughput, business-critical platforms.\\
+Scaled systems to 500--800 RPS and 50k--100k DAU while cutting AWS spend 25\%.\\
+Slashed 30s+ queries to \textless{} 1s, MTTR from \textasciitilde{}45m to \textless{} 10m, and failed ops by 80\%.
+
+\vfill
+
+% --- Skills ---
+\section*{Technical Skills}
+\textbf{Languages:} TypeScript, JavaScript, Python\\
+\textbf{Backend:} Node.js, Nest.js, FastAPI, Express, REST, workflow orchestration\\
+\textbf{Cloud/Infra:} AWS, EKS, ECS, Lambda, Docker, Kubernetes, Terraform, Helm\\
+\textbf{Data/Messaging:} Postgres, Redis, Kafka, Elasticsearch, MongoDB, DynamoDB\\
+\textbf{Architecture:} Microservices, distributed systems, event-driven design, idempotency, retries\\
+\textbf{DevOps/SRE:} GitHub Actions, ArgoCD, Prometheus, Grafana, Jaeger, Datadog, ELK, Jest
+
+\vfill
+
+% --- Experience ---
+\section*{Professional Experience}
+
+\textbf{\href{https://hackontech.com/}{HackOnTech}} \hfill \textbf{2023 -- Present}\\
+\textit{Senior Software Engineer, Backend \& Platform} \hfill Remote / Islamabad\\
+{\footnotesize Core backend owner for B2B/G2G NGO platforms: 50k--100k DAU, 500--800 RPS peak.}
+
+\begin{itemize}
+  \item Spearheaded \zeroone{} platform overhaul into 6 high-throughput microservices, enabling zero-downtime releases for 100k DAU.
+  \item Cut failed cross-service operations 80\%, reducing daily failures from 150 to \textless{} 30 across critical workflows.
+  \item Stabilized 500--800 RPS burst windows while protecting payments, queues, and customer-facing availability.
+  \item Slashed core query latency from 30s+ to \textless{} 1s across high-volume Postgres/Redis workloads.
+  \item Reduced payment failures from \textasciitilde{}5\% to 2\% with resilient retries, rollbacks, and workflow recovery.
+  \item Reclaimed 25\% of AWS spend while preserving SLOs across EKS, autoscaling, and non-prod workloads.
+  \item Cut MTTR from \textasciitilde{}45m to \textless{} 10m with tracing, dashboards, and service-level observability.
+\end{itemize}
+
+\vspace{4pt}
+\noindent{\footnotesize \textbf{Stack:} TypeScript, Node.js, Nest.js, Python, FastAPI, AWS, EKS, Lambda, Postgres, Redis, Temporal, Step Functions, Terraform, Helm, ArgoCD, Prometheus, Grafana, Jaeger.}
+
+\vfill
+
+\textbf{Open-Source \& Production-Grade Engineering Platforms}\\
+\textit{Distributed systems, agent runtimes, rendering infrastructure, collaboration engines}
+
+\begin{itemize}
+  \item Architected \href{https://github.com/adnahmed/verifiable-browser-agent}{verifiable-browser-agent}, an async browser-agent runtime with LangGraph orchestration, grounded Playwright actions, semantic effect verification, and distributed recovery.
+  \item Architected Vidx, a 4K distributed rendering platform, reducing peak memory 40\% under GPU-bound burst loads.
+  \item Designed pdf-annotate.js collaboration engine with conflict-safe sync, spatial indexing, and 60fps rendering.
+  \item Engineered openclaw-workflow orchestration runtime with dependency graphs, resumable execution, retries, and output gates.
+\end{itemize}
+
+\vspace{4pt}
+\noindent{\footnotesize \textbf{Stack:} Python, FastAPI, LangGraph, Playwright, Node.js, TypeScript, Redis, WebSockets, FFmpeg, GPU workers, queues, PDF rendering, distributed execution.}
+
+\vfill
+
+\textbf{\href{https://creativeitpark.org/}{Creative IT Park}} \hfill \textbf{2021 -- 2023}\\
+\textit{Backend Developer}
+
+\begin{itemize}
+  \item Delivered backend platforms for university, government, and healthcare systems with production API ownership.
+  \item Hardened Kafka notification pipelines, preserving delivery during downstream service failures.
+  \item Cut search latency across public portals using optimized data access and caching.
+  \item Secured healthcare ETL pipelines with encrypted flows and fine-grained AWS access controls.
+\end{itemize}
+
+\vspace{4pt}
+\noindent{\footnotesize \textbf{Stack:} Node.js, Python, FastAPI, Kafka, Elasticsearch, Redis, AWS ECS, RDS, DynamoDB, Glue, IAM, PostgreSQL, MongoDB, Docker.}
+
+\vfill
+
+% --- Earlier Experience ---
+\section*{Earlier Experience}
+\textbf{\href{https://www.geekgenix.com/}{GeekGenix} -- Backend Developer | 2020 -- 2021:}
+Stripe checkout, webhook reconciliation, Express/MongoDB APIs, Passport.js auth.
+
+\vfill
+
+% --- Education ---
+\section*{Education}
+\textbf{BS Computer Science} --- PMAS Arid Agriculture University, Rawalpindi
+
+\end{document}

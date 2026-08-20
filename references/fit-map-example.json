@@ -1,0 +1,27 @@
+{
+  "job_id": "4450000000",
+  "status": "complete",
+  "requirements": [
+    {
+      "requirement": "Build production agentic workflows with Python/LangGraph",
+      "importance": "mandatory",
+      "canonical_ids": ["P1", "P2"],
+      "strength": "direct",
+      "ats_keyword_allowed": true
+    },
+    {
+      "requirement": "Operate reliable cloud services at production scale",
+      "importance": "mandatory",
+      "canonical_ids": ["H1", "H2", "H7"],
+      "strength": "direct",
+      "ats_keyword_allowed": true
+    },
+    {
+      "requirement": "Django",
+      "importance": "preferred",
+      "canonical_ids": [],
+      "strength": "none",
+      "ats_keyword_allowed": false
+    }
+  ]
+}

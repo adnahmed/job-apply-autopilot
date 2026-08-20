@@ -5,12 +5,5 @@
       "job-apply-autopilot": "allow"
     },
     "browseros-neo_*": "allow"
-  },
-  "mcp": {
-    "browseros-neo": {
-      "type": "remote",
-      "url": "http://127.0.0.1:9239/mcp",
-      "enabled": true
-    }
   }
 }

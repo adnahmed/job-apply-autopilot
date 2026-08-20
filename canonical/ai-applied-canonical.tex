@@ -1,0 +1,195 @@
+\documentclass[10pt,letterpaper]{article}
+
+\usepackage[top=0.40in,bottom=0.40in,left=0.52in,right=0.52in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[none]{hyphenat}
+\input{glyphtounicode}
+\pdfgentounicode=1
+
+\pagestyle{empty}
+\pagenumbering{gobble}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\raggedright
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+\emergencystretch=3em
+\urlstyle{same}
+
+\setlist[itemize]{
+  topsep=2pt,
+  itemsep=2.1pt,
+  parsep=0pt,
+  partopsep=0pt,
+  left=1.05em,
+  label=\textbullet
+}
+
+\titleformat{\section}
+  {\normalsize\bfseries\uppercase}
+  {}
+  {0em}
+  {}
+  [\vspace{2pt}\titlerule]
+
+\titlespacing*{\section}{0pt}{5.5pt}{3pt}
+
+\newcommand{\role}[4]{%
+  \textbf{#1} \hfill \textbf{#2}\\
+  \textit{#3} \hfill \textit{#4}\\[-2pt]
+}
+
+\begin{document}
+\fontsize{9.25}{10.55}\selectfont
+
+% ---------- Header ----------
+\begin{center}
+  {\Large\bfseries Adnan Ahmed Khan}\\[0.12em]
+  {\normalsize AI Engineer | Applied NLP, Knowledge Graphs \& Production Systems}\\[0.15em]
+  Islamabad, Pakistan\\[0.15em]
+  \href{mailto:khanadnanahmed01@gmail.com}
+       {khanadnanahmed01@gmail.com}
+  \quad|\quad
+  \href{https://linkedin.com/in/adnahmed}
+       {linkedin.com/in/adnahmed}
+  \quad|\quad
+  \href{https://github.com/adnahmed}
+       {github.com/adnahmed}
+\end{center}
+
+% ---------- Summary ----------
+\section*{Summary}
+AI and backend engineer with 6+ years shipping Python and Node.js systems.
+Built a multimodal content-integrity pipeline that generates video
+descriptions, compares them with user-provided text, and flags suspected
+semantic mismatches. Developed Graphiti/Neo4j temporal memory, hybrid
+graph/vector retrieval, and semantic post-condition verification for LangGraph
+agents. Production owner for platforms serving 50k--100k DAU and 500--800 RPS.
+
+% ---------- Skills ----------
+\section*{Technical Skills}
+\textbf{Applied AI/NLP:}
+LLM applications, multimodal video understanding, semantic consistency and
+drift detection, structured outputs, embeddings, prompt engineering\\
+\textbf{Knowledge Systems:}
+Neo4j, Graphiti, temporal knowledge graphs, graph modeling, hybrid graph/vector
+retrieval, Chroma, Elasticsearch\\
+\textbf{Backend/Data:}
+Python, TypeScript, JavaScript, FastAPI, Node.js, Nest.js, REST, PostgreSQL,
+Redis, Kafka, MongoDB, ETL\\
+\textbf{Cloud/Operations:}
+AWS, Kubernetes, Docker, Terraform, Helm, GitHub Actions, ArgoCD, Prometheus,
+Grafana, Jaeger, distributed systems
+
+% ---------- Experience ----------
+\section*{Professional Experience}
+
+\role
+  {\href{https://hackontech.com/}{HackOnTech}}
+  {2023 -- Present}
+  {Senior Software Engineer, Backend \& Platform}
+  {Islamabad / Remote}
+
+\begin{itemize}
+  \item Built a multimodal NLP workflow that generates descriptions from video,
+  compares them with user-supplied descriptions, and flags suspected semantic
+  mismatches for review.
+
+  \item Led a zero-to-one overhaul into six Docker/EKS microservices, enabling
+  zero-downtime releases for products serving 50k--100k DAU.
+
+  \item Stabilized 500--800 RPS bursts and cut core PostgreSQL/Redis query
+  latency from 30s+ to under 1s through indexing, caching, pooling, and service
+  decomposition.
+
+  \item Reduced failed cross-service operations by 80\% and MTTR from
+  approximately 45 minutes to under 10 minutes using Temporal recovery,
+  idempotency, tracing, and service-level dashboards.
+
+  \item Cut AWS spend by 25\% through EKS rightsizing and autoscaling while
+  preserving service objectives.
+\end{itemize}
+
+\vspace{1pt}
+{\footnotesize
+\textbf{Stack:}
+Python, FastAPI, TypeScript, Node.js, Nest.js, AWS, EKS, Lambda, PostgreSQL,
+Redis, Temporal, Terraform, Helm, ArgoCD, Prometheus, Grafana, Jaeger.
+}
+
+\vspace{3pt}
+
+\role
+  {\href{https://creativeitpark.org/}{Creative IT Park}}
+  {2021 -- 2023}
+  {Backend Developer}
+  {Islamabad}
+
+\begin{itemize}
+  \item Delivered Python/Node.js backend and ETL platforms for university,
+  government, and healthcare systems; improved information discovery with
+  Elasticsearch, Redis, and optimized data access.
+
+  \item Hardened Kafka pipelines with retries and circuit breakers, secured
+  healthcare data flows with fine-grained AWS controls, and operated Kubernetes
+  deployments with health gating.
+\end{itemize}
+
+\vspace{2pt}
+
+\textbf{\href{https://www.geekgenix.com/}{GeekGenix} -- Backend Developer}
+\hfill
+\textbf{2020 -- 2021}\\[-1pt]
+Built Express/MongoDB APIs, Stripe checkout and webhook reconciliation,
+Passport.js authentication, and Jest-tested customer workflows.
+
+% ---------- Projects ----------
+\section*{Selected AI \& Knowledge-Graph Projects}
+
+\textbf{
+  \href{https://github.com/adnahmed/verifiable-browser-agent}
+       {Verifiable Browser Agent Runtime}
+}
+\hfill
+\textit{Python, LangGraph, Graphiti, Neo4j, Chroma, FastAPI}
+
+\begin{itemize}
+  \item Architected an asynchronous agent runtime with capture, assessment,
+  policy gating, execution, semantic post-condition verification, and bounded
+  recovery for long-running workflows.
+
+  \item Integrated Graphiti/Neo4j temporal memory and vector retrieval to
+  persist verified and failed episodes and reuse grounded evidence across
+  sessions.
+\end{itemize}
+
+\vspace{1pt}
+
+\textbf{
+  \href{https://github.com/adnahmed/remote-proctoring-system-backend}
+       {Remote Proctoring \& Collusion Detection}
+}
+\hfill
+\textit{Neo4j, OpenVINO, WebRTC}\\[-1pt]
+
+\begin{itemize}
+  \item Built a real-time proctoring system and modeled students, exam takers,
+  and social relationships in Neo4j, updating the graph during exams to surface
+  potentially collusive patterns and time-mapped incidents.
+\end{itemize}
+
+% ---------- Education ----------
+\section*{Education \& Languages}
+\textbf{BS Computer Science} ---
+PMAS Arid Agriculture University, Rawalpindi
+\hfill
+\textbf{Languages:} Urdu (native), English (professional)
+
+\end{document}
