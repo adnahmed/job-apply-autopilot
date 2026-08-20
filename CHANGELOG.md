@@ -1,4 +1,25 @@
-# V5.11.1 — Non-Interactive Autonomy Patch
+# V5.11.4
+
+- Removed stale BrowserOS configuration-incident guidance from operational policy.
+- Browser automation now follows only generic bounded fallback behavior.
+- No campaign behavior depends on historical BrowserOS configuration incidents.
+
+# Changelog
+
+## V5.11.3 — BrowserOS `_run` compatibility correction
+
+- `_run` now has a one-strike session capability breaker: first matching compatibility failure -> stop `_run` retries and continue granularly.
+- BrowserOS/OpenCode update or MCP reconnection permits `_run` to be tested again in a future session; no permanent blacklist.
+
+
+## 5.11.2 — Persistent Discovery
+
+- A dry discovery wave no longer ends `continue applying`; coordinator rotates through the multi-source discovery ladder.
+- Requires at least one non-LinkedIn discovery lane before declaring current-market exhaustion.
+- Batch dedupe now explicitly happens before opening detail pages whenever result IDs are available.
+- Reconcile path is narrowed to `application-result.json` (+ `job.json` only if needed), avoiding script/runtime archaeology.
+- Preserves V5.11.1 non-interactive behavior: no question tool; unknown factual form blockers are logged and campaign continues.
+
 
 - Coordinator never asks the user to choose/confirm/clarify routine campaign decisions.
 - Question/interactive-choice tools are prohibited for the campaign.

@@ -1,10 +1,10 @@
 ---
 name: job-apply-autopilot
 description: "Fast autonomous job discovery, truthful fit triage, tailored resumes, and submission using BrowserOS. Optimized for low first-application latency: fast path first, research only when decision-changing."
-version: 5.11.1
+version: 5.11.3
 ---
 
-# Job Apply Autopilot V5.11.1 — Fast Path + Non-Interactive Edition
+# Job Apply Autopilot V5.11.4 — Persistent Discovery Edition
 
 Goal: **maximize credible interview opportunities per unit time**. Preserve truth, eligibility, anti-automation safety, and job-specific resumes. Everything else is subordinate to speed.
 
@@ -71,6 +71,10 @@ Stage handling:
 
 Historical technical skips from older policy versions are **not automatically reopened at startup**. New work wins. Revisit old skips only when explicitly requested or when the coordinator is otherwise idle and has no fresh discovery/applications to process.
 
+### Reconcile without archaeology
+
+For `reconcile_result`, read only the supplied job path's `application-result.json` plus `job.json` if identity fields are missing. Do not list the generated directory, glob the skill scripts, inspect `application-progress.json` unless recovery is actually needed, or enumerate the runtime root. Log/route the terminal result, then continue immediately.
+
 ## 3. Fast triage before queue creation
 
 During discovery, classify directly from the job page/JD before creating a work item.
@@ -108,7 +112,7 @@ $workItem = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\ne
 
 `source.md` should contain concise metadata plus the complete JD. Do not duplicate the JD into extra narrative notes.
 
-Batch dedupe newly discovered IDs with `scripts/dedupe-jobs.ps1`; do not grep the whole runtime.
+Batch dedupe newly discovered IDs with `scripts/dedupe-jobs.ps1` **before opening detail pages whenever job IDs are available from cards/results**. Drop already-seen IDs immediately. Open/read full JDs only for unseen plausible candidates. Do not spend browser steps re-evaluating jobs already represented in the ledger.
 
 ## 4. Interview-likelihood fit model
 
@@ -195,7 +199,23 @@ When research is needed, `job-autopilot-eligibility` uses **first decisive evide
 
 Do not collect five supporting sources after the decision is settled.
 
-## 8. Scheduling: fastest useful result first
+## 8. Persistent discovery: a dry wave is not completion
+
+A search wave producing zero viable jobs is **not** a stopping condition. `Continue applying to jobs` means continue discovering after a dry wave.
+
+Use the escalation ladder in `references/search-strategy.md`:
+1. Pakistan/local direct roles;
+2. APAC/APJ/Asia remote roles;
+3. explicit worldwide/international-contractor roles;
+4. sponsorship/relocation roles;
+5. non-LinkedIn direct-employer/ATS discovery;
+6. broader title synonyms and a wider freshness window.
+
+After a dry lane, switch lanes/sources instead of summarizing and stopping. At least one non-LinkedIn discovery lane must be attempted before declaring current-market exhaustion. Do not say “ready for the next wave when fresh postings land”; the agent does not work in the background.
+
+A run may end for discovery exhaustion only after the configured multi-source ladder has been exercised and produces no unseen plausible candidates, or because the runtime/session itself is ending. Security blocks on one domain never end unaffected discovery.
+
+## 9. Scheduling: fastest useful result first
 
 Priority:
 1. reconcile confirmed application results;
@@ -211,7 +231,7 @@ As soon as one job passes, promote/resume/route it. Do **not** wait for every jo
 
 Use parallel workers only when their expected latency is similar. Never bundle a quick local assessor with web-heavy evidence/eligibility workers if the harness will wait for the whole wave.
 
-## 9. Promotion + resume
+## 10. Promotion + resume
 
 After all hard gates pass and score is viable:
 
@@ -230,7 +250,13 @@ Resume rules:
 - compile one-page PDF through `compile-resume.ps1`;
 - output summary should be only status + artifact path.
 
-## 10. Application routing
+## 11. BrowserOS fast-path rule
+
+Use the available BrowserOS tools normally. Do not encode environment-specific BrowserOS configuration incidents into campaign policy. If a browser action fails, use normal bounded fallback behavior from `references/browseros-playbook.md` and continue.
+
+For discovery, prefer one targeted `evaluate` that extracts visible job IDs/title/company/location/href, then batch dedupe. Fall back to `read`/`snapshot` when DOM extraction is unreliable. Do not retry a broken extraction technique more than once; switch to a granular fallback.
+
+## 12. Application routing
 
 ### LinkedIn Easy Apply
 
@@ -248,7 +274,7 @@ Dispatch one `job-autopilot-external-apply` per ready job immediately. **No skil
 
 OAuth/existing session first; password generation/autofill allowed when needed.
 
-## 11. Anti-automation
+## 13. Anti-automation
 
 First explicit `possible spam`, automation detection, suspicious activity, account restriction, attributable 429, CAPTCHA, or MFA requiring human interaction:
 - stop submit attempts on that domain/run;
@@ -260,7 +286,7 @@ Ordinary field validation: max 1 corrective retry.
 
 Never bypass CAPTCHA/MFA/security controls.
 
-## 12. Truth boundaries
+## 14. Truth boundaries
 
 Optimize for interviews, not perfect documentation. Still never fabricate:
 - employer/work history;
@@ -272,7 +298,7 @@ Optimize for interviews, not perfect documentation. Still never fabricate:
 
 A reasonable stretch is allowed. A false factual answer is not.
 
-## 13. Minimal logging
+## 15. Minimal logging
 
 Rejected/obvious-skip jobs need only one compact ledger row with `job_id`, status, reason code, and essential identity metadata.
 
@@ -280,7 +306,7 @@ Detailed per-job artifacts exist **only when they serve a later action** (resume
 
 Update campaign analytics after a meaningful batch, not after every single skip.
 
-## 14. Worker prompt contract
+## 16. Worker prompt contract
 
 Task prompts contain only:
 - exact one job directory path;

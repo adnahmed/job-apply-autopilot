@@ -1,17 +1,17 @@
-# Install Job Apply Autopilot V5.11.1
+# Install Job Apply Autopilot V5.11.4
 
-V5.11.1 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
+V5.11.4 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
 
 From the chosen campaign workspace:
 
 ```powershell
-$zip  = ".\job-apply-autopilot-v5.11.1.zip"
-$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.11.1"
+$zip  = ".\job-apply-autopilot-v5.11.4.zip"
+$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.11.4"
 $dst  = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-$src = Join-Path $temp "job-apply-autopilot-v5.11.1"
+$src = Join-Path $temp "job-apply-autopilot-v5.11.4"
 
 if (Test-Path $dst) {
     $backup = "$HOME\.config\opencode\skills\job-apply-autopilot-backup-$(Get-Date -Format yyyyMMdd-HHmmss)"
@@ -37,7 +37,7 @@ Restart OpenCode from the same campaign workspace, then:
 Use job-apply-autopilot. Continue applying to jobs.
 ```
 
-Expected V5.11.1 behavior:
+Expected V5.11.4 behavior:
 - snapshot JSON is short;
 - no TodoWrite mirror;
 - ready/fast jobs are routed before slow research;

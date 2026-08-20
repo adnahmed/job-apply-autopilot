@@ -28,6 +28,8 @@ Preconditions: assessment passed/all gates true; unique resume artifact exists. 
 
 External ATS has no skill-imposed numeric run/day/concurrency cap.
 
+BrowserOS: use the available tools normally. If one interaction technique fails, use at most one documented fallback from `references/browseros-playbook.md` rather than experimenting repeatedly.
+
 Authentication priority: existing session > LinkedIn OAuth/import > other appropriate authenticated OAuth > password account. Password generation/autofill allowed. OAuth is authentication, not Easy Apply activity.
 
 Before entering substantial data after redirect, verify employer/title/job identity and location. Stop on material identity mismatch or newly revealed work-auth ineligibility.
