@@ -1,4 +1,4 @@
-# BrowserOS Operational Playbook V5.7
+# BrowserOS Operational Playbook V5.9
 
 ## Purpose
 Persist browser techniques that have already succeeded in real applications so workers do not rediscover them by trial and error.
@@ -7,6 +7,9 @@ Persist browser techniques that have already succeeded in real applications so w
 Prefer ordinary BrowserOS `snapshot`/`act`/`upload` operations. Use `evaluate` only when the normal interaction is blocked or a framework-controlled field does not accept reliable input. Never use these techniques to bypass CAPTCHA, MFA, anti-bot, or security controls.
 
 ## LinkedIn Easy Apply
+
+Before beginning a new Easy Apply submission, check `scripts/linkedin-governor.ps1 -Action Status`. Do not begin if `easy_apply_allowed` is false. After a confirmed submission, record it with `-Action RecordEasyApply`. The governor is persistent across OpenCode restarts. External ATS applications are not part of this numeric governor.
+
 
 ### Resume upload
 LinkedIn may keep old uploaded resumes and may select a stale file with the same generic name. Therefore:

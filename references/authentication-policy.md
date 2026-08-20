@@ -1,4 +1,4 @@
-# ATS Authentication Policy V4 — OAuth First
+# ATS Authentication Policy V5.9 — OAuth First
 
 ## Goal
 Minimize application friction. The user permits autonomous password generation/autofill, but OAuth and existing sessions are usually faster and should be attempted first.
@@ -55,3 +55,7 @@ Correct stale or contradictory imported data using the verified profile/canonica
 
 ## Do not confuse OAuth success with eligibility
 A site allowing LinkedIn OAuth or accepting a profile from Pakistan does not prove the role hires in Pakistan. Eligibility must still pass `eligibility-policy.md`.
+
+
+## LinkedIn governor interaction
+LinkedIn OAuth on an external ATS is authentication, not an Easy Apply submission, and does not consume the Easy Apply numeric budget. External ATS applications remain uncapped. If LinkedIn OAuth itself displays a LinkedIn security/rate-limit/account warning, stop that OAuth flow; use password/another suitable authentication fallback when available instead of pushing through the warning.

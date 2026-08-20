@@ -1,4 +1,4 @@
-# Autonomous Application Policy V4
+# Autonomous Application Policy V5.9
 
 ## Principle
 Quality and eligibility beat volume. Requested application count is a maximum target, never a quota.
@@ -44,10 +44,13 @@ Use conservative score bands:
 
 Default auto-apply threshold: 74 after every hard gate passes.
 
-## Application limits
-- requested count = maximum
-- max submissions/run = 20 by default
-- max external submissions/run = 10 by default
+## Application throughput and LinkedIn pacing
+- requested count = maximum, never a quota
+- **external ATS/company-site applications have no skill-imposed per-run, daily, or concurrency limit**
+- external applications continue even when LinkedIn Easy Apply is cooling down or paused
+- LinkedIn Easy Apply is governed separately by `references/linkedin-activity-governor.md` and `scripts/linkedin-governor.ps1`
+- default Easy Apply safety policy: at most 4 confirmed Easy Apply submissions in a rolling hour, at most 20 confirmed Easy Apply submissions in a rolling 24 hours, and at least 600 seconds between confirmed Easy Apply submissions
+- those Easy Apply numbers are conservative skill defaults, not claimed LinkedIn platform limits; they may be tuned later without changing external ATS throughput
 - one ordinary corrective retry for form validation
 - zero retries after automation/spam/security/rate-limit signals
 

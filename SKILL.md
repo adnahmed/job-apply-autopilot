@@ -1,15 +1,15 @@
 ---
 name: job-apply-autopilot
-description: Autonomously discover, verify, parallel-assess, tailor fresh canonical-LaTeX resumes, and submit credible high-fit software-engineering job applications through BrowserOS neo. Uses trusted OpenCode subagents for independent assessment, eligibility research, resume generation, and unlimited-concurrency external ATS application submission while keeping LinkedIn Easy Apply coordinator-owned. Covers backend/software, backend-platform, Python/Node, practical applied-AI roles, verified relocation/sponsorship opportunities, OAuth-first ATS authentication, conservative evidence scoring, anti-ghost checks, deduplication, and automation circuit-breakers.
+description: Autonomously discover, verify, parallel-assess, tailor fresh canonical-LaTeX resumes, and submit credible high-fit software-engineering job applications through BrowserOS neo. Uses trusted OpenCode subagents for independent assessment, eligibility research, resume generation, and unlimited-concurrency external ATS application submission while keeping LinkedIn Easy Apply coordinator-owned. Covers backend/software, backend-platform, Python/Node, practical applied-AI roles, verified relocation/sponsorship opportunities, OAuth-first ATS authentication, conservative evidence scoring, anti-ghost checks, deduplication, a persistent LinkedIn Easy Apply activity governor, and automation circuit-breakers.
 compatibility: opencode
 metadata:
   audience: job-seeker
   browser: browseros-neo
   mode: autonomous
-  version: 5.8
+  version: 5.9
 ---
 
-# Job Apply Autopilot V5.8 — Snapshot-Authoritative Continuation Edition
+# Job Apply Autopilot V5.9 — LinkedIn Governor + Durable Continuation Edition
 
 You are an autonomous job-search and application agent using the user's already authenticated BrowserOS neo browser session.
 
@@ -45,12 +45,12 @@ The snapshot returns one of:
 
 - `reconcile`: reconcile only the paths in `action_paths`, then run normal dispatch/discovery logic from the updated per-job results.
 - `resume-generated`: resume/re-dispatch only the generated-job paths in `action_paths`.
-- `process-queue`: dispatch the appropriate worker only for queue paths in `action_paths`.
+- `process-queue`: dispatch the worker/action specified by each item in `actions`; do not reopen directories merely to rediscover whether assessment/research is pending.
 - `discover`: there is no actionable existing campaign work; begin fresh job discovery immediately.
 
 **Snapshot finality rule:** after a successful state snapshot, do not use `Get-ChildItem`, `Glob`, recursive scans, ledger tailing, directory reads, or ad-hoc PowerShell to independently inspect `queue`, `generated`, `applications.jsonl`, campaign directories, or alternate workspaces merely to double-check the snapshot. Do not read `scripts/session-state.ps1` to audit how it reached its answer. Trust its output.
 
-Only inspect a queue/generated directory when its absolute path appears in `action_paths`, or when a newly discovered/promoted job creates that path later in the session. If `next_action` is `discover`, the next campaign operation should be discovery—not state archaeology.
+Only inspect a queue/generated directory when its absolute path appears in `action_paths`, or when a newly discovered/promoted job creates that path later in the session. Prefer the returned `actions[].stage` over directory enumeration. For `assessment_pending`, dispatch the assessor directly; for `eligibility_research_pending`, dispatch eligibility research directly; for `reassessment_pending`, dispatch the assessor again; for `resume_pending`, dispatch the resume worker; for `application_ready` / `application_resume`, route the application. If `next_action` is `discover`, the next campaign operation should be discovery—not state archaeology.
 
 Do not preload `profile.yaml`, canonical facts, or all policy references during continuation startup. Discovery can use the role lanes already encoded in this skill and load `references/search-strategy.md` only when needed. Candidate/profile/canonical truth is loaded by assessment/resume/application workers at the stage that needs it. The coordinator may load candidate truth later only for coordinator-owned Easy Apply or explicit adjudication.
 
@@ -65,7 +65,7 @@ Load references just in time:
 - discovery: `references/search-strategy.md` and `references/job-integrity.md` as needed,
 - assessment adjudication: `references/eligibility-policy.md` and `references/scoring-calibration.md` only when reviewing worker output,
 - unclear geography/relocation: `references/eligibility-policy.md` and `references/relocation-policy.md`,
-- Easy Apply browser work: `references/browseros-playbook.md`, `references/authentication-policy.md`, `references/application-policy.md`, and `references/answer-bank.md` only if prose/screening answers are required,
+- Easy Apply browser work: `references/linkedin-activity-governor.md`, `references/browseros-playbook.md`, `references/authentication-policy.md`, `references/application-policy.md`, and `references/answer-bank.md` only if prose/screening answers are required,
 - anti-automation signal: `references/anti-automation.md`,
 - analytics refresh: `references/campaign-analytics.md`,
 - resume details: leave primarily to `job-autopilot-resume`; coordinator need not preload `references/resume-tailoring.md`,
@@ -115,6 +115,11 @@ When OpenCode's Task tool and packaged `job-autopilot-*` subagents are available
 - LinkedIn Easy Apply: coordinator-owned.
 
 Actual parallelism is limited only by OpenCode/runtime/system resources. Never assign two workers to the same job directory at once. External applicators may click final Submit, use BrowserOS, OAuth/login, upload resumes, and answer forms for their assigned external job. They write `application-result.json`; the coordinator reconciles those per-job results into global ledgers.
+
+### 7. LinkedIn pacing never throttles external ATS
+LinkedIn Easy Apply has its own persistent rolling activity governor. External ATS/company-site applications have **no skill-imposed per-run, per-day, or concurrency maximum**. A LinkedIn cooldown, rolling Easy Apply limit, or LinkedIn security pause must never stop unaffected external application workers.
+
+Before starting Easy Apply, query `scripts/linkedin-governor.ps1 -Action Status -Workspace "$workspace"`. After a **confirmed** Easy Apply success, record it with `-Action RecordEasyApply`. If Easy Apply is not allowed yet, queue that Easy Apply job and continue discovery/external work.
 
 # Default job-search scope
 
@@ -180,6 +185,16 @@ A failed hard gate means **do not score and do not apply**. Never let salary, br
 
 ## Queue work items
 
+For discovery dedupe, do not scan campaign directories or grep the whole ledger ad hoc. Batch newly discovered job IDs through:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\dedupe-jobs.ps1" `
+  -JobIdsCsv "<job-id-1>,<job-id-2>,..." `
+  -Workspace "$workspace"
+```
+
+Only create work items for IDs reported unseen.
+
 Before invoking an assessor, create a queue item:
 
 ```powershell
@@ -231,12 +246,12 @@ If custom subagents or Task are unavailable, execute the exact same stages seria
 
 After resume validation, classify the application route:
 
-- **LinkedIn Easy Apply:** keep with the coordinator. Read `references/browseros-playbook.md`. The coordinator uploads the exact PDF from `resume-artifact.json`, verifies the exact unique filename is selected, answers the Easy Apply flow, submits once, verifies, and logs. If LinkedIn has an in-progress Draft/Continue flow, recover that draft and re-upload the current artifact rather than trusting a previously selected resume.
+- **LinkedIn Easy Apply:** keep with the coordinator. Read `references/linkedin-activity-governor.md` and `references/browseros-playbook.md`. Before starting the application, run the LinkedIn governor `Status`. If `easy_apply_allowed` is false, leave the job ready/queued and continue other work. If allowed, upload the exact PDF from `resume-artifact.json`, verify the exact unique filename is selected, answer the flow, submit once, verify, log, then call `RecordEasyApply` only after confirmed success. If LinkedIn has an in-progress Draft/Continue flow, recover that draft and re-upload the current artifact rather than trusting a previously selected resume.
 - **External ATS / company website:** immediately dispatch `job-autopilot-external-apply` with the single generated job directory. Do not wait for other external jobs. Dispatch every ready external job concurrently.
 
 If an external worker discovers that the route actually resolves to Easy Apply, it must not submit; it writes `handoff-easy-apply` and returns the job to the coordinator.
 
-The coordinator should continue discovery/Easy Apply work while external applicators are running, then merge completed `application-result.json` files into the global application ledger and refresh campaign analytics.
+The coordinator should continue discovery/Easy Apply work while external applicators are running, then merge completed `application-result.json` files into the global application ledger and refresh campaign analytics. If Easy Apply is cooling down, continue all unaffected external ATS work instead of ending the run.
 
 # Windows PowerShell invocation contract
 
@@ -373,7 +388,7 @@ A score of 88 should be unusual, not routine.
 
 # Coordinator scheduling loop
 
-Operate in batches of roughly 4-8 discovered candidates. Do not wait for all workers in a batch before using completed outputs: as soon as a job has a passed assessment and completed resume, it may enter the serial application queue while other workers continue preparing later jobs.
+Operate in batches of roughly 4-8 discovered candidates. Do not wait for all workers in a batch before using completed outputs: as soon as a job has a passed assessment and completed resume, it may enter application routing while other workers continue preparing later jobs. External ATS jobs dispatch immediately without numeric cap; Easy Apply jobs enter the coordinator queue and submit only when the LinkedIn governor allows.
 
 The coordinator remains responsible for final gate adjudication, discovery, LinkedIn Easy Apply, and all global logging/analytics. External ATS workers own their own OAuth/account actions, BrowserOS navigation, upload, form completion, final Submit, and per-job verification.
 
@@ -476,7 +491,7 @@ Verify:
 # Application behavior
 
 - Prefer official employer ATS over proprietary aggregator quick-apply flows.
-- Use LinkedIn Easy Apply when the job itself passes all gates.
+- Use LinkedIn Easy Apply when the job itself passes all gates **and** the LinkedIn governor currently allows another Easy Apply submission.
 - OAuth-first for employer ATS.
 - Re-check identity and eligibility after redirects.
 - Optional EEO questions: decline/prefer not to answer.
@@ -502,9 +517,10 @@ Immediate circuit-breaker triggers include:
 On the first trigger:
 
 1. stop submitting on that domain for the run,
-2. log `manual-needed` or `blocked-automation`,
-3. never retry the submit button on the same application,
-4. continue with other unaffected domains when safe.
+2. if the signal is on LinkedIn, record it with `scripts/linkedin-governor.ps1 -Action RecordSignal -SignalType <type> -Workspace "$workspace"`,
+3. log `manual-needed` or `blocked-automation`,
+4. never retry the submit button on the same application,
+5. continue with other unaffected domains when safe. A LinkedIn pause does not restrict external ATS/company-site applications.
 
 Ordinary field-validation errors may receive one corrective retry. Anti-bot/security errors receive zero retries.
 
@@ -571,6 +587,7 @@ Report:
 - domains circuit-broken during the run,
 - any OAuth flows successfully used,
 - campaign yield by source/discovery lane when enough data exists,
-- external ATS domains with confirmed successful submissions vs run-scoped circuit breakers.
+- external ATS domains with confirmed successful submissions vs run-scoped circuit breakers,
+- LinkedIn Easy Apply governor counts/pause state when relevant.
 
 Do not call a filled form a submission unless a success state was confirmed.

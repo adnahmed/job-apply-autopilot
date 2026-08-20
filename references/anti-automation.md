@@ -1,4 +1,4 @@
-# Anti-Automation and Circuit-Breaker Policy V5.7
+# Anti-Automation and Circuit-Breaker Policy V5.9
 
 ## Principle
 When a site resists automation, stop pushing. Protect the account/session and move to unaffected jobs. Parallel external ATS execution does not justify retries or bypasses.
@@ -34,7 +34,13 @@ This is a reactive safety mechanism, not a pre-emptive per-domain concurrency ca
 - CAPTCHA/MFA/security challenge: zero bypass attempts.
 
 ## LinkedIn-specific
-LinkedIn Easy Apply remains coordinator-owned. If LinkedIn starts returning repeated 429s, account warnings, or unusual-activity signals, stop the actions causing the signal rather than attempting alternate endpoints or simultaneous Easy Apply workers.
+LinkedIn Easy Apply remains coordinator-owned and is paced by `scripts/linkedin-governor.ps1`. Before starting a new Easy Apply submission, check governor status. After a confirmed Easy Apply submission, record it immediately.
+
+If the governor says Easy Apply is not currently allowed, do **not** stop the campaign: continue discovery, assessment, resume generation, and all external ATS/company-site applications. External application throughput is not part of the LinkedIn governor.
+
+On a LinkedIn 429, account warning, unusual-activity/security message, CAPTCHA, MFA, or account restriction, record a governor signal and stop LinkedIn application activity. Do not try alternate LinkedIn endpoints, extra sessions, or repeated Submit attempts to get around the pause. External ATS workers on non-LinkedIn sites may continue.
+
+The governor is a conservative pacing/safety mechanism, not a guarantee against LinkedIn restrictions and not a technique for bypassing platform controls.
 
 ## ATS-specific
 Do not replay POSTs, synthesize hidden security tokens, or probe anti-bot endpoints merely to force submission after an ATS rejects automation.

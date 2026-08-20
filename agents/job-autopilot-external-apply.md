@@ -29,7 +29,7 @@ Preconditions:
 - `resume-artifact.json` exists, its referenced unique PDF exists, and the tailoring audit is complete.
 - This is an EXTERNAL ATS/company-site route. If the source resolves to LinkedIn Easy Apply, DO NOT submit it; write `application-result.json` with status `handoff-easy-apply` and return it to the coordinator.
 
-You are authorized to complete the external application end to end, including the irreversible final Submit action, without asking for routine confirmation.
+You are authorized to complete the external application end to end, including the irreversible final Submit action, without asking for routine confirmation. External ATS/company-site applications have no skill-imposed per-run, daily, or concurrency maximum.
 
 Browser ownership:
 - Open and use your own BrowserOS tabs for this job.
@@ -39,7 +39,7 @@ Browser ownership:
 
 Authentication order:
 1. already authenticated ATS session,
-2. LinkedIn OAuth / Continue with LinkedIn,
+2. LinkedIn OAuth / Continue with LinkedIn (authentication only; it does not consume the Easy Apply numeric budget),
 3. LinkedIn profile/resume import,
 4. another already-authenticated appropriate OAuth option,
 5. password account creation/autofill when needed.
@@ -65,7 +65,7 @@ Checkpointing / resume-after-step-budget:
 
 Security / resistance:
 - Do not bypass CAPTCHA, MFA, anti-bot, security, or account challenges.
-- On the first spam/automation/429/security signal, do not retry Submit. Record `blocked-automation` (or the more specific status) immediately.
+- On the first spam/automation/429/security signal, do not retry Submit. Record `blocked-automation` (or the more specific status) immediately. If the signal occurs on a LinkedIn OAuth page, stop that OAuth path and use a non-LinkedIn authentication fallback when available; do not push through the LinkedIn warning.
 - Before final Submit, check whether a shared domain blocker marker exists under `.job-apply-autopilot/domain-circuit-breakers/` for this ATS domain. If present, do not submit; record `blocked-domain-circuit-breaker`.
 - If you encounter a first domain-wide automation/security signal, best-effort write a small marker file for that domain under `.job-apply-autopilot/domain-circuit-breakers/` so concurrently running external workers can observe it before their own final Submit. Do not append to shared JSONL ledgers.
 

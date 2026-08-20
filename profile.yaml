@@ -1,4 +1,4 @@
-profile_version: 4
+profile_version: 5
 candidate:
   full_name: "Adnan Ahmed Khan"
   location:
@@ -46,8 +46,12 @@ autonomy:
   submit_without_preview: true
   continue_after_skipped_application: true
   requested_count_is_maximum_not_quota: true
-  max_applications_per_run: 20
-  max_external_applications_per_run: 10
+  external_applications_unlimited: true
+  external_application_concurrency_unlimited: true
+  linkedin_easy_apply_governor_enabled: true
+  linkedin_easy_apply_max_successful_per_hour: 4
+  linkedin_easy_apply_max_successful_rolling_24h: 20
+  linkedin_easy_apply_min_seconds_between_submissions: 600
   minimum_match_score: 74
   prefer_recent_days: 7
   stop_domain_on_first_automation_signal: true

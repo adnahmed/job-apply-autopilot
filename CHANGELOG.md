@@ -1,3 +1,15 @@
+# V5.9.0 — LinkedIn Governor + Durable Continuation Edition
+
+- Removed the old global `max_applications_per_run` and `max_external_applications_per_run` limits. External ATS/company-site applications now have no skill-imposed per-run, per-day, or concurrency maximum.
+- Added persistent `linkedin-activity-state.json` plus `scripts/linkedin-governor.ps1`; Easy Apply pacing survives OpenCode restarts.
+- Added conservative Easy Apply defaults owned by this skill: 4 confirmed submissions / rolling hour, 20 / rolling 24h, and 600 seconds minimum spacing. These are not claimed LinkedIn limits.
+- LinkedIn cooldowns/security pauses no longer stop the campaign; unaffected external ATS applications, assessment, resume work, and discovery continue.
+- Added LinkedIn signal handling: 24h cooldown for ordinary rate-limit/security-warning signals; CAPTCHA/MFA/account restriction creates a manual LinkedIn block.
+- Added `references/linkedin-activity-governor.md` documenting source-derived Linked Helper safety observations separately from skill-owned defaults.
+- `session-state.ps1` is now stage-aware (`actions[].stage`) so a restarted coordinator can dispatch assessors, eligibility research, resumes, application routing, or reconciliation without directory archaeology.
+- Fixed generated-job continuation so promoted jobs awaiting a resume are actionable even before `resume-artifact.json` exists.
+- Added `scripts/dedupe-jobs.ps1` for batch job-ID dedupe without ledger/queue scans.
+
 # V5.8.0 — Snapshot-Authoritative Continuation Edition
 
 - Makes `session-state.ps1` the authoritative continuation decision instead of merely a descriptive summary.

@@ -1,64 +1,37 @@
-# V5.8 validation
+# V5.9 validation
 
-## Package invariants
-- Skill metadata version is 5.8.
-- Canonical `.tex` files are unchanged from the prior validated canonical sources.
-- Four trusted hidden subagents are packaged.
-- External ATS applicator retains BrowserOS + final-submit authority and no skill-imposed concurrency cap.
-- LinkedIn Easy Apply remains coordinator-owned.
+## Architecture invariants
+- External ATS/company-site applications have no numeric per-run, per-day, or concurrency cap.
+- LinkedIn Easy Apply remains coordinator-owned and is the only application route governed by the numeric LinkedIn activity governor.
+- A LinkedIn governor cooldown does not block external ATS workers.
+- External workers still obey truth/eligibility gates and reactive ATS/domain circuit breakers.
 
-## Operational-learning checks
-- `references/ats-eligibility-adapters.md` exists.
-- `references/browseros-playbook.md` exists.
-- `references/campaign-analytics.md` exists.
-- `scripts/update-campaign-stats.ps1` exists.
-- `scripts/init-workspace.ps1` creates the `domain-circuit-breakers/` marker directory and `campaign-stats.json`.
-- Queue `job.json` supports `discovery_lane` and `search_query`.
-- Promotion carries discovery/source metadata into the generated job.
+## Continuation invariants
+- Coordinator CWD is the authoritative workspace.
+- `session-state.ps1` remains the one startup snapshot.
+- Snapshot returns `next_action`, `action_paths`, and stage-aware `actions`.
+- Queue `pending` stubs map to `assessment_pending`.
+- `needs-research` without evidence maps to `eligibility_research_pending`; with evidence maps to `reassessment_pending`.
+- Generated jobs without `resume-artifact.json` map to `resume_pending` instead of disappearing from actionable state.
+- Existing terminal/ledgered jobs are not actionable.
 
-## Resume artifact checks
-- Compile still requires passed hard gates, complete fit map, complete tailoring audit, zero unsupported terms, and canonical SHA-256 match.
-- `latexmk` failure falls back to two direct `pdflatex` passes.
-- `-AutoCompact` makes at most one controlled layout-only fallback and preserves `resume.precompact.tex`.
-- The compile script creates a unique application-facing filename and `resume-artifact.json` with SHA-256.
-- Browser/application workers are instructed to verify the exact artifact filename before Submit.
+## LinkedIn governor invariants
+- State file: `.job-apply-autopilot/linkedin-activity-state.json`.
+- Defaults: 4 confirmed Easy Apply submissions / rolling hour, 20 / rolling 24h, 600 seconds minimum spacing.
+- Counts persist across coordinator restarts.
+- Record only confirmed Easy Apply submissions, not merely opened/filled forms.
+- Ordinary LinkedIn rate-limit/security warning => 24h LinkedIn cooldown.
+- CAPTCHA/MFA/account restriction => manual LinkedIn block.
+- Governor output always reports `external_applications_restricted: false`.
 
-## External application checks
-- External worker step budget increased to 120.
-- External worker writes/resumes `application-progress.json` checkpoints.
-- A `submit-clicked` checkpoint requires success verification before another submit attempt.
-- External worker still stops on first spam/automation/429/security signal.
+## Discovery/dedupe invariants
+- `dedupe-jobs.ps1` accepts a comma-separated batch of newly discovered job IDs.
+- It checks ledger + queue + generated and returns seen/unseen results without coordinator directory archaeology.
 
-## Eligibility learning checks
-- Closed official ATS country lists excluding Pakistan are decisive negative evidence.
-- Workable/Ashby adapter failure is not itself negative evidence.
-- `Remote`, generic global-company language, or a form accepting Pakistan remains insufficient by itself.
+## Resume / worker invariants
+- Canonical `.tex` files remain immutable.
+- External worker retains BrowserOS + final-submit authority and step budget 120.
+- Resume artifact filename/hash and application-progress checkpoint behavior remain unchanged from V5.8.
 
-## Campaign analytics checks
-- Stats script tolerates legacy ledger entries without discovery-lane metadata.
-- Analytics changes search allocation only; it never lowers job gates or forces quota completion.
-
-## V5.8 bootstrap checks
-
-- `SKILL.md` contains deterministic workspace resolution and forbids home-directory scanning during bootstrap.
-- Generated runtime path is explicitly `<workspace>/.job-apply-autopilot/generated`.
-- `scripts/session-state.ps1` exists and produces a single JSON state snapshot without recursively scanning the user home directory.
-- Reference policies are lazy-loaded by stage rather than mandatory startup reads.
-- `answer-bank.md`, BrowserOS playbook, ATS/application/auth policies are not mandatory coordinator startup reads.
-
-
-## Workspace portability check
-
-- Coordinator workspace is defined only as initial `(Get-Location).Path`.
-- No executable script, agent prompt, or skill orchestration rule contains a candidate-specific `C:\Users\...` path.
-- No orchestration rule falls back to `$HOME\job-search`.
-- Subagents receive absolute per-job paths and do not use their own CWD as campaign workspace authority.
-
-## Snapshot-authoritative checks
-
-- `session-state.ps1` emits `snapshot_authoritative: true`.
-- It emits exactly one `next_action` from `reconcile`, `resume-generated`, `process-queue`, `discover`.
-- It emits only `action_paths` for existing work that should be touched next.
-- When there is no actionable existing work, `next_action` is `discover` and `action_paths` is empty.
-- `SKILL.md` forbids post-snapshot `Get-ChildItem`, Glob, recursive scans, ledger tailing, and reading `session-state.ps1` merely to double-check state.
-- Profile/canonical truth are no longer mandatory coordinator startup reads.
+## Environment note
+The build container does not provide PowerShell, so packaged `.ps1` files receive static validation here and should also be exercised on the Windows/OpenCode host with the documented `pwsh -NoProfile -ExecutionPolicy Bypass -File ...` commands.

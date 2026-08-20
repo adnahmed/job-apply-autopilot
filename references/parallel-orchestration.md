@@ -1,4 +1,4 @@
-# Parallel Orchestration V5.7
+# Parallel Orchestration V5.9
 
 ## Goal
 Use OpenCode subagents as trusted job workers. Parallelize all independent work, including end-to-end external ATS applications. Keep LinkedIn Easy Apply under the primary coordinator because Easy Apply shares one LinkedIn surface/session and benefits from centralized dedupe/resume-selection control.
@@ -37,7 +37,7 @@ When multiple approved external jobs have valid tailored resumes, dispatch one `
 
 Assessment, eligibility, and resume stages may also be fanned out aggressively across independent jobs. Avoid assigning two workers to the same job directory at the same time.
 
-LinkedIn Easy Apply remains coordinator-owned and may be processed sequentially while external ATS subagents run concurrently in the background/task pool.
+LinkedIn Easy Apply remains coordinator-owned and may be processed sequentially **only when the LinkedIn activity governor allows it**, while external ATS subagents run concurrently in the background/task pool. LinkedIn pacing never reduces external ATS concurrency or count.
 
 ## Domain circuit breakers under parallel load
 Unlimited fan-out does not waive anti-automation rules.
@@ -56,11 +56,11 @@ Unlimited fan-out does not waive anti-automation rules.
 5. Promote every accepted work item.
 6. Fan out resume workers across all promoted jobs.
 7. As soon as a resume is ready:
-   - LinkedIn Easy Apply -> coordinator queue.
-   - External ATS/company site -> immediately dispatch `job-autopilot-external-apply`.
+   - LinkedIn Easy Apply -> coordinator queue; submit only when `linkedin-governor.ps1 -Action Status` allows it.
+   - External ATS/company site -> immediately dispatch `job-autopilot-external-apply` with no numeric limit.
 8. External applicators run concurrently with each other and with ongoing assessment/resume preparation.
 9. Coordinator periodically reads completed `application-result.json` files and safely merges them into `applications.jsonl`, then refreshes `campaign-stats.json`.
-10. Continue discovering/preparing while external application tasks are in flight.
+10. Continue discovering/preparing while external application tasks are in flight. If LinkedIn Easy Apply is cooling down or paused, continue external ATS work and preparation rather than ending the campaign.
 
 ## Task-prompt hygiene
 Pass one directory path, not a pre-baked verdict. Example external applicator Task prompt:
