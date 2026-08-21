@@ -1,3 +1,16 @@
+# V5.12.0 — Deterministic Recovery Edition
+
+- Added `commit-assessment.ps1`: assessor decisions are schema-validated and atomically serialized; coordinator hand-written assessment/fit JSON is forbidden.
+- Assessor direct file editing is denied; its only assessment-write path is the deterministic commit script.
+- Added `repair-workitem.ps1`: malformed/legacy assessment artifacts are backed up and reset to pending without inventing hard-gate truth.
+- `session-state.ps1` now exposes `assessment_repair` for malformed/contradictory passed artifacts.
+- Added `advance-workitem.ps1`: one non-throwing coordinator transition boundary that repairs, routes, promotes, and converts promotion exceptions into recoverable job-local state.
+- `promote-workitem.ps1` now accepts both `-WorkItemDir` and `-JobId`, so the exact V5.11.4 parameter mistake no longer binder-fails.
+- Added an explicit campaign fault-containment rule: recoverable tool/schema/script/browser/resume/worker errors never end the overall run; unaffected jobs and discovery continue.
+- Added `defer-workitem.ps1` plus scheduler cooldown awareness (1m/5m/30m) so repeatedly broken queue/generated items cannot monopolize the campaign.
+- Preserved CAPTCHA/MFA/security/automation circuit breakers as route/domain-local safety stops with zero bypass.
+- Added `selftest-resilience.ps1` regression coverage for the V5.11.4 failure mode.
+
 # V5.11.4
 
 - Removed stale BrowserOS configuration-incident guidance from operational policy.

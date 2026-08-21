@@ -1,6 +1,7 @@
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName='ByPath')]
 param(
-    [Parameter(Mandatory=$true)][string]$WorkItemDir,
+    [Parameter(Mandatory=$true,ParameterSetName='ByPath')][string]$WorkItemDir,
+    [Parameter(Mandatory=$true,ParameterSetName='ById')][string]$JobId,
     [ValidateSet('ai','backend')][string]$Canonical = 'backend',
     [string]$Workspace = (Get-Location).Path
 )
@@ -13,6 +14,13 @@ if ([string]::IsNullOrWhiteSpace($Workspace)) {
     $Workspace = (Get-Location).Path
 }
 
+$Workspace = (Resolve-Path -LiteralPath $Workspace).Path
+if ($PSCmdlet.ParameterSetName -eq 'ById') {
+    $queueRoot = Join-Path $Workspace '.job-apply-autopilot\queue'
+    $matches = @(Get-ChildItem -LiteralPath $queueRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "$JobId-*" })
+    if ($matches.Count -ne 1) { throw "Could not resolve exactly one queue work item for JobId $JobId." }
+    $WorkItemDir = $matches[0].FullName
+}
 $WorkItemDir = (Resolve-Path -LiteralPath $WorkItemDir).Path
 $skillRoot = Split-Path -Parent $PSScriptRoot
 
@@ -65,7 +73,7 @@ if (Test-Path -LiteralPath $generatedJobPath) {
         }
     }
     $technicalPriorSkips = @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family')
-    if (($assessment.PSObject.Properties.Name -contains 'policy_version') -and [string]$assessment.policy_version -in @('5.10','5.11') -and $lastLedgerStatus -in $technicalPriorSkips) {
+    if (($assessment.PSObject.Properties.Name -contains 'policy_version') -and [string]$assessment.policy_version -in @('5.10','5.11','5.12') -and $lastLedgerStatus -in $technicalPriorSkips) {
         $generatedJob | Add-Member -NotePropertyName 'allow_after_prior_skip' -NotePropertyValue $true -Force
         $generatedJob | Add-Member -NotePropertyName 'prior_ledger_status' -NotePropertyValue $lastLedgerStatus -Force
     }

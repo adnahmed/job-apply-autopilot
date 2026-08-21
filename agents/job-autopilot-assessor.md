@@ -3,14 +3,16 @@ description: Fast local fit assessor for exactly one viable queued job. No web. 
 mode: subagent
 hidden: true
 temperature: 0.1
-steps: 8
+steps: 12
 permission:
   read: allow
   glob: deny
   grep: allow
   list: deny
-  edit: allow
-  bash: deny
+  edit: deny
+  bash:
+    "*": deny
+    "*commit-assessment.ps1*": allow
   task: deny
   websearch: deny
   webfetch: deny
@@ -37,11 +39,25 @@ Decision style: interview-likelihood, fast path.
 - If one narrow artifact-verifiable capability is truly the only thing separating apply from reject and existing cache/research does not cover it, return `needs-evidence`. Do not request evidence to improve a score.
 - If geography is truly unclear and decision-changing, return `needs-research`.
 
-Write compact `assessment.json`:
+Do **not** write `assessment.json` or `fit-map.json` directly. Direct artifact editing is denied. Build the compact assessment payload in memory, then commit it only through `scripts/commit-assessment.ps1`, which validates and atomically writes the canonical schema.
+
+Assessment payload fields:
 `policy_version`, `job_id`, `status` (`passed|needs-research|needs-evidence|failed`), `score`, `trust_class`, `role_family`, `eligibility_state`, `hard_gates`, optional `reason_codes` (max 2), optional `candidate_evidence_requirements` (max 4), `needs_external_research`, `needs_candidate_evidence`.
 
-For `passed`, write `fit-map.json` with status `complete`, score, and at most 8 central requirements. Each requirement: short `requirement`, `evidence_class`, `evidence_scope`, compact support IDs/URLs, `ats_keyword_allowed`. No prose essays.
+For `passed`, also build a fit-map payload with at most 8 central requirements. Each requirement: short `requirement`, `evidence_class`, `evidence_scope`, compact `support` IDs/URLs, `ats_keyword_allowed`. No prose essays. For non-passed states, omit the fit-map payload.
 
-For `failed`, fit-map may be absent or minimal. Do not create a long requirement matrix explaining a rejection.
+Commit exactly once with a command equivalent to:
+```powershell
+$assessmentJson = @'
+{...canonical assessment payload...}
+'@
+$fitMapJson = @'
+{"requirements":[...]}
+'@
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\commit-assessment.ps1" -WorkItemDir "<supplied-dir>" -AssessmentJson $assessmentJson -FitMapJson $fitMapJson
+```
+For non-passed states omit `-FitMapJson`. If the commit script returns `rejected-payload`, correct the payload once and recommit. If it still cannot commit, return `recoverable-error`; never bypass the script by editing artifacts manually.
+
+For `failed`, do not create a long requirement matrix explaining a rejection.
 
 Return at most 3 lines: `job_id status score/eligibility next_action` plus one short reason when needed.

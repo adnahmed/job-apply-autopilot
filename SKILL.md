@@ -1,10 +1,10 @@
 ---
 name: job-apply-autopilot
 description: "Fast autonomous job discovery, truthful fit triage, tailored resumes, and submission using BrowserOS. Optimized for low first-application latency: fast path first, research only when decision-changing."
-version: 5.11.3
+version: 5.12.0
 ---
 
-# Job Apply Autopilot V5.11.4 — Persistent Discovery Edition
+# Job Apply Autopilot V5.12.0 — Deterministic Recovery Edition
 
 Goal: **maximize credible interview opportunities per unit time**. Preserve truth, eligibility, anti-automation safety, and job-specific resumes. Everything else is subordinate to speed.
 
@@ -41,6 +41,23 @@ When a non-factual choice has multiple safe options:
 
 This applies to routing, authentication alternatives, benign application preferences, save/continue dialogs, and other workflow choices. For factual screening fields (work authorization, location, years, salary, identity, eligibility, etc.), choose the truthful evidence-supported answer; if no truthful supported answer exists and no legitimate N/A/decline option works, skip that application rather than asking the user or fabricating. Human intervention is only a terminal status for CAPTCHA/MFA/security/manual-required blockers; record it and continue other jobs instead of asking in-chat.
 
+### Fault containment — one bad job never ends the campaign
+
+A recoverable tool, schema, script-parameter, file-format, resume-build, browser-interaction, or worker failure is **job-local**, never a campaign stop. Correct it once when the fix is obvious; otherwise preserve the item as actionable/recoverable and immediately continue the next unaffected action from `session-state.ps1`.
+
+Never end a run merely because one job cannot advance. Only these may halt activity on the affected route: truthful eligibility/required-fact impossibility, CAPTCHA/MFA/security/automation controls, or an actual runtime/session ending. Even then, continue unaffected jobs, sources, and domains.
+
+The coordinator must not hand-author state-transition JSON when a packaged script owns that transition. Deterministic scripts are the authority for artifact shape, queue state, promotion, ledger/governor updates, and recovery.
+
+When a worker or local technical step returns a recoverable failure that is not already deferred by `advance-workitem.ps1`, call:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\defer-workitem.ps1" `
+  -WorkItemDir "<exact-job-dir>" -Stage "<stage>" -Code "<short-code>" -Message "<short-message>"
+```
+
+This applies a short bounded backoff (1m, 5m, then 30m) so a broken item cannot monopolize the scheduler. `session-state.ps1` hides it from actionable work during the cooldown and continues the campaign. Do not use this for security/CAPTCHA/MFA blockers; those use their terminal/circuit-breaker states.
+
 ## 2. Workspace + continuation
 
 Coordinator initial CWD is the campaign workspace. Capture once:
@@ -62,10 +79,13 @@ Trust its `next_action` and `actions`. Never rescan queue/generated/ledger to do
 Stage handling:
 - `application_ready` / `application_resume`: route now.
 - `resume_pending`: dispatch resume worker now.
-- `coordinator_adjudication_pending`: adjudicate/promote now.
-- `assessment_pending` / `reassessment_pending`: quick assessor wave.
+- `coordinator_adjudication_pending`: run `advance-workitem.ps1`; it promotes or returns the next recoverable stage without ending the campaign.
+- `assessment_repair`: run `advance-workitem.ps1`; malformed artifacts are backed up and reset to `assessment_pending`, then dispatch the assessor.
+- `assessment_pending` / `reassessment_pending`: quick assessor wave; assessor commits through `commit-assessment.ps1`, never direct JSON editing.
 - `eligibility_research_pending` / `candidate_evidence_pending`: slow lane; process **after** any ready/fast work.
 - `discover`: discover immediately.
+
+`recoverable_cooldown` items are intentionally omitted from actionable work until their short retry time; do not wait for them. Continue other queue/generated work or discovery.
 
 **Latency rule:** never place fast assess/resume/application work in the same waiting wave as web-heavy eligibility/evidence research. Route completed jobs before starting slow research.
 
@@ -157,6 +177,8 @@ Outputs must be compact:
 - `fit-map.json`: **passed jobs only**, max 8 central requirements, compact evidence/provenance fields.
 - failed jobs may use a minimal fit map or none; one reason code is enough.
 
+**Deterministic commit boundary:** the assessor may decide content, but `scripts/commit-assessment.ps1` owns serialization, schema validation, job-ID binding, score/gate validation, fit-map limits, and atomic writes. The coordinator must never copy a Task result into `assessment.json` or `fit-map.json` by hand. If commit rejects a payload, fix once or leave it pending and continue other work.
+
 Do not request public evidence merely to improve a score. Request it only when one narrow artifact-verifiable capability is genuinely decision-changing.
 
 ## 6. Bounded public evidence — depth on demand
@@ -233,14 +255,16 @@ Use parallel workers only when their expected latency is similar. Never bundle a
 
 ## 10. Promotion + resume
 
-After all hard gates pass and score is viable:
+After assessment, never call `promote-workitem.ps1` directly from coordinator logic. Use the deterministic transition wrapper:
 
 ```powershell
-$jobDir = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\promote-workitem.ps1" `
+$transition = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\advance-workitem.ps1" `
   -WorkItemDir $workItem -Canonical <ai|backend> -Workspace "$workspace"
 ```
 
-Dispatch `job-autopilot-resume` immediately.
+`advance-workitem.ps1` validates/repairs malformed assessment artifacts, catches promotion exceptions as recoverable job-local state, and emits `next_stage`. It also accepts `-JobId` instead of `-WorkItemDir` when only the ID is available. On `promoted`, dispatch `job-autopilot-resume` immediately. On any recoverable result, continue other work rather than ending the campaign.
+
+`promote-workitem.ps1` remains the low-level transition implementation and accepts either `-WorkItemDir` or `-JobId` for compatibility, but normal coordinator flow goes through `advance-workitem.ps1`.
 
 Resume rules:
 - fresh immutable canonical scaffold per job;
@@ -252,7 +276,7 @@ Resume rules:
 
 ## 11. BrowserOS fast-path rule
 
-Use the available BrowserOS tools normally. Do not encode environment-specific BrowserOS configuration incidents into campaign policy. If a browser action fails, use normal bounded fallback behavior from `references/browseros-playbook.md` and continue.
+Use the available BrowserOS tools normally. Do not encode environment-specific BrowserOS configuration incidents into campaign policy. If a browser action fails, use normal bounded fallback behavior from `references/browseros-playbook.md`; if the fallback also fails, mark that job/route recoverable or blocked as appropriate and continue unaffected work. A BrowserOS tool exception is not a campaign stop.
 
 For discovery, prefer one targeted `evaluate` that extracts visible job IDs/title/company/location/href, then batch dedupe. Fall back to `read`/`snapshot` when DOM extraction is unreliable. Do not retry a broken extraction technique more than once; switch to a granular fallback.
 

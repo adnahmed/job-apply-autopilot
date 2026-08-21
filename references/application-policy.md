@@ -1,7 +1,12 @@
-# Autonomous Application Policy V5.11
+# Autonomous Application Policy V5.12
 
 ## Principle
 Quality and eligibility beat volume. Requested application count is a maximum target, never a quota.
+
+## Fault containment
+A recoverable per-job failure must never terminate the campaign. Schema mismatch, script invocation mistakes, browser implementation failures, resume-build failures, and worker/tool exceptions are isolated to that job/route. Correct once when deterministic; otherwise leave recoverable state and continue unaffected work. Security/CAPTCHA/MFA controls still stop the affected route, never the rest of the campaign.
+
+Assessment artifacts are committed only through `scripts/commit-assessment.ps1`; promotion is coordinator-driven only through `scripts/advance-workitem.ps1`. Do not hand-author transition JSON.
 
 ## Hard gates before scoring
 A job must pass all of these before a numeric score is computed:

@@ -1,17 +1,17 @@
-# Install Job Apply Autopilot V5.11.4
+# Install Job Apply Autopilot V5.12.0
 
-V5.11.4 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
+V5.12.0 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
 
 From the chosen campaign workspace:
 
 ```powershell
-$zip  = ".\job-apply-autopilot-v5.11.4.zip"
-$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.11.4"
+$zip  = ".\job-apply-autopilot-v5.12.0.zip"
+$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.12.0"
 $dst  = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-$src = Join-Path $temp "job-apply-autopilot-v5.11.4"
+$src = Join-Path $temp "job-apply-autopilot-v5.12.0"
 
 if (Test-Path $dst) {
     $backup = "$HOME\.config\opencode\skills\job-apply-autopilot-backup-$(Get-Date -Format yyyyMMdd-HHmmss)"
@@ -25,6 +25,7 @@ Get-ChildItem -LiteralPath $dst -Recurse -File | Unblock-File -ErrorAction Silen
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\install-subagents.ps1"
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\verify-subagents.ps1"
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\verify-canonical.ps1"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\selftest-resilience.ps1"
 
 # Current directory is the campaign workspace. This also compacts old candidate-evidence cache history.
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\init-workspace.ps1"
@@ -37,7 +38,11 @@ Restart OpenCode from the same campaign workspace, then:
 Use job-apply-autopilot. Continue applying to jobs.
 ```
 
-Expected V5.11.4 behavior:
+Expected V5.12.0 behavior:
+- malformed assessment artifacts self-route to `assessment_repair`;
+- assessor artifacts are written only through the deterministic commit validator;
+- queue promotion goes through the non-throwing `advance-workitem.ps1` wrapper;
+- recoverable per-job failures enter bounded cooldown while other work/discovery continues;
 - snapshot JSON is short;
 - no TodoWrite mirror;
 - ready/fast jobs are routed before slow research;

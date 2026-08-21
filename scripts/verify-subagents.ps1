@@ -30,7 +30,13 @@ foreach ($name in $names) {
         $failed = $true
         continue
     }
-    if ($text -notmatch '(?m)^\s{2}edit:\s*allow\s*$') {
+    if ($name -eq 'job-autopilot-assessor.md') {
+        if ($text -notmatch '(?m)^\s{2}edit:\s*deny\s*$' -or $text -notmatch '(?m)^\s{4}"\*commit-assessment\.ps1\*":\s*allow\s*$') {
+            Write-Error "ASSESSOR DETERMINISTIC COMMIT PERMISSION INVALID in $path"
+            $failed = $true
+            continue
+        }
+    } elseif ($text -notmatch '(?m)^\s{2}edit:\s*allow\s*$') {
         Write-Error "TRUSTED WRITE PERMISSION MISSING in $path"
         $failed = $true
         continue

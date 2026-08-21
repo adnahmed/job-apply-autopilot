@@ -48,7 +48,7 @@ $job = [ordered]@{
 $job | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $workDir 'job.json') -Encoding UTF8
 
 $assessment = [ordered]@{
-    policy_version = '5.11'
+    policy_version = '5.12'
     job_id = $JobId
     status = 'pending'
     score = $null

@@ -20,6 +20,36 @@ function Read-JsonSafe([string]$Path) {
     try { return (Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json) } catch { return $null }
 }
 
+function Has-Property($Object, [string]$Name) {
+    return ($null -ne $Object -and $Object.PSObject.Properties.Name -contains $Name)
+}
+
+function Test-AssessmentMalformed($Assessment, $Fit, [bool]$AssessmentFileExists) {
+    if ($AssessmentFileExists -and $null -eq $Assessment) { return $true }
+    if ($null -eq $Assessment) { return $false }
+    if (-not (Has-Property $Assessment 'status')) { return $true }
+    if ([string]$Assessment.status -notin @('pending','passed','needs-research','needs-evidence','failed')) { return $true }
+    if ([string]$Assessment.status -ne 'pending') {
+        foreach ($required in @('score','trust_class','role_family','eligibility_state','hard_gates','needs_external_research','needs_candidate_evidence')) {
+            if (-not (Has-Property $Assessment $required)) { return $true }
+        }
+        foreach ($gate in @('integrity','eligibility','role_family','mandatory_requirements','truth_feasibility')) {
+            if (-not (Has-Property $Assessment.hard_gates $gate) -or $Assessment.hard_gates.$gate -isnot [bool]) { return $true }
+        }
+        if ($Assessment.needs_external_research -isnot [bool] -or $Assessment.needs_candidate_evidence -isnot [bool]) { return $true }
+    }
+    if ([string]$Assessment.status -eq 'passed') {
+        if (-not (Has-Property $Assessment 'hard_gates')) { return $true }
+        foreach ($gate in @('integrity','eligibility','role_family','mandatory_requirements','truth_feasibility')) {
+            if (-not (Has-Property $Assessment.hard_gates $gate)) { return $true }
+            if ($Assessment.hard_gates.$gate -isnot [bool]) { return $true }
+            if (-not [bool]$Assessment.hard_gates.$gate) { return $true }
+        }
+        if ($null -eq $Fit -or -not (Has-Property $Fit 'status') -or [string]$Fit.status -notin @('complete','passed') -or -not (Has-Property $Fit 'score')) { return $true }
+    }
+    return $false
+}
+
 function Parse-Utc([string]$Value) {
     if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
     try { return [DateTimeOffset]::Parse($Value).ToUniversalTime() } catch { return $null }
@@ -117,24 +147,32 @@ $queueRoot = Join-Path $root 'queue'
 if (Test-Path -LiteralPath $queueRoot) {
     foreach ($dir in Get-ChildItem -LiteralPath $queueRoot -Directory) {
         $job = Read-JsonSafe (Join-Path $dir.FullName 'job.json')
-        $assessment = Read-JsonSafe (Join-Path $dir.FullName 'assessment.json')
+        $assessmentPath = Join-Path $dir.FullName 'assessment.json'
+        $assessmentFileExists = Test-Path -LiteralPath $assessmentPath
+        $assessment = Read-JsonSafe $assessmentPath
         $fit = Read-JsonSafe (Join-Path $dir.FullName 'fit-map.json')
+        $assessmentMalformed = Test-AssessmentMalformed $assessment $fit $assessmentFileExists
+        $recoverable = Read-JsonSafe (Join-Path $dir.FullName 'recoverable-error.json')
+        $retryAfter = if ($recoverable -and $recoverable.retry_after) { Parse-Utc ([string]$recoverable.retry_after) } else { $null }
+        $recoverableDeferred = ($null -ne $retryAfter -and $retryAfter -gt [DateTimeOffset]::UtcNow)
         $id = if ($job -and $job.job_id) { [string]$job.job_id } else { $dir.Name.Split('-')[0] }
-        $status = if ($assessment -and $assessment.status) { [string]$assessment.status } else { 'unassessed' }
+        $status = if ($assessmentMalformed) { 'malformed' } elseif ($assessment -and $assessment.status) { [string]$assessment.status } else { 'unassessed' }
         $already = $ledgerIds.ContainsKey($id)
         $priorLedgerStatus = if ($ledgerLastStatus.ContainsKey($id)) { [string]$ledgerLastStatus[$id] } else { $null }
         $policyVersion = if ($assessment -and ($assessment.PSObject.Properties.Name -contains 'policy_version')) { [string]$assessment.policy_version } else { '' }
         $technicalPriorSkips = @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family')
         # Do not reopen an old failed skip just because policy changed. But if a reassessment was already
         # explicitly started under 5.10/5.11, allow that in-progress/passed item to finish after restart.
-        $reassessmentInProgress = ($priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11') -and $status -in @('needs-evidence','needs-research','passed'))
+        $reassessmentInProgress = ($priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12') -and $status -in @('needs-evidence','needs-research','passed'))
         $ledgerBlocks = ($already -and -not $reassessmentInProgress)
         $terminal = $status -in @('failed','rejected','skipped','submitted','blocked')
-        $actionable = (-not $ledgerBlocks -and -not $terminal)
-        $stage = $null
-        $speed = $null
+        $actionable = (-not $ledgerBlocks -and -not $terminal -and -not $recoverableDeferred)
+        $stage = if ($recoverableDeferred) { 'recoverable_cooldown' } else { $null }
+        $speed = if ($recoverableDeferred) { 'deferred' } else { $null }
         if ($actionable) {
-            if ($status -in @('pending','unassessed','captured-awaiting-source-and-assessment')) {
+            if ($status -eq 'malformed') {
+                $stage = 'assessment_repair'; $speed = 'fast'
+            } elseif ($status -in @('pending','unassessed','captured-awaiting-source-and-assessment')) {
                 $stage = 'assessment_pending'; $speed = 'fast'
             } elseif ($status -eq 'needs-evidence') {
                 $candidateEvidencePath = Join-Path $dir.FullName 'candidate-evidence-research.json'
@@ -159,6 +197,7 @@ if (Test-Path -LiteralPath $queueRoot) {
             stage = $stage
             speed = $speed
             path = $dir.FullName
+            retry_after = if ($recoverableDeferred) { $retryAfter.ToString('o') } else { $null }
         }
     }
 }
@@ -171,6 +210,9 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $result = Read-JsonSafe (Join-Path $dir.FullName 'application-result.json')
         $progress = Read-JsonSafe (Join-Path $dir.FullName 'application-progress.json')
         $artifact = Read-JsonSafe (Join-Path $dir.FullName 'resume-artifact.json')
+        $recoverable = Read-JsonSafe (Join-Path $dir.FullName 'recoverable-error.json')
+        $retryAfter = if ($recoverable -and $recoverable.retry_after) { Parse-Utc ([string]$recoverable.retry_after) } else { $null }
+        $recoverableDeferred = ($null -ne $retryAfter -and $retryAfter -gt [DateTimeOffset]::UtcNow)
         $id = if ($job -and $job.job_id) { [string]$job.job_id } else { $dir.Name.Split('-')[0] }
         $priorLedgerStatus = if ($ledgerLastStatus.ContainsKey($id)) { [string]$ledgerLastStatus[$id] } else { $null }
         $allowAfterPriorSkip = ($job -and ($job.PSObject.Properties.Name -contains 'allow_after_prior_skip') -and [bool]$job.allow_after_prior_skip -and $priorLedgerStatus -in @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family'))
@@ -179,8 +221,8 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $needsReconcile = (($null -ne $result) -and -not $already)
         $terminalResult = $resultStatus -in @('submitted','handoff-easy-apply','blocked-auth','blocked-security','blocked-automation','blocked-domain-circuit-breaker','blocked-identity-mismatch','blocked-work-auth','blocked-unknown-fact','blocked-technical','skipped-ineligible','failed')
         $resumeReady = ($null -ne $artifact)
-        $actionable = (-not $already -and -not $needsReconcile -and -not $terminalResult)
-        $stage = $null
+        $actionable = (-not $already -and -not $needsReconcile -and -not $terminalResult -and -not $recoverableDeferred)
+        $stage = if ($recoverableDeferred) { 'recoverable_cooldown' } else { $null }
         if ($needsReconcile) { $stage = 'reconcile_result' }
         elseif ($actionable -and -not $resumeReady) { $stage = 'resume_pending' }
         elseif ($actionable -and $null -ne $progress) { $stage = 'application_resume' }
@@ -193,8 +235,9 @@ if (Test-Path -LiteralPath $generatedRoot) {
             actionable = $actionable
             needs_reconcile = $needsReconcile
             stage = $stage
-            speed = 'fast'
+            speed = if ($recoverableDeferred) { 'deferred' } else { 'fast' }
             path = $dir.FullName
+            retry_after = if ($recoverableDeferred) { $retryAfter.ToString('o') } else { $null }
         }
     }
 }
@@ -241,7 +284,9 @@ $out = [ordered]@{
         queue_actionable = $queueActionable.Count
         queue_fast = @($queueActionable | Where-Object { $_.speed -eq 'fast' }).Count
         queue_slow = @($queueActionable | Where-Object { $_.speed -eq 'slow' }).Count
+        queue_deferred = @($queue | Where-Object { $_.stage -eq 'recoverable_cooldown' }).Count
         generated_actionable = $generatedActionable.Count
+        generated_deferred = @($generated | Where-Object { $_.stage -eq 'recoverable_cooldown' }).Count
         reconcile = $reconcile.Count
         circuit_breaker_events = $circuitCount
     }
