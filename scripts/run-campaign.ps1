@@ -94,7 +94,7 @@ public static class AutopilotPower {
     while ($MaxSessions -le 0 -or $session -lt $MaxSessions) {
         if (Test-Path -LiteralPath $stopPath) { break }
 
-        $healthText = & $healthScript 2>$null | Select-Object -Last 1
+        $healthText = try { & $healthScript 2>$null | Select-Object -Last 1 } catch { $null }
         $health = try { $healthText | ConvertFrom-Json } catch { $null }
         if ($null -eq $health -or -not $health.healthy) {
             $browserWaitCycles++
@@ -119,6 +119,7 @@ public static class AutopilotPower {
 Use job-apply-autopilot. Continue applying to jobs.
 
 This is autonomous supervisor slice $session. Act immediately from session-state.ps1. Optimize for NET-NEW unique company/title submissions, not raw ledger rows. Do not re-apply to a repost or regional duplicate. Process source_pending before assessment. Use at most five task-owned BrowserOS tabs and close disposable tabs before returning. If BrowserOS becomes unavailable, persist local state and end this slice; do not call it a campaign/runtime completion because the supervisor will retry after BrowserOS health returns. End the slice after three net-new submissions or when no useful action can proceed right now. Never ask routine questions and never bypass CAPTCHA/MFA/security controls.
+Direct email applications go to job-autopilot-email-apply. Every external side effect uses application-send-guard.ps1; an ambiguous prior attempt must be verified before any retry. Record domain security signals only through domain-circuit-breaker.ps1. Never call work paused/completed while session-state reports actionable work; switch to another route or discovery. Returning ends only this bounded slice, not the persistent supervisor.
 "@
 
         $arguments = [Collections.Generic.List[string]]::new()
@@ -126,53 +127,75 @@ This is autonomous supervisor slice $session. Act immediately from session-state
         if ($Model) { $arguments.Add('--model'); $arguments.Add($Model) }
         $arguments.Add($prompt)
 
-        Write-State ([ordered]@{
-            status = 'running-slice'
-            pid = $PID
-            session = $session
-            started_at = [DateTimeOffset]::UtcNow.ToString('o')
-            stdout = $stdoutPath
-            stderr = $stderrPath
-        })
-
-        $startInfo = [Diagnostics.ProcessStartInfo]::new()
-        $startInfo.FileName = $opencodeExe
-        $startInfo.WorkingDirectory = $Workspace
-        $startInfo.UseShellExecute = $false
-        $startInfo.CreateNoWindow = $true
-        $startInfo.RedirectStandardOutput = $true
-        $startInfo.RedirectStandardError = $true
-        foreach ($argument in $arguments) { [void]$startInfo.ArgumentList.Add($argument) }
-        $process = [Diagnostics.Process]::new()
-        $process.StartInfo = $startInfo
-        if (-not $process.Start()) { throw 'Failed to start OpenCode.' }
-        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-        $stderrTask = $process.StandardError.ReadToEndAsync()
-        $deadline = [DateTimeOffset]::UtcNow.AddMinutes([math]::Max(5, $SliceMinutes))
-        $timedOut = $false
+        $process = $null
         $stopRequested = $false
-        while (-not $process.HasExited) {
-            if (Test-Path -LiteralPath $stopPath) { $stopRequested = $true; break }
-            if ([DateTimeOffset]::UtcNow -ge $deadline) { $timedOut = $true; break }
-            Start-Sleep -Seconds 2
-            $process.Refresh()
-        }
-        if (($timedOut -or $stopRequested) -and -not $process.HasExited) {
-            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            $process.WaitForExit(5000) | Out-Null
-        }
-        $stdoutTask.GetAwaiter().GetResult() | Set-Content -LiteralPath $stdoutPath -Encoding UTF8
-        $stderrTask.GetAwaiter().GetResult() | Set-Content -LiteralPath $stderrPath -Encoding UTF8
+        try {
+            Write-State ([ordered]@{
+                status = 'running-slice'
+                pid = $PID
+                session = $session
+                started_at = [DateTimeOffset]::UtcNow.ToString('o')
+                stdout = $stdoutPath
+                stderr = $stderrPath
+            })
 
-        Write-State ([ordered]@{
-            status = if ($stopRequested) { 'stopping' } elseif ($timedOut) { 'slice-timeout' } else { 'slice-complete' }
-            pid = $PID
-            session = $session
-            child_exit_code = if ($process.HasExited) { $process.ExitCode } else { $null }
-            stdout = $stdoutPath
-            stderr = $stderrPath
-            completed_at = [DateTimeOffset]::UtcNow.ToString('o')
-        })
+            $startInfo = [Diagnostics.ProcessStartInfo]::new()
+            $startInfo.FileName = $opencodeExe
+            $startInfo.WorkingDirectory = $Workspace
+            $startInfo.UseShellExecute = $false
+            $startInfo.CreateNoWindow = $true
+            $startInfo.RedirectStandardOutput = $true
+            $startInfo.RedirectStandardError = $true
+            foreach ($argument in $arguments) { [void]$startInfo.ArgumentList.Add($argument) }
+            $process = [Diagnostics.Process]::new()
+            $process.StartInfo = $startInfo
+            if (-not $process.Start()) { throw 'Failed to start OpenCode.' }
+            $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+            $stderrTask = $process.StandardError.ReadToEndAsync()
+            $deadline = [DateTimeOffset]::UtcNow.AddMinutes([math]::Max(5, $SliceMinutes))
+            $timedOut = $false
+            while (-not $process.HasExited) {
+                if (Test-Path -LiteralPath $stopPath) { $stopRequested = $true; break }
+                if ([DateTimeOffset]::UtcNow -ge $deadline) { $timedOut = $true; break }
+                Start-Sleep -Seconds 2
+                $process.Refresh()
+            }
+            if (($timedOut -or $stopRequested) -and -not $process.HasExited) {
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                $process.WaitForExit(5000) | Out-Null
+            }
+            $stdoutTask.GetAwaiter().GetResult() | Set-Content -LiteralPath $stdoutPath -Encoding UTF8
+            $stderrTask.GetAwaiter().GetResult() | Set-Content -LiteralPath $stderrPath -Encoding UTF8
+
+            Write-State ([ordered]@{
+                status = if ($stopRequested) { 'stopping' } elseif ($timedOut) { 'slice-timeout' } else { 'slice-complete' }
+                pid = $PID
+                session = $session
+                child_exit_code = if ($process.HasExited) { $process.ExitCode } else { $null }
+                stdout = $stdoutPath
+                stderr = $stderrPath
+                completed_at = [DateTimeOffset]::UtcNow.ToString('o')
+            })
+        } catch {
+            try {
+                if ($null -ne $process -and -not $process.HasExited) {
+                    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                    $process.WaitForExit(5000) | Out-Null
+                }
+            } catch {}
+            $_.Exception.ToString() | Set-Content -LiteralPath $stderrPath -Encoding UTF8
+            Write-State ([ordered]@{
+                status = 'slice-error-recovering'
+                pid = $PID
+                session = $session
+                error = $_.Exception.Message
+                stdout = $stdoutPath
+                stderr = $stderrPath
+                completed_at = [DateTimeOffset]::UtcNow.ToString('o')
+            })
+            if (-not (Wait-WithStop $SessionBackoffSeconds)) { break }
+            continue
+        }
         if ($stopRequested) { break }
         if (-not (Wait-WithStop $SessionBackoffSeconds)) { break }
     }

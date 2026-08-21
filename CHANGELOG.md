@@ -1,3 +1,18 @@
+# V5.14.0 — Persistent + Idempotent Edition
+
+- Added `job-autopilot-email-apply`, a narrow direct-email subagent that verifies Gmail Sent before any retry and uses a stable plain-text message path.
+- Added `application-send-guard.ps1`, an atomic global reservation/receipt boundary for email and ATS submissions. Ambiguous outcomes become verification-only, and company/title reposts cannot race under different job IDs.
+- Added `reconcile-application-result.ps1`, an idempotent result-to-ledger boundary that replaces coordinator-authored JSONL appends.
+- Added `domain-circuit-breaker.ps1`, which repairs concatenated legacy JSONL, writes atomic per-domain markers, supports subdomains, and gives CAPTCHA/security blocks a durable expiry.
+- `session-state.ps1` now removes active circuit domains from actionable work and exposes `application_verification`, `generated_circuit_blocked`, and `circuit_breakers_active`.
+- Promoted queue copies are now shadowed by their generated work item, and fresh terminal skips can no longer be reopened by the legacy reassessment exception.
+- Fixed BrowserOS health checks on Windows hosts where `localhost` resolved to IPv6 while BrowserOS listened on IPv4; the supervisor now checks `127.0.0.1` by default.
+- Added `get-autopilot-status.ps1`; continuous/forever requests now start or inspect the detached supervisor instead of relying on one finite chat turn.
+- Moved installation backups outside the auto-discovered skills root so an old backup cannot shadow the active skill.
+- The supervisor now contains slice launch/logging failures and restarts after backoff instead of exiting itself.
+- Coordinator policy now forbids declaring a pause/completion while the final state still reports actions.
+- Expanded resilience regression coverage for ambiguous sends, duplicate prevention, legacy circuit repair, and active circuit routing.
+
 # V5.13.0 — Net-New Throughput Edition
 
 - Added an unattended OpenCode supervisor (`start-autopilot.ps1` / `run-campaign.ps1` / `stop-autopilot.ps1`) with bounded fresh slices, a single-instance lock, keep-awake support, clean stop markers, and persistent logs/state.

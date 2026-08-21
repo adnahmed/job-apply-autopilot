@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$HostName = 'localhost',
+    [string]$HostName = '127.0.0.1',
     [int]$McpPort = 9010,
     [int]$CdpPort = 9110,
     [int]$TimeoutMilliseconds = 750
@@ -9,16 +9,18 @@ param(
 $ErrorActionPreference = 'Stop'
 
 function Test-TcpPort([string]$Computer, [int]$Port, [int]$Timeout) {
-    $client = [Net.Sockets.TcpClient]::new()
-    try {
-        $task = $client.ConnectAsync($Computer, $Port)
-        if (-not $task.Wait($Timeout)) { return $false }
-        return $client.Connected
-    } catch {
-        return $false
-    } finally {
-        $client.Dispose()
+    $targets = if ($Computer -in @('localhost','::1')) { @('127.0.0.1','::1') } else { @($Computer) }
+    foreach ($target in $targets) {
+        $client = [Net.Sockets.TcpClient]::new()
+        try {
+            $task = $client.ConnectAsync($target, $Port)
+            if ($task.Wait($Timeout) -and $client.Connected) { return $true }
+        } catch {
+        } finally {
+            $client.Dispose()
+        }
     }
+    return $false
 }
 
 $mcp = Test-TcpPort $HostName $McpPort $TimeoutMilliseconds

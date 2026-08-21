@@ -1,4 +1,4 @@
-# Anti-Automation and Circuit-Breaker Policy V5.9
+# Anti-Automation and Circuit-Breaker Policy V5.14
 
 ## Principle
 When a site resists automation, stop pushing. Protect the account/session and move to unaffected jobs. Parallel external ATS execution does not justify retries or bypasses.
@@ -18,12 +18,12 @@ When a site resists automation, stop pushing. Protect the account/session and mo
 ## On first signal
 1. do not click Submit again,
 2. mark current job `blocked-automation` / `blocked-security` / `manual-needed` as appropriate,
-3. best-effort create a domain marker under `.job-apply-autopilot/domain-circuit-breakers/`,
+3. call `scripts/domain-circuit-breaker.ps1 -Action Record` to create the domain marker and audit event,
 4. do not bypass CAPTCHA/MFA/security controls,
 5. continue unaffected domains/jobs.
 
 ## Parallel-worker rule
-External ATS workers may run without a numeric concurrency cap, including multiple jobs on the same ATS domain. Every worker must check the shared domain marker immediately before final Submit. If another worker has tripped the circuit breaker, stop without submitting.
+External ATS workers may run without a numeric concurrency cap, including multiple jobs on the same ATS domain. Every worker must check `domain-circuit-breaker.ps1 -Action Status -Domain <domain>` before browser work and immediately before final Submit. If another worker has tripped the circuit breaker, stop without submitting.
 
 This is a reactive safety mechanism, not a pre-emptive per-domain concurrency cap.
 

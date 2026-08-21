@@ -107,7 +107,7 @@ try {
     }
 
     $assessment = [ordered]@{
-        policy_version = '5.13'
+        policy_version = '5.14'
         job_id = [string]$job.job_id
         status = [string]$draft.status
         score = $score
@@ -154,7 +154,7 @@ try {
             }
         }
         $fit = [ordered]@{
-            policy_version = '5.13'
+            policy_version = '5.14'
             job_id = [string]$job.job_id
             status = 'complete'
             score = $score

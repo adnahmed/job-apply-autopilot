@@ -1,20 +1,22 @@
-# Install Job Apply Autopilot V5.13.0
+# Install Job Apply Autopilot V5.14.0
 
-V5.13.0 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
+V5.14.0 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
 
 From the chosen campaign workspace:
 
 ```powershell
-$zip  = ".\job-apply-autopilot-v5.13.0.zip"
-$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.13.0"
+$zip  = ".\job-apply-autopilot-v5.14.0.zip"
+$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.14.0"
 $dst  = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-$src = Join-Path $temp "job-apply-autopilot-v5.13.0"
+$src = Join-Path $temp "job-apply-autopilot-v5.14.0"
 
 if (Test-Path $dst) {
-    $backup = "$HOME\.config\opencode\skills\job-apply-autopilot-backup-$(Get-Date -Format yyyyMMdd-HHmmss)"
+    $backupRoot = "$HOME\.config\opencode\skill-backups"
+    New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
+    $backup = Join-Path $backupRoot "job-apply-autopilot-backup-$(Get-Date -Format yyyyMMdd-HHmmss)"
     Move-Item -LiteralPath $dst -Destination $backup
     Write-Host "Backup: $backup"
 }
@@ -38,7 +40,13 @@ Restart OpenCode from the same campaign workspace, then:
 Use job-apply-autopilot. Continue applying to jobs.
 ```
 
-Expected V5.13.0 behavior:
+Expected V5.14.0 behavior:
+- persistent/forever requests use the detached supervisor and expose deterministic status;
+- direct email applications use an idempotent email subagent and verify Sent before any retry;
+- ambiguous ATS/email side effects require verification rather than a fresh submission;
+- active domain circuit breakers suppress affected jobs until expiry/clearance;
+- legacy concatenated circuit-breaker JSONL is repaired during workspace initialization;
+- installation backups live outside the auto-discovered skills root, so an old skill cannot shadow the current version;
 - placeholder/missing JDs appear as `source_pending`;
 - reposts/new IDs for a recently submitted company/title are skipped as semantic duplicates;
 - reports distinguish `submitted_unique` from raw `submitted_rows`;

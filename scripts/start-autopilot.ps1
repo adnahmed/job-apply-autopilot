@@ -12,6 +12,20 @@ $runtimeRoot = Join-Path $Workspace '.job-apply-autopilot'
 if (-not (Test-Path -LiteralPath $runtimeRoot)) { throw "No job-apply-autopilot runtime at $runtimeRoot" }
 $runner = Join-Path $PSScriptRoot 'run-campaign.ps1'
 $pwsh = (Get-Command pwsh -ErrorAction Stop).Source
+$statusScript = Join-Path $PSScriptRoot 'get-autopilot-status.ps1'
+$current = try { ((& $statusScript -Workspace $Workspace | Select-Object -Last 1) | ConvertFrom-Json) } catch { $null }
+if ($current -and $current.running) {
+    [ordered]@{
+        status = 'already-running'
+        pid = $current.pid
+        workspace = $Workspace
+        state = $current.state_path
+        stop_command = "pwsh -NoProfile -File `"$(Join-Path $PSScriptRoot 'stop-autopilot.ps1')`" -Workspace `"$Workspace`""
+    } | ConvertTo-Json -Depth 4
+    exit 0
+}
+$stopPath = Join-Path $runtimeRoot 'supervisor\stop.requested'
+if (Test-Path -LiteralPath $stopPath) { Remove-Item -LiteralPath $stopPath -Force }
 
 $arguments = [Collections.Generic.List[string]]::new()
 foreach ($value in @('-NoProfile','-ExecutionPolicy','Bypass','-File',$runner,'-Workspace',$Workspace,'-Agent',$Agent,'-SliceMinutes',[string]$SliceMinutes)) { $arguments.Add($value) }

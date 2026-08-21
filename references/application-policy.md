@@ -1,4 +1,4 @@
-# Autonomous Application Policy V5.13
+# Autonomous Application Policy V5.14
 
 ## Principle
 Quality and eligibility beat volume. Requested application count is a maximum target, never a quota.
@@ -7,6 +7,10 @@ Quality and eligibility beat volume. Requested application count is a maximum ta
 A recoverable per-job failure must never terminate the campaign. Schema mismatch, script invocation mistakes, browser implementation failures, resume-build failures, and worker/tool exceptions are isolated to that job/route. Correct once when deterministic; otherwise leave recoverable state and continue unaffected work. Security/CAPTCHA/MFA controls still stop the affected route, never the rest of the campaign.
 
 Assessment artifacts are committed only through `scripts/commit-assessment.ps1`; promotion is coordinator-driven only through `scripts/advance-workitem.ps1`. Do not hand-author transition JSON.
+
+Every outbound application side effect is reserved through `scripts/application-send-guard.ps1`. An interrupted worker, missing receipt, or ambiguous return requires verification of the real Sent/ATS state before another Send/Submit. Direct email applications use `job-autopilot-email-apply`; external forms use `job-autopilot-external-apply`.
+
+Only `scripts/reconcile-application-result.ps1` converts a terminal per-job result into the shared applications ledger. It is idempotent by job ID; workers and coordinators never hand-append submission rows.
 
 ## Hard gates before scoring
 A job must pass all of these before a numeric score is computed:

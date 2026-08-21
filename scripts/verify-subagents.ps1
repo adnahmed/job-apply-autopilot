@@ -8,7 +8,8 @@ $names = @(
     'job-autopilot-evidence.md',
     'job-autopilot-eligibility.md',
     'job-autopilot-resume.md',
-    'job-autopilot-external-apply.md'
+    'job-autopilot-external-apply.md',
+    'job-autopilot-email-apply.md'
 )
 
 $failed = $false
@@ -36,20 +37,33 @@ foreach ($name in $names) {
             $failed = $true
             continue
         }
+    } elseif ($name -eq 'job-autopilot-email-apply.md') {
+        if ($text -notmatch '(?m)^\s{2}edit:\s*deny\s*$' -or $text -notmatch '(?m)^\s{4}"\*application-send-guard\.ps1\*":\s*allow\s*$') {
+            Write-Error "EMAIL APPLICATOR DETERMINISTIC SEND PERMISSION INVALID in $path"
+            $failed = $true
+            continue
+        }
     } elseif ($text -notmatch '(?m)^\s{2}edit:\s*allow\s*$') {
         Write-Error "TRUSTED WRITE PERMISSION MISSING in $path"
         $failed = $true
         continue
     }
-    if ($name -eq 'job-autopilot-external-apply.md') {
+    if ($name -in @('job-autopilot-external-apply.md','job-autopilot-email-apply.md')) {
         if ($text -notmatch '(?m)^\s{2}"browseros-neo_\*":\s*allow\s*$') {
-            Write-Error "EXTERNAL APPLICATOR BROWSEROS ALLOW MISSING in $path"
+            Write-Error "APPLICATOR BROWSEROS ALLOW MISSING in $path"
             $failed = $true
             continue
         }
     } else {
         if ($text -notmatch '(?m)^\s{2}"browseros-neo_\*":\s*deny\s*$') {
             Write-Error "BROWSEROS DENY MISSING in $path"
+            $failed = $true
+            continue
+        }
+    }
+    if ($name -eq 'job-autopilot-email-apply.md') {
+        if ($text -notmatch '(?m)^\s{4}"\*application-send-guard\.ps1\*":\s*allow\s*$') {
+            Write-Error "EMAIL APPLICATOR SEND GUARD PERMISSION MISSING in $path"
             $failed = $true
             continue
         }

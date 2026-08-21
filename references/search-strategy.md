@@ -1,4 +1,4 @@
-# Search Strategy V5.13 — Keep Moving
+# Search Strategy V5.14 — Keep Moving
 
 Search for credible interview opportunities, not exhaustive cataloguing. A dry result page is not campaign completion.
 

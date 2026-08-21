@@ -28,6 +28,11 @@ foreach ($path in @($appLog, $relocLog, $circuitLog)) {
     if (-not (Test-Path -LiteralPath $path)) { New-Item -ItemType File -Path $path | Out-Null }
 }
 
+$circuitScript = Join-Path $PSScriptRoot 'domain-circuit-breaker.ps1'
+if (Test-Path -LiteralPath $circuitScript) {
+    & $circuitScript -Action MigrateLegacy -Workspace $Workspace | Out-Null
+}
+
 
 if (-not (Test-Path -LiteralPath $statsPath)) {
     [ordered]@{ generated_at = $null; total_decisions = 0; submitted = 0; submitted_unique = 0; submitted_rows = 0; duplicate_submission_rows = 0; blocked = 0; skipped = 0; submission_rate = 0; statuses = @(); by_source = @(); by_discovery_lane = @() } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statsPath -Encoding UTF8

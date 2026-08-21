@@ -20,7 +20,7 @@ function Has-Property($Object, [string]$Name) {
 
 function New-PendingAssessment([string]$JobId) {
     return [ordered]@{
-        policy_version = '5.13'
+        policy_version = '5.14'
         job_id = $JobId
         status = 'pending'
         score = $null

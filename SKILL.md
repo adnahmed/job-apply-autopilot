@@ -1,16 +1,18 @@
 ---
 name: job-apply-autopilot
-description: "Fast autonomous job discovery, truthful fit triage, tailored resumes, and verified submission through BrowserOS neo. Uses persistent state, semantic dedupe, bounded recovery, and an optional overnight supervisor."
-version: 5.13.0
+description: "Persistent autonomous job discovery, truthful fit triage, tailored resumes, and idempotent verified submission through BrowserOS neo. Uses specialized subagents, semantic dedupe, circuit breakers, and a resilient overnight supervisor."
+version: 5.14.0
 ---
 
-# Job Apply Autopilot V5.13 — Net-New Throughput Edition
+# Job Apply Autopilot V5.14 — Persistent + Idempotent Edition
 
 Mission: maximize credible, **net-new** interview opportunities per unit time. Preserve truth, Pakistan eligibility, anti-automation safety, and useful resumes. Raw tool activity, duplicate submissions, and queued placeholders are not progress.
 
 ## Hot loop
 
 Do not plan, narrate, ask routine questions, or inspect files that the state script already summarized.
+
+If the user asks to run forever, continuously, overnight, in the background, or complains that a prior continuous run stopped, treat persistent supervision as the first action. Run `get-autopilot-status.ps1`; if it is not running, run `start-autopilot.ps1`. Report the supervisor PID/state and return instead of trying to simulate persistence inside one chat turn.
 
 At start, capture the coordinator workspace once and run:
 
@@ -21,16 +23,18 @@ $state = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\sessi
 
 Trust `next_action` and `actions`. Perform the highest useful action, rerun `session-state.ps1`, and repeat:
 
-1. `reconcile_result`: log the supplied `application-result.json` and continue.
-2. `application_ready` / `application_resume`: route immediately.
-3. `resume_pending`: dispatch the resume worker.
-4. `coordinator_adjudication_pending` / `assessment_repair`: run `advance-workitem.ps1`.
-5. `assessment_pending` / `reassessment_pending`: dispatch quick assessors.
-6. `source_pending`: capture the full JD from `job_url` into `source.md`; never assess a placeholder.
-7. `discover`: search and queue unseen plausible jobs.
-8. `eligibility_research_pending` / `candidate_evidence_pending`: slow lane only after fast work.
+1. `reconcile_result`: run `reconcile-application-result.ps1` for the supplied directory and continue; never hand-append the ledger.
+2. `application_verification`: dispatch the matching applicator to verify the prior side effect; never start a fresh application.
+3. `email_application_ready`: dispatch `job-autopilot-email-apply`.
+4. `application_ready` / `application_resume`: route immediately.
+5. `resume_pending`: dispatch the resume worker.
+6. `coordinator_adjudication_pending` / `assessment_repair`: run `advance-workitem.ps1`.
+7. `assessment_pending` / `reassessment_pending`: dispatch quick assessors.
+8. `source_pending`: capture the full JD from `job_url` into `source.md`; never assess a placeholder.
+9. `discover`: search and queue unseen plausible jobs.
+10. `eligibility_research_pending` / `candidate_evidence_pending`: slow lane only after fast work.
 
-`recoverable_cooldown` is intentionally omitted until its retry time. Never wait for it while other work or discovery exists.
+`recoverable_cooldown` and `domain_circuit_breaker` are intentionally omitted until their retry time. Never wait for them while other work or discovery exists.
 
 ## Progress definition
 
@@ -111,7 +115,9 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\linkedin-gover
   -Action RecordEasyApply -JobId '<id>' -Workspace $workspace
 ```
 
-External ATS/company applications go immediately to one `job-autopilot-external-apply` worker per ready job. There is no skill numeric cap for external ATS work. OAuth/existing session comes before password signup.
+Direct employer-email applications go only to `job-autopilot-email-apply`. External ATS/company forms go to `job-autopilot-external-apply`. There is no skill numeric cap for external ATS work. OAuth/existing session comes before password signup.
+
+Both applicators must reserve the outbound attempt through `scripts/application-send-guard.ps1`. A missing `application-result.json`, interrupted worker, or ambiguous return is not proof that nothing was sent. Route the same worker back for verification; it must search the real Sent/ATS state before a second side effect is even eligible.
 
 ## BrowserOS rules
 
@@ -124,7 +130,7 @@ Read `references/browseros-playbook.md` when browser work begins or the first br
 - after `Unable to connect`/CDP loss, stop browser calls for the slice, do local work, persist state, and return for supervisor recovery;
 - browser loss is not campaign completion.
 
-One bad site/job never ends the campaign. Use `defer-workitem.ps1` for recoverable technical failures (1m, 5m, then 30m backoff), then continue. CAPTCHA/MFA/security/automation signals use the route/domain circuit breaker with zero bypass and zero security retries.
+One bad site/job never ends the campaign. Use `defer-workitem.ps1` for recoverable technical failures (1m, 5m, then 30m backoff), then continue. CAPTCHA/MFA/security/automation signals are recorded only through `domain-circuit-breaker.ps1 -Action Record`; its active marker removes that domain's jobs from the actionable set until expiry/clearance. Never hand-append circuit-breaker JSONL.
 
 ## Truth and autonomy
 
@@ -133,6 +139,8 @@ Never ask the user to choose, approve, or clarify routine workflow decisions. Ch
 Never fabricate employer history, degree/licence/clearance, work authorization, people management, production metrics, specialist identity, or precise technology-specific duration. Overall software tenure may support a requirement only when the capability itself is supported or reasonably plausible.
 
 Ordinary form validation gets one correction. Confirm explicit success before recording `submitted`. Keep logs compact.
+
+Never declare a natural pause, completion, or exhaustion while the final `session-state.ps1` snapshot contains actions. The final words and the machine state must agree.
 
 ## Fault containment
 
@@ -149,6 +157,12 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\start-autopilo
 ```
 
 It keeps Windows awake without keeping the display on, launches bounded fresh OpenCode slices, restarts after normal/error exits, and waits without spending model sessions when MCP port 9010 is up but browser CDP port 9110 is down. State and slice logs live under `.job-apply-autopilot\supervisor`.
+
+Inspect it deterministically with:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\get-autopilot-status.ps1" -Workspace $workspace
+```
 
 Stop it cleanly with:
 

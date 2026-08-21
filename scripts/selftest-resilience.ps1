@@ -89,6 +89,19 @@ try {
     if ($advance.status -ne 'promoted' -or $advance.next_stage -ne 'resume_pending') {
         throw "Expected deterministic promotion, got: $($advance | ConvertTo-Json -Compress)."
     }
+    $snapshot = (& (Join-Path $PSScriptRoot 'session-state.ps1') -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
+    if ($snapshot.summary.queue_actionable -ne 0) { throw 'Promoted queue copy remained actionable.' }
+
+    # A fresh terminal skip must not be mistaken for an old explicitly reopened reassessment.
+    $freshSkip = & (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId 'fresh-skip' -Company 'Training Market' -Title 'LLM Evaluator' -Location 'Pakistan' -Source 'test' -Workspace $workspace | Select-Object -Last 1
+    "# LLM Evaluator`n`nContractor task marketplace for model-training data evaluation in Pakistan." | Set-Content -LiteralPath (Join-Path $freshSkip 'source.md') -Encoding UTF8
+    $freshAssessment = $assessmentJson -replace '"job_id"\s*:\s*"[^"]+"', '"job_id": "fresh-skip"'
+    $freshCommit = (& (Join-Path $PSScriptRoot 'commit-assessment.ps1') -WorkItemDir $freshSkip -AssessmentJson $freshAssessment -FitMapJson $fitMapJson | Select-Object -Last 1) | ConvertFrom-Json
+    if ($freshCommit.status -ne 'committed') { throw 'Fresh skip setup assessment failed.' }
+    & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId 'fresh-skip' -Status 'skipped-role-family' -ReasonCode 'test-terminal-skip' `
+        -Company 'Training Market' -Title 'LLM Evaluator' -Source 'test' -Workspace $workspace | Out-Null
+    $snapshot = (& (Join-Path $PSScriptRoot 'session-state.ps1') -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
+    if (@($snapshot.actions | Where-Object { $_.job_id -eq 'fresh-skip' }).Count -ne 0) { throw 'Fresh terminal skip was incorrectly reopened.' }
 
     # A new ID for a recently submitted company/title must be treated as a semantic duplicate.
     & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId 'dup-old' -Status 'submitted' -ReasonCode 'test-submitted' `
@@ -114,12 +127,86 @@ try {
     $governor = (& (Join-Path $PSScriptRoot 'linkedin-governor.ps1') -Action RecordEasyApply -JobId 'li-new' -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
     if ($governor.easy_apply_submissions_last_24h -ne 2) { throw 'Governor duplicate JobId protection failed.' }
 
+    # An ambiguous outbound side effect must turn every later Reserve into verification-only.
+    $sendDir = Join-Path $workspace '.job-apply-autopilot\generated\send-guard-test'
+    New-Item -ItemType Directory -Force -Path $sendDir | Out-Null
+    [ordered]@{ job_id='send-guard-test'; company='Guard Co'; title='Platform Engineer'; job_url='https://jobs.example.com/apply'; source='external' } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $sendDir 'job.json') -Encoding UTF8
+    [ordered]@{ filename='Guard_Co_Platform_Engineer.pdf'; sha256='test' } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $sendDir 'resume-artifact.json') -Encoding UTF8
+    $reserve = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $sendDir -Action Reserve `
+        -Channel email -Target 'jobs@example.com' -Subject 'Application - Platform Engineer' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($reserve.status -ne 'acquired' -or -not $reserve.safe_to_submit) { throw "Send reservation failed: $($reserve | ConvertTo-Json -Compress)." }
+    $secondReserve = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $sendDir -Action Reserve `
+        -Channel email -Target 'jobs@example.com' -Subject 'Application - Platform Engineer' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($secondReserve.status -ne 'verify-required' -or $secondReserve.safe_to_submit) { throw 'Ambiguous send did not block a duplicate reservation.' }
     $snapshot = (& (Join-Path $PSScriptRoot 'session-state.ps1') -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
-    if ($snapshot.summary.submitted_unique -ne 2 -or $snapshot.summary.submitted_rows -ne 2) {
+    $sendAction = @($snapshot.actions | Where-Object { $_.job_id -eq 'send-guard-test' }) | Select-Object -First 1
+    if ($null -eq $sendAction -or $sendAction.stage -ne 'application_verification') { throw 'Reserved send did not route to application_verification.' }
+    $grace = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $sendDir -Action MarkVerifiedAbsent `
+        -ReservationId $reserve.reservation_id -Proof 'Sent search empty' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($grace.status -ne 'verification-grace' -or $grace.safe_to_submit) { throw 'Send verification grace failed.' }
+    $submitted = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $sendDir -Action MarkSubmitted `
+        -ReservationId $reserve.reservation_id -Proof 'Message visible in Sent' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($submitted.status -ne 'submitted') { throw 'Send guard could not commit submission.' }
+    $reconciled = (& (Join-Path $PSScriptRoot 'reconcile-application-result.ps1') -WorkItemDir $sendDir -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
+    if ($reconciled.status -ne 'reconciled') { throw 'Application result did not reconcile.' }
+    $reconciledAgain = (& (Join-Path $PSScriptRoot 'reconcile-application-result.ps1') -WorkItemDir $sendDir -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
+    if ($reconciledAgain.status -ne 'already-reconciled') { throw 'Application reconciliation was not idempotent.' }
+    if (@(Get-Content -LiteralPath (Join-Path $workspace '.job-apply-autopilot\applications.jsonl') | Where-Object { $_ -match '"job_id":"send-guard-test"' }).Count -ne 1) { throw 'Application reconciliation wrote a duplicate ledger row.' }
+    $repostDir = Join-Path $workspace '.job-apply-autopilot\generated\send-guard-repost'
+    New-Item -ItemType Directory -Force -Path $repostDir | Out-Null
+    [ordered]@{ job_id='send-guard-repost'; company='Guard Co Ltd.'; title='Platform Engineer'; job_url='https://jobs.example.com/repost'; source='external' } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $repostDir 'job.json') -Encoding UTF8
+    [ordered]@{ filename='Guard_Co_Platform_Engineer.pdf'; sha256='test' } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $repostDir 'resume-artifact.json') -Encoding UTF8
+    $repostReserve = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $repostDir -Action Reserve `
+        -Channel external-ats -Target 'https://jobs.example.com/repost' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($repostReserve.status -ne 'semantic-already-submitted' -or $repostReserve.safe_to_submit) { throw "Semantic repost reached the send boundary: $($repostReserve | ConvertTo-Json -Compress)." }
+
+    $raceA = Join-Path $workspace '.job-apply-autopilot\generated\race-a'
+    $raceB = Join-Path $workspace '.job-apply-autopilot\generated\race-b'
+    foreach ($pair in @(@($raceA,'race-a'),@($raceB,'race-b'))) {
+        New-Item -ItemType Directory -Force -Path $pair[0] | Out-Null
+        [ordered]@{ job_id=$pair[1]; company='Race Co'; title='Backend Engineer'; job_url="https://race.example/$($pair[1])"; source='external' } |
+            ConvertTo-Json | Set-Content -LiteralPath (Join-Path $pair[0] 'job.json') -Encoding UTF8
+        [ordered]@{ filename='Race_Co_Backend_Engineer.pdf'; sha256='test' } |
+            ConvertTo-Json | Set-Content -LiteralPath (Join-Path $pair[0] 'resume-artifact.json') -Encoding UTF8
+    }
+    $raceReservation = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $raceA -Action Reserve -Channel external-ats -Target 'race.example' | Select-Object -Last 1) | ConvertFrom-Json
+    $raceConflict = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $raceB -Action Reserve -Channel external-ats -Target 'race.example' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($raceReservation.status -ne 'acquired' -or $raceConflict.status -ne 'semantic-reservation-exists') { throw 'Concurrent semantic reservation guard failed.' }
+    & (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $raceA -Action CancelBeforeSubmit `
+        -ReservationId $raceReservation.reservation_id -Proof 'Self-test cancellation before browser work' | Out-Null
+    $afterSubmit = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $sendDir -Action Reserve `
+        -Channel email -Target 'jobs@example.com' -Subject 'Application - Platform Engineer' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($afterSubmit.status -ne 'already-submitted' -or $afterSubmit.safe_to_submit) { throw 'Submitted send was not idempotent.' }
+
+    # Repair concatenated legacy JSONL and enforce an active domain marker in session routing.
+    $now = [DateTimeOffset]::UtcNow
+    $legacyA = [ordered]@{ timestamp=$now.AddHours(-48).ToString('o'); domain='expired.example'; status='blocked-security'; reason='old' } | ConvertTo-Json -Compress
+    $legacyB = [ordered]@{ timestamp=$now.ToString('o'); domain='indeed.com'; status='blocked-security'; reason='captcha'; expires_at=$now.AddHours(1).ToString('o') } | ConvertTo-Json -Compress
+    [IO.File]::WriteAllText((Join-Path $workspace '.job-apply-autopilot\domain-circuit-breakers.jsonl'), "$legacyA$legacyB", [Text.UTF8Encoding]::new($false))
+    $migration = (& (Join-Path $PSScriptRoot 'domain-circuit-breaker.ps1') -Action MigrateLegacy -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
+    if ($migration.events -ne 2) { throw 'Legacy circuit-breaker repair did not recover both objects.' }
+    foreach ($line in Get-Content -LiteralPath (Join-Path $workspace '.job-apply-autopilot\domain-circuit-breakers.jsonl')) { $line | ConvertFrom-Json | Out-Null }
+    $circuitDir = Join-Path $workspace '.job-apply-autopilot\generated\circuit-test'
+    New-Item -ItemType Directory -Force -Path $circuitDir | Out-Null
+    [ordered]@{ job_id='circuit-test'; company='Circuit Co'; title='Backend Engineer'; job_url='https://pk.indeed.com/viewjob?jk=test'; source='indeed' } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $circuitDir 'job.json') -Encoding UTF8
+    [ordered]@{ filename='Circuit_Co_Backend_Engineer.pdf'; sha256='test' } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $circuitDir 'resume-artifact.json') -Encoding UTF8
+    $snapshot = (& (Join-Path $PSScriptRoot 'session-state.ps1') -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
+    $circuitAction = @($snapshot.actions | Where-Object { $_.job_id -eq 'circuit-test' }) | Select-Object -First 1
+    if ($null -ne $circuitAction) { throw 'Circuit-blocked job leaked into actionable state.' }
+    if ($snapshot.summary.generated_circuit_blocked -ne 1 -or $snapshot.summary.circuit_breakers_active -ne 1) { throw "Circuit-breaker summary/routing failed: $($snapshot.summary | ConvertTo-Json -Compress)." }
+
+    $snapshot = (& (Join-Path $PSScriptRoot 'session-state.ps1') -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
+    if ($snapshot.summary.submitted_unique -ne 3 -or $snapshot.summary.submitted_rows -ne 3) {
         throw "Unique submission metrics failed: $($snapshot.summary | ConvertTo-Json -Compress)."
     }
 
-    Write-Output 'PASS resilience: source gating, repair/commit/promotion, semantic dedupe, unique metrics, and atomic governor recovery passed.'
+    Write-Output 'PASS resilience: source gating, deterministic transitions, semantic dedupe, idempotent sends, active circuit routing, unique metrics, and atomic governor recovery passed.'
 } finally {
     Remove-Item -LiteralPath $workspace -Recurse -Force -ErrorAction SilentlyContinue
 }

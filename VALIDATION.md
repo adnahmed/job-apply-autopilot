@@ -1,25 +1,33 @@
-# V5.13.0 Validation
+# V5.14.0 Validation
 
-- `VERSION.txt` = `5.13.0`.
-- Main skill metadata version = `5.13.0`.
+- `VERSION.txt` = `5.14.0`.
+- Main skill metadata version = `5.14.0`.
 - Canonical `.tex` files are unchanged from V5.11.
 - All packaged subagents keep `question: deny`.
 - Assessor direct `edit` is denied; only `commit-assessment.ps1` is allowed for assessment artifact writes.
 - `commit-assessment.ps1` validates canonical status/score/hard-gate/fit-map shape and writes atomically.
 - `session-state.ps1` detects malformed or contradictory passed assessment artifacts and routes them to `assessment_repair`.
+- Queue copies are non-actionable after promotion, and only an explicit `allow_after_prior_skip` flag may reopen a technical skip.
 - `repair-workitem.ps1` backs up malformed artifacts and resets safely to pending rather than inferring truth/gates.
 - `advance-workitem.ps1` is the coordinator promotion boundary; it catches promotion exceptions as recoverable job-local results.
 - `defer-workitem.ps1` applies bounded retry backoff, and `session-state.ps1` excludes deferred queue/generated items so they cannot stall discovery or other applications.
 - `promote-workitem.ps1` accepts either `-WorkItemDir` or `-JobId`, eliminating the V5.11.4 binder mistake.
 - Recoverable schema/script/browser/resume/worker errors are explicitly non-terminal for the campaign.
 - CAPTCHA/MFA/security/automation controls remain zero-bypass and route-local; unaffected jobs continue.
+- `domain-circuit-breaker.ps1` repairs legacy concatenated JSONL, writes atomic markers, and `session-state.ps1` suppresses active domains including subdomains.
+- `application-send-guard.ps1` prevents missing/ambiguous receipts and parallel same-company/title job IDs from authorizing a second Send/Submit.
+- `reconcile-application-result.ps1` appends one ledger row per terminal job result and returns `already-reconciled` on repeats.
+- Direct email applications use the dedicated idempotent email subagent and verify Gmail Sent before any retry.
 - Persistent discovery, bounded evidence lookup, external ATS uncapped behavior, and LinkedIn governor remain intact.
 - Missing/placeholder JDs route to `source_pending`, never `assessment_pending`.
 - Recent same-company/same-title reposts are semantically deduped even when the job ID changes.
 - `submitted_unique` is the headline and `submitted_rows` remains audit detail.
 - The LinkedIn governor merges ledger truth, parses JSON `DateTime` values safely, serializes writers, and replaces state atomically.
 - The BrowserOS playbook includes current session ownership, one-strike fallback, connection-loss, and upload behavior.
-- Supervisor validation resolves OpenCode without launching it; when BrowserOS is unhealthy it enters `waiting-browseros` without starting a model session.
+- BrowserOS health uses IPv4 loopback by default so Windows `localhost`/IPv6 resolution cannot falsely report both ports down.
+- Supervisor validation resolves OpenCode without launching it; `get-autopilot-status.ps1` distinguishes running, stopped, stale, and stop-requested state.
+- Per-slice launch/logging failures enter `slice-error-recovering` and do not terminate the persistent supervisor.
+- Installation backups are stored under `~/.config/opencode/skill-backups`, outside skill discovery.
 
 ## Regression self-test
 
@@ -29,7 +37,7 @@ Run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\selftest-resilience.ps1
 ```
 
-The test verifies source gating, reproduces the V5.11.4 malformed `assessment.json` pattern, validates repair/commit/promotion, catches a new-ID semantic duplicate, checks unique metrics, and proves governor ledger recovery plus duplicate-JobId protection.
+The test verifies source gating, deterministic repair/commit/promotion, semantic dedupe, idempotent outbound reservations, ambiguity grace, legacy circuit repair, active-domain routing, unique metrics, and governor recovery.
 
 Validate the supervisor without launching an agent:
 

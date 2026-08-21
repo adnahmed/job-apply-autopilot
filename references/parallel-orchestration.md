@@ -1,4 +1,4 @@
-# Parallel Orchestration V5.13 — Latency-Aware + Fault-Isolated
+# Parallel Orchestration V5.14 — Latency-Aware + Fault-Isolated
 
 Parallelism is useful only when it does not delay the first useful result.
 
@@ -29,7 +29,7 @@ Preferred order:
 4. then run slow research for ambiguous jobs;
 5. discovery continues whenever no ready fast work exists.
 
-External ATS workers are uncapped by skill policy. LinkedIn Easy Apply remains coordinator-owned.
+External ATS workers are uncapped by skill policy. Direct email is isolated in `job-autopilot-email-apply`; its send reservation makes ambiguous retries verification-only. LinkedIn Easy Apply remains coordinator-owned.
 
 Workers get exactly one absolute job directory. Do not paste long policy summaries into Task prompts. Packaged agent instructions are authoritative.
 

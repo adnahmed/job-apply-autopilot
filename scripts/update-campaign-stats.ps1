@@ -42,7 +42,10 @@ if (Test-Path -LiteralPath $appLog) {
             $company = [string]$r.company
             $title = [string]$r.title
             $companyKey = (($company.ToLowerInvariant() -replace '&', ' and ' -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
-            $companyKey = ($companyKey -replace '\s+(private limited|pvt ltd|pvt limited|limited|ltd|llc|incorporated|inc|corporation|corp|gmbh|plc|company|co)$', '').Trim()
+            do {
+                $priorCompanyKey = $companyKey
+                $companyKey = ($companyKey -replace '\s+(private limited|pvt ltd|pvt limited|limited|ltd|llc|incorporated|inc|corporation|corp|gmbh|plc|company|co)$', '').Trim()
+            } while ($companyKey -ne $priorCompanyKey)
             $titleKey = (($title.ToLowerInvariant() -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
             $identity = if ($companyKey -and $titleKey) { "$companyKey|$titleKey" } else { "job:$([string]$r.job_id)" }
             $rows += [pscustomobject]@{ job_id=[string]$r.job_id; identity=$identity; status=$status; bucket=$bucket; source=$source; lane=$lane }

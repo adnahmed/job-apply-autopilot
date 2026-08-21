@@ -34,7 +34,10 @@ function Test-SourceReady([string]$Path) {
 
 function Get-SubmissionIdentity([string]$Company, [string]$Title, [string]$JobId) {
     $companyKey = (($Company.ToLowerInvariant() -replace '&', ' and ' -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
-    $companyKey = ($companyKey -replace '\s+(private limited|pvt ltd|pvt limited|limited|ltd|llc|incorporated|inc|corporation|corp|gmbh|plc|company|co)$', '').Trim()
+    do {
+        $priorCompanyKey = $companyKey
+        $companyKey = ($companyKey -replace '\s+(private limited|pvt ltd|pvt limited|limited|ltd|llc|incorporated|inc|corporation|corp|gmbh|plc|company|co)$', '').Trim()
+    } while ($companyKey -ne $priorCompanyKey)
     $titleKey = (($Title.ToLowerInvariant() -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
     if ($companyKey -and $titleKey) { return "$companyKey|$titleKey" }
     return "job:$JobId"
@@ -77,6 +80,30 @@ function Parse-Utc($Value) {
     } catch { return $null }
 }
 
+function Get-JobDomain($Job) {
+    if ($null -eq $Job) { return '' }
+    $url = if (Has-Property $Job 'job_url') { [string]$Job.job_url } else { '' }
+    if (-not [string]::IsNullOrWhiteSpace($url)) {
+        try {
+            $hostName = ([Uri]$url).Host.ToLowerInvariant() -replace '^www\.', ''
+            if ($hostName) { return $hostName }
+        } catch {}
+    }
+    $source = if (Has-Property $Job 'source') { ([string]$Job.source).ToLowerInvariant() } else { '' }
+    if ($source -match 'indeed') { return 'indeed.com' }
+    if ($source -match 'linkedin') { return 'linkedin.com' }
+    return ''
+}
+
+function Get-ActiveCircuitForDomain([string]$Domain) {
+    if ([string]::IsNullOrWhiteSpace($Domain)) { return $null }
+    if ($activeCircuitByDomain.ContainsKey($Domain)) { return $activeCircuitByDomain[$Domain] }
+    foreach ($key in $activeCircuitByDomain.Keys) {
+        if ($Domain.EndsWith(".$key", [StringComparison]::OrdinalIgnoreCase)) { return $activeCircuitByDomain[$key] }
+    }
+    return $null
+}
+
 function Get-LinkedInGovernorStatus {
     $script = Join-Path $PSScriptRoot 'linkedin-governor.ps1'
     try {
@@ -90,6 +117,18 @@ function Get-LinkedInGovernorStatus {
             block_reasons = @('governor-unavailable')
         }
     }
+}
+
+$activeCircuitByDomain = @{}
+$circuitStatus = $null
+try {
+    $circuitScript = Join-Path $PSScriptRoot 'domain-circuit-breaker.ps1'
+    $circuitStatus = ((& $circuitScript -Action Status -Workspace $Workspace | Select-Object -Last 1) | ConvertFrom-Json)
+    foreach ($circuit in @($circuitStatus.circuits)) {
+        if ($circuit.domain) { $activeCircuitByDomain[[string]$circuit.domain] = $circuit }
+    }
+} catch {
+    $circuitStatus = [pscustomobject]@{ active=$false; circuits=@() }
 }
 
 $ledgerPath = Join-Path $root 'applications.jsonl'
@@ -119,6 +158,16 @@ if (Test-Path -LiteralPath $ledgerPath) {
     }
 }
 
+$generatedIds = @{}
+$generatedRoot = Join-Path $root 'generated'
+if (Test-Path -LiteralPath $generatedRoot) {
+    foreach ($generatedDir in Get-ChildItem -LiteralPath $generatedRoot -Directory) {
+        $generatedJob = Read-JsonSafe (Join-Path $generatedDir.FullName 'job.json')
+        $generatedId = if ($generatedJob -and $generatedJob.job_id) { [string]$generatedJob.job_id } else { $generatedDir.Name.Split('-')[0] }
+        if ($generatedId) { $generatedIds[$generatedId] = $true }
+    }
+}
+
 $queue = @()
 $queueRoot = Join-Path $root 'queue'
 if (Test-Path -LiteralPath $queueRoot) {
@@ -141,12 +190,14 @@ if (Test-Path -LiteralPath $queueRoot) {
         $technicalPriorSkips = @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family')
         # Do not reopen an old failed skip just because policy changed. But if a reassessment was already
         # explicitly started under 5.10/5.11, allow that in-progress/passed item to finish after restart.
-        $reassessmentInProgress = ($priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13') -and $status -in @('needs-evidence','needs-research','passed'))
+        $explicitReassessment = ($job -and (Has-Property $job 'allow_after_prior_skip') -and [bool]$job.allow_after_prior_skip)
+        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13','5.14') -and $status -in @('needs-evidence','needs-research','passed'))
         $ledgerBlocks = ($already -and -not $reassessmentInProgress)
+        $shadowedByGenerated = $generatedIds.ContainsKey($id)
         $terminal = $status -in @('failed','rejected','skipped','submitted','blocked')
-        $actionable = (-not $ledgerBlocks -and -not $terminal -and -not $recoverableDeferred)
-        $stage = if ($recoverableDeferred) { 'recoverable_cooldown' } else { $null }
-        $speed = if ($recoverableDeferred) { 'deferred' } else { $null }
+        $actionable = (-not $shadowedByGenerated -and -not $ledgerBlocks -and -not $terminal -and -not $recoverableDeferred)
+        $stage = if ($shadowedByGenerated) { 'promoted_to_generated' } elseif ($recoverableDeferred) { 'recoverable_cooldown' } else { $null }
+        $speed = if ($shadowedByGenerated -or $recoverableDeferred) { 'deferred' } else { $null }
         if ($actionable) {
             if (-not $sourceReady) {
                 $stage = 'source_pending'; $speed = 'fast'
@@ -183,12 +234,13 @@ if (Test-Path -LiteralPath $queueRoot) {
 }
 
 $generated = @()
-$generatedRoot = Join-Path $root 'generated'
 if (Test-Path -LiteralPath $generatedRoot) {
     foreach ($dir in Get-ChildItem -LiteralPath $generatedRoot -Directory) {
         $job = Read-JsonSafe (Join-Path $dir.FullName 'job.json')
         $result = Read-JsonSafe (Join-Path $dir.FullName 'application-result.json')
         $progress = Read-JsonSafe (Join-Path $dir.FullName 'application-progress.json')
+        $sendState = Read-JsonSafe (Join-Path $dir.FullName 'application-send-state.json')
+        $route = Read-JsonSafe (Join-Path $dir.FullName 'application-route.json')
         $artifact = Read-JsonSafe (Join-Path $dir.FullName 'resume-artifact.json')
         $recoverable = Read-JsonSafe (Join-Path $dir.FullName 'recoverable-error.json')
         $retryAfter = if ($recoverable -and $recoverable.retry_after) { Parse-Utc $recoverable.retry_after } else { $null }
@@ -201,10 +253,18 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $needsReconcile = (($null -ne $result) -and -not $already)
         $terminalResult = $resultStatus -in @('submitted','handoff-easy-apply','blocked-auth','blocked-security','blocked-automation','blocked-domain-circuit-breaker','blocked-identity-mismatch','blocked-work-auth','blocked-unknown-fact','blocked-technical','skipped-ineligible','failed')
         $resumeReady = ($null -ne $artifact)
-        $actionable = (-not $already -and -not $needsReconcile -and -not $terminalResult -and -not $recoverableDeferred)
-        $stage = if ($recoverableDeferred) { 'recoverable_cooldown' } else { $null }
+        $jobDomain = Get-JobDomain $job
+        $domainCircuit = Get-ActiveCircuitForDomain $jobDomain
+        $circuitBlocked = ($null -ne $domainCircuit)
+        $sendStatus = if ($sendState -and $sendState.status) { [string]$sendState.status } else { $null }
+        $needsSendVerification = $sendStatus -in @('reserved','verification-required','submitted')
+        $emailRoute = ($route -and [string]$route.route -eq 'email' -and $route.target)
+        $actionable = (-not $already -and -not $needsReconcile -and -not $terminalResult -and -not $recoverableDeferred -and -not $circuitBlocked)
+        $stage = if ($circuitBlocked) { 'domain_circuit_breaker' } elseif ($recoverableDeferred) { 'recoverable_cooldown' } else { $null }
         if ($needsReconcile) { $stage = 'reconcile_result' }
         elseif ($actionable -and -not $resumeReady) { $stage = 'resume_pending' }
+        elseif ($actionable -and $needsSendVerification) { $stage = 'application_verification' }
+        elseif ($actionable -and $emailRoute) { $stage = 'email_application_ready' }
         elseif ($actionable -and $null -ne $progress) { $stage = 'application_resume' }
         elseif ($actionable -and $resumeReady) { $stage = 'application_ready' }
         $generated += [ordered]@{
@@ -212,12 +272,13 @@ if (Test-Path -LiteralPath $generatedRoot) {
             company = if ($job) { $job.company } else { $null }
             title = if ($job) { $job.title } else { $null }
             source = if ($job) { $job.source } else { $null }
+            domain = $jobDomain
             actionable = $actionable
             needs_reconcile = $needsReconcile
             stage = $stage
-            speed = if ($recoverableDeferred) { 'deferred' } else { 'fast' }
+            speed = if ($recoverableDeferred -or $circuitBlocked) { 'deferred' } else { 'fast' }
             path = $dir.FullName
-            retry_after = if ($recoverableDeferred) { $retryAfter.ToString('o') } else { $null }
+            retry_after = if ($circuitBlocked) { $domainCircuit.expires_at } elseif ($recoverableDeferred) { $retryAfter.ToString('o') } else { $null }
         }
     }
 }
@@ -250,7 +311,10 @@ $actions = @($selected | ForEach-Object {
 $circuitPath = Join-Path $root 'domain-circuit-breakers.jsonl'
 $circuitCount = 0
 if (Test-Path -LiteralPath $circuitPath) {
-    $circuitCount = @((Get-Content -LiteralPath $circuitPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })).Count
+    foreach ($line in Get-Content -LiteralPath $circuitPath) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        try { $line | ConvertFrom-Json | Out-Null; $circuitCount++ } catch {}
+    }
 }
 $linkedinStatus = Get-LinkedInGovernorStatus
 
@@ -270,8 +334,10 @@ $out = [ordered]@{
         queue_source_pending = @($queue | Where-Object { $_.stage -eq 'source_pending' }).Count
         generated_actionable = $generatedActionable.Count
         generated_deferred = @($generated | Where-Object { $_.stage -eq 'recoverable_cooldown' }).Count
+        generated_circuit_blocked = @($generated | Where-Object { $_.stage -eq 'domain_circuit_breaker' }).Count
         reconcile = $reconcile.Count
         circuit_breaker_events = $circuitCount
+        circuit_breakers_active = @($circuitStatus.circuits).Count
     }
     linkedin = [ordered]@{
         easy_apply_allowed = $linkedinStatus.easy_apply_allowed

@@ -1,4 +1,4 @@
-# BrowserOS Operational Playbook V5.13
+# BrowserOS Operational Playbook V5.14
 
 Use this reference only when browser work is active or a BrowserOS action fails. It restores the working techniques accidentally removed in V5.11.4.
 
@@ -68,3 +68,10 @@ If a Lever/framework field appends or garbles text, use the native value setter 
 - Treat a tool diff as verification when it shows the expected state.
 - A `/thanks` URL or explicit `Application submitted/sent` message is strong proof. Persist that exact text/URL.
 - CAPTCHA, MFA, account restriction, spam/automation warnings, and attributable 429s are zero-retry security signals for the affected domain only.
+
+## Ambiguous side effects
+
+- Before any external Submit or email Send, acquire a reservation through `application-send-guard.ps1`.
+- If the browser diff/result is ambiguous after the click, mark the reservation ambiguous and stop. A new worker verifies the real ATS/Sent state first.
+- Missing local result/progress files never prove the side effect did not happen.
+- Gmail application email uses the dedicated email worker. Do not inject diagnostic inputs/overlays or toggle formatting modes in Gmail.

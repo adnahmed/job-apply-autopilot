@@ -17,7 +17,8 @@ $names = @(
     'job-autopilot-evidence.md',
     'job-autopilot-eligibility.md',
     'job-autopilot-resume.md',
-    'job-autopilot-external-apply.md'
+    'job-autopilot-external-apply.md',
+    'job-autopilot-email-apply.md'
 )
 
 foreach ($name in $names) {
