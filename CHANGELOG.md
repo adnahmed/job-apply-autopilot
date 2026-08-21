@@ -1,3 +1,10 @@
+# V5.14.1 — Solver-Aware CAPTCHA Edition
+
+- Standalone CAPTCHAs now preserve the task-owned tab, trigger an installed external solver once through an ordinary visible control, and wait up to 120 seconds for a targeted cleared state.
+- CAPTCHA presence alone no longer creates an immediate domain circuit; failed/repeated solver recovery still does, while MFA, account restrictions, explicit automation/security warnings, and attributable 429s remain immediate stops.
+- Unresolved CAPTCHA tabs remain open and the work item is checkpointed/deferred; ambiguous post-Submit state still routes to verification rather than another side effect.
+- Added a reusable `references/captcha-recovery.md` workflow used by external ATS, email, LinkedIn, BrowserOS, and supervisor instructions.
+
 # V5.14.0 — Persistent + Idempotent Edition
 
 - Added `job-autopilot-email-apply`, a narrow direct-email subagent that verifies Gmail Sent before any retry and uses a stable plain-text message path.

@@ -14,6 +14,7 @@ permission:
     "*": deny
     "*application-send-guard.ps1*": allow
     "*domain-circuit-breaker.ps1*": allow
+    "*defer-workitem.ps1*": allow
   task: deny
   websearch: deny
   webfetch: deny
@@ -38,6 +39,6 @@ Use `scripts/application-send-guard.ps1` as the only writer of send state and `a
 
 Use a short simple body with blank lines between paragraphs. Do not toggle Gmail plain-text mode, paste rich HTML, create diagnostic inputs/overlays, or reuse an existing compose window. Use Gmail's native Attach files control. If its existing file input is hidden, reveal only that exact input long enough to obtain a fresh upload ref, then restore it; never create a substitute input. Verify recipient, subject, visible paragraph breaks, and displayed attachment filename immediately before Send.
 
-Never send a follow-up, correction, or duplicate. CAPTCHA/MFA/security signals stop the email route with no bypass and are recorded through `domain-circuit-breaker.ps1 -Action Record`; never hand-append JSONL.
+Never send a follow-up, correction, or duplicate. For a standalone CAPTCHA, follow `references/captcha-recovery.md`: keep the Gmail tab open, click one ordinary challenge trigger when available, and wait up to 120 seconds for it to clear. If unresolved before Send, cancel the reservation and defer the work item; if Send may have happened, mark it ambiguous. A failed/repeated CAPTCHA solver attempt, MFA, or explicit security warning stops the email route and is recorded through `domain-circuit-breaker.ps1 -Action Record`; never hand-append JSONL.
 
-Return one line: `submitted email <proof>`, `already-submitted email <proof>`, `verify-required email <reason>`, or `blocked email <reason>`.
+Return one line: `submitted email <proof>`, `already-submitted email <proof>`, `verify-required email <reason>`, `deferred email captcha-waiting`, or `blocked email <reason>`.

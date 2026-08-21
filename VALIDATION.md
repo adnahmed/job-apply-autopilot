@@ -1,7 +1,7 @@
-# V5.14.0 Validation
+# V5.14.1 Validation
 
-- `VERSION.txt` = `5.14.0`.
-- Main skill metadata version = `5.14.0`.
+- `VERSION.txt` = `5.14.1`.
+- Main skill metadata version = `5.14.1`.
 - Canonical `.tex` files are unchanged from V5.11.
 - All packaged subagents keep `question: deny`.
 - Assessor direct `edit` is denied; only `commit-assessment.ps1` is allowed for assessment artifact writes.
@@ -13,7 +13,8 @@
 - `defer-workitem.ps1` applies bounded retry backoff, and `session-state.ps1` excludes deferred queue/generated items so they cannot stall discovery or other applications.
 - `promote-workitem.ps1` accepts either `-WorkItemDir` or `-JobId`, eliminating the V5.11.4 binder mistake.
 - Recoverable schema/script/browser/resume/worker errors are explicitly non-terminal for the campaign.
-- CAPTCHA/MFA/security/automation controls remain zero-bypass and route-local; unaffected jobs continue.
+- A standalone CAPTCHA preserves its tab and gets exactly one installed-solver trigger plus a targeted wait of up to 120 seconds; CAPTCHA presence alone is not an immediate domain circuit.
+- Failed/repeated CAPTCHA recovery, MFA, and security/automation controls remain zero-Submit-retry and route-local; unaffected jobs continue.
 - `domain-circuit-breaker.ps1` repairs legacy concatenated JSONL, writes atomic markers, and `session-state.ps1` suppresses active domains including subdomains.
 - `application-send-guard.ps1` prevents missing/ambiguous receipts and parallel same-company/title job IDs from authorizing a second Send/Submit.
 - `reconcile-application-result.ps1` appends one ledger row per terminal job result and returns `already-reconciled` on repeats.

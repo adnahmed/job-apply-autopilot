@@ -4,7 +4,7 @@
 Quality and eligibility beat volume. Requested application count is a maximum target, never a quota.
 
 ## Fault containment
-A recoverable per-job failure must never terminate the campaign. Schema mismatch, script invocation mistakes, browser implementation failures, resume-build failures, and worker/tool exceptions are isolated to that job/route. Correct once when deterministic; otherwise leave recoverable state and continue unaffected work. Security/CAPTCHA/MFA controls still stop the affected route, never the rest of the campaign.
+A recoverable per-job failure must never terminate the campaign. Schema mismatch, script invocation mistakes, browser implementation failures, resume-build failures, and worker/tool exceptions are isolated to that job/route. Correct once when deterministic; otherwise leave recoverable state and continue unaffected work. A standalone CAPTCHA first gets one solver-assisted wait; an unresolved/repeated CAPTCHA, explicit security signal, or MFA stops only the affected route.
 
 Assessment artifacts are committed only through `scripts/commit-assessment.ps1`; promotion is coordinator-driven only through `scripts/advance-workitem.ps1`. Do not hand-author transition JSON.
 
@@ -62,9 +62,10 @@ Default auto-apply threshold: 72 after every true hard blocker/gate passes. A fe
 - those Easy Apply numbers are conservative skill defaults, not claimed LinkedIn platform limits; they may be tuned later without changing external ATS throughput
 - one ordinary corrective retry for form validation
 - zero retries after automation/spam/security/rate-limit signals
+- one solver-assisted CAPTCHA recovery window; no repeated Submit clicks
 
 ## Non-interactive choice policy
-Never ask the user to choose among routine application/workflow options and never invoke a question tool. For non-factual safe choices, select **Recommended** when present; otherwise select the first available safe option and continue. Factual screening answers must still come from truthful evidence. If none is supportable, use a legitimate decline/N/A when available or skip the job; do not ask the user to resolve it. CAPTCHA/MFA/security/manual-required states are logged and bypassed by moving to other jobs, not turned into an interactive chat prompt.
+Never ask the user to choose among routine application/workflow options and never invoke a question tool. For non-factual safe choices, select **Recommended** when present; otherwise select the first available safe option and continue. Factual screening answers must still come from truthful evidence. If none is supportable, use a legitimate decline/N/A when available or skip the job; do not ask the user to resolve it. A standalone CAPTCHA is handled through the installed solver and a bounded wait without closing its tab. Unresolved CAPTCHA/MFA/security/manual-required states are checkpointed and bypassed by moving to other jobs, not turned into an interactive chat prompt.
 
 ## Unknown required facts
 Try, in order:

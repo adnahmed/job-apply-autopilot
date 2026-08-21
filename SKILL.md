@@ -1,10 +1,10 @@
 ---
 name: job-apply-autopilot
 description: "Persistent autonomous job discovery, truthful fit triage, tailored resumes, and idempotent verified submission through BrowserOS neo. Uses specialized subagents, semantic dedupe, circuit breakers, and a resilient overnight supervisor."
-version: 5.14.0
+version: 5.14.1
 ---
 
-# Job Apply Autopilot V5.14 — Persistent + Idempotent Edition
+# Job Apply Autopilot V5.14.1 — Solver-Aware CAPTCHA Edition
 
 Mission: maximize credible, **net-new** interview opportunities per unit time. Preserve truth, Pakistan eligibility, anti-automation safety, and useful resumes. Raw tool activity, duplicate submissions, and queued placeholders are not progress.
 
@@ -130,7 +130,7 @@ Read `references/browseros-playbook.md` when browser work begins or the first br
 - after `Unable to connect`/CDP loss, stop browser calls for the slice, do local work, persist state, and return for supervisor recovery;
 - browser loss is not campaign completion.
 
-One bad site/job never ends the campaign. Use `defer-workitem.ps1` for recoverable technical failures (1m, 5m, then 30m backoff), then continue. CAPTCHA/MFA/security/automation signals are recorded only through `domain-circuit-breaker.ps1 -Action Record`; its active marker removes that domain's jobs from the actionable set until expiry/clearance. Never hand-append circuit-breaker JSONL.
+One bad site/job never ends the campaign. Use `defer-workitem.ps1` for recoverable technical failures (1m, 5m, then 30m backoff), then continue. A standalone CAPTCHA gets the solver-aware recovery flow in `references/captcha-recovery.md`: preserve the tab, click one ordinary challenge trigger when available, wait up to 120 seconds, and continue if it clears. CAPTCHA presence alone does not trip a domain circuit. MFA, account restrictions, explicit automation/security warnings, attributable 429s, failed solver recovery, or a repeated challenge are recorded only through `domain-circuit-breaker.ps1 -Action Record`. Never hand-append circuit-breaker JSONL.
 
 ## Truth and autonomy
 
@@ -146,7 +146,7 @@ Never declare a natural pause, completion, or exhaustion while the final `sessio
 
 Schema, script, worker, resume, and browser implementation errors are job/route-local. Correct once when deterministic; otherwise defer and continue. Do not repeatedly reconsider the same branch.
 
-Only the affected route stops for truthful impossibility, CAPTCHA/MFA/security controls, or unavailable BrowserOS. Other domains, local stages, and discovery continue.
+Only the affected route stops for truthful impossibility, an unresolved CAPTCHA after solver recovery, MFA/security controls, or unavailable BrowserOS. Other domains, local stages, and discovery continue.
 
 ## Overnight supervision
 

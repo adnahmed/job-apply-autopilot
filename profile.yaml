@@ -80,6 +80,11 @@ autonomy:
   stop_domain_on_first_automation_signal: true
   stop_on_account_security_warning: true
   never_bypass_captcha_or_security_challenge: true
+  captcha_external_solver_enabled: true
+  captcha_solver_trigger_clicks: 1
+  captcha_solver_wait_seconds: 120
+  preserve_unresolved_captcha_tab: true
+  captcha_circuit_after_failed_solver: true
   ordinary_form_validation_retries: 1
   anti_bot_submission_retries: 0
 

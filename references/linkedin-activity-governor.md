@@ -36,16 +36,18 @@ Do not stop the campaign. Continue:
 
 Queue ready Easy Apply jobs until the governor returns `easy_apply_allowed: true`.
 
-## Security/rate-limit signals
-On a LinkedIn 429, unusual-activity/security warning, account restriction, CAPTCHA, or MFA challenge:
+## CAPTCHA recovery and security/rate-limit signals
+A standalone LinkedIn CAPTCHA first gets one solver-aware recovery window: preserve the tab, click one ordinary challenge trigger if available, wait up to 120 seconds for a targeted cleared state, then re-snapshot. Do not record a governor signal if it clears normally.
+
+If the CAPTCHA persists/reappears, or on a LinkedIn 429, unusual-activity/security warning, account restriction, or MFA challenge:
 
 1. record the signal with `scripts/linkedin-governor.ps1 -Action RecordSignal -SignalType <type>`,
 2. stop LinkedIn application activity immediately,
 3. do not retry through alternate LinkedIn endpoints or extra sessions,
-4. do not bypass CAPTCHA/MFA/security controls,
+4. do not manually solve CAPTCHA puzzles, synthesize tokens, or bypass MFA/security controls,
 5. continue external ATS/company-site applications on unaffected domains.
 
-The packaged governor uses a 24-hour cooldown for ordinary rate-limit/security-warning signals. CAPTCHA, MFA, and account-restriction signals create a manual block instead of an automatic retry timer. `ClearManualBlock` is operator-only; the autonomous coordinator must never invoke it merely to resume activity.
+The packaged governor uses a 24-hour cooldown for ordinary rate-limit/security-warning signals. A failed/repeated CAPTCHA, MFA, and account-restriction signals create a manual block instead of an automatic retry timer. `ClearManualBlock` is operator-only; the autonomous coordinator must never invoke it merely to resume activity.
 
 ## External ATS is intentionally separate
 There is no skill-imposed:

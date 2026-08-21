@@ -7,7 +7,7 @@ Use this reference only when browser work is active or a BrowserOS action fails.
 - Name the BrowserOS session once.
 - Open task-owned tabs with `tabs new`; never reuse a page ID copied from state, logs, another worker, or an earlier agent slice.
 - A `page ... is not owned by this agent` response is expected isolation, not a transient error. Open the URL in a new owned tab immediately; do not retry the foreign page.
-- Keep at most five owned tabs. Reuse one search tab and one application tab when possible. Close disposable tabs before a supervised slice returns.
+- Keep at most five owned tabs. Reuse one search tab and one application tab when possible. Close disposable tabs before a supervised slice returns, but never close a tab whose CAPTCHA solver is pending or whose side effect still needs verification.
 
 ## Tool fast path and one-strike fallback
 
@@ -67,7 +67,8 @@ If a Lever/framework field appends or garbles text, use the native value setter 
 - Prefer targeted reads over repeated full-page snapshots.
 - Treat a tool diff as verification when it shows the expected state.
 - A `/thanks` URL or explicit `Application submitted/sent` message is strong proof. Persist that exact text/URL.
-- CAPTCHA, MFA, account restriction, spam/automation warnings, and attributable 429s are zero-retry security signals for the affected domain only.
+- A standalone CAPTCHA uses `captcha-recovery.md`: keep the tab open, trigger the installed solver once when appropriate, and wait up to 120 seconds for a targeted cleared state. It is not an immediate circuit-breaker by itself.
+- MFA, account restriction, spam/automation warnings, attributable 429s, failed solver recovery, and a repeated CAPTCHA remain zero-Submit-retry security signals for the affected domain only.
 
 ## Ambiguous side effects
 

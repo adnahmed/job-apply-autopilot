@@ -1,17 +1,17 @@
-# Install Job Apply Autopilot V5.14.0
+# Install Job Apply Autopilot V5.14.1
 
-V5.14.0 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
+V5.14.1 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
 
 From the chosen campaign workspace:
 
 ```powershell
-$zip  = ".\job-apply-autopilot-v5.14.0.zip"
-$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.14.0"
+$zip  = ".\job-apply-autopilot-v5.14.1.zip"
+$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.14.1"
 $dst  = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-$src = Join-Path $temp "job-apply-autopilot-v5.14.0"
+$src = Join-Path $temp "job-apply-autopilot-v5.14.1"
 
 if (Test-Path $dst) {
     $backupRoot = "$HOME\.config\opencode\skill-backups"
@@ -40,7 +40,8 @@ Restart OpenCode from the same campaign workspace, then:
 Use job-apply-autopilot. Continue applying to jobs.
 ```
 
-Expected V5.14.0 behavior:
+Expected V5.14.1 behavior:
+- standalone CAPTCHA tabs stay open for one installed-solver trigger and a targeted wait before defer/circuit handling;
 - persistent/forever requests use the detached supervisor and expose deterministic status;
 - direct email applications use an idempotent email subagent and verify Sent before any retry;
 - ambiguous ATS/email side effects require verification rather than a fresh submission;
