@@ -57,12 +57,14 @@ Use the same principle even if the endpoint differs:
 - do not rely on generic company office lists,
 - do not probe private/authenticated APIs or anti-bot endpoints.
 
-## When to invoke the eligibility worker
-Invoke `job-autopilot-eligibility` when:
+## When the unified research worker may use an adapter
+`job-autopilot-research` may inspect one adapter branch when the otherwise-passing role has a decision-changing eligibility ambiguity such as:
 - the LinkedIn/job source says EMEA/Europe/UAE/US/etc. and a bridge might exist,
 - the source says Remote with no usable scope,
 - official ATS identity/location differs from LinkedIn,
 - the exact role may have sponsorship/relocation,
 - a public ATS adapter may resolve a closed country list.
+
+Stop after the first decisive exact-role result and finish the assessment in the same research call. Do not send the job through another assessor.
 
 Do NOT open an Easy Apply/external application merely to discover a country restriction if the official ATS already answers the question.

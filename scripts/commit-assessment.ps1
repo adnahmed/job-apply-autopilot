@@ -84,12 +84,12 @@ try {
         Emit @{ status='rejected-payload'; code='passed-cannot-need-research'; next_stage='assessment_pending' }
         exit 0
     }
-    if ([string]$draft.status -eq 'needs-research' -and -not [bool]$draft.needs_external_research) {
-        Emit @{ status='rejected-payload'; code='needs-research-flag-missing'; next_stage='assessment_pending' }
+    if ([string]$draft.status -eq 'needs-research' -and (-not [bool]$draft.needs_external_research -or [bool]$draft.needs_candidate_evidence)) {
+        Emit @{ status='rejected-payload'; code='needs-research-flags-invalid'; next_stage='assessment_pending' }
         exit 0
     }
-    if ([string]$draft.status -eq 'needs-evidence' -and -not [bool]$draft.needs_candidate_evidence) {
-        Emit @{ status='rejected-payload'; code='needs-evidence-flag-missing'; next_stage='assessment_pending' }
+    if ([string]$draft.status -eq 'needs-evidence' -and (-not [bool]$draft.needs_candidate_evidence -or [bool]$draft.needs_external_research)) {
+        Emit @{ status='rejected-payload'; code='needs-evidence-flags-invalid'; next_stage='assessment_pending' }
         exit 0
     }
 

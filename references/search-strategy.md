@@ -13,7 +13,7 @@ For each search result page:
 4. obvious hard reject from card metadata? compact-log and move on;
 5. plausible unseen result? read the full JD once;
 6. strong eligibility + in-lane? queue for quick assessment;
-7. ambiguous geography or genuinely decision-changing specialist gap? slow lane; never block strong jobs.
+7. ambiguous geography or one genuinely decision-changing specialist gap? let the local assessor request the unified bounded research worker; never perform broad research during discovery.
 
 Do not create queue directories for obvious country locks, closed roles, unknown-client agencies, talent pools, expert marketplaces, or unrelated role identities.
 

@@ -92,6 +92,26 @@ try {
     $snapshot = (& (Join-Path $PSScriptRoot 'session-state.ps1') -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
     if ($snapshot.summary.queue_actionable -ne 0) { throw 'Promoted queue copy remained actionable.' }
 
+    # Throughput regression: generated work must not hide independent queue work, and the
+    # state contract must publish a real assessor wave instead of only its first job.
+    foreach ($parallelId in 1..5 | ForEach-Object { 'parallel-{0:D3}' -f $_ }) {
+        $parallelItem = & (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId $parallelId -Company "Parallel Co $parallelId" `
+            -Title 'Backend Engineer' -Location 'Pakistan' -Source 'selftest' -Workspace $workspace | Select-Object -Last 1
+        "# Backend Engineer`n`nPakistan role. Build backend APIs, services, databases, tests, and cloud deployments for $parallelId." |
+            Set-Content -LiteralPath (Join-Path $parallelItem 'source.md') -Encoding UTF8
+    }
+    $snapshot = (& (Join-Path $PSScriptRoot 'session-state.ps1') -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
+    if ($snapshot.next_action -ne 'resume-generated') { throw "Expected compatible resume-generated priority, got '$($snapshot.next_action)'." }
+    $resumeAction = @($snapshot.actions | Where-Object { $_.job_id -eq 'selftest-001' -and $_.stage -eq 'resume_pending' })
+    $assessorActions = @($snapshot.actions | Where-Object { $_.dispatch -eq 'job-autopilot-assessor' })
+    if ($resumeAction.Count -ne 1 -or $assessorActions.Count -ne 5) { throw 'Cross-stage runnable work was hidden or collapsed.' }
+    if ([string]$snapshot.scheduler.concurrency.default -ne 'unbounded' -or [int]$snapshot.scheduler.concurrency.linkedin_easy_apply -ne 1 -or $snapshot.scheduler.PSObject.Properties.Name -contains 'worker_limits' -or $snapshot.scheduler.PSObject.Properties.Name -contains 'dispatch_batches') {
+        throw "Compact uncapped scheduler contract is invalid: $($snapshot.scheduler | ConvertTo-Json -Compress)."
+    }
+    if ($snapshot.scheduler.pipeline_buffer_target -ne 8 -or -not $snapshot.scheduler.discovery_needed -or $snapshot.scheduler.discovery_slots -ne 2) {
+        throw "Pipeline buffer routing is invalid: $($snapshot.scheduler | ConvertTo-Json -Compress)."
+    }
+
     # A fresh terminal skip must not be mistaken for an old explicitly reopened reassessment.
     $freshSkip = & (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId 'fresh-skip' -Company 'Training Market' -Title 'LLM Evaluator' -Location 'Pakistan' -Source 'test' -Workspace $workspace | Select-Object -Last 1
     "# LLM Evaluator`n`nContractor task marketplace for model-training data evaluation in Pakistan." | Set-Content -LiteralPath (Join-Path $freshSkip 'source.md') -Encoding UTF8
@@ -143,6 +163,7 @@ try {
     $snapshot = (& (Join-Path $PSScriptRoot 'session-state.ps1') -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
     $sendAction = @($snapshot.actions | Where-Object { $_.job_id -eq 'send-guard-test' }) | Select-Object -First 1
     if ($null -eq $sendAction -or $sendAction.stage -ne 'application_verification') { throw 'Reserved send did not route to application_verification.' }
+    if ($sendAction.dispatch -ne 'job-autopilot-email-apply') { throw 'Email verification was dispatched to the wrong applicator.' }
     $grace = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $sendDir -Action MarkVerifiedAbsent `
         -ReservationId $reserve.reservation_id -Proof 'Sent search empty' | Select-Object -Last 1) | ConvertFrom-Json
     if ($grace.status -ne 'verification-grace' -or $grace.safe_to_submit) { throw 'Send verification grace failed.' }
@@ -206,7 +227,7 @@ try {
         throw "Unique submission metrics failed: $($snapshot.summary | ConvertTo-Json -Compress)."
     }
 
-    Write-Output 'PASS resilience: source gating, deterministic transitions, semantic dedupe, idempotent sends, active circuit routing, unique metrics, and atomic governor recovery passed.'
+    Write-Output 'PASS resilience: source gating, parallel throughput routing, deterministic transitions, semantic dedupe, idempotent sends, active circuit routing, unique metrics, and atomic governor recovery passed.'
 } finally {
     Remove-Item -LiteralPath $workspace -Recurse -Force -ErrorAction SilentlyContinue
 }

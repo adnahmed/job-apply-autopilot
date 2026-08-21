@@ -1,39 +1,25 @@
-# Parallel Orchestration V5.14 — Latency-Aware + Fault-Isolated
+# Parallel Orchestration V5.15 — Compact Uncapped Pipeline
 
-Parallelism is useful only when it does not delay the first useful result.
+Optimize verified net-new submissions per hour. Keeping one independent job in flight is a scheduler failure.
 
-## Fast lane
+## Concurrency
 
-Fast/local operations:
-- assessor without web
-- coordinator adjudication
-- promotion
-- resume worker
-- application routing
+LinkedIn Easy Apply is coordinator-owned and serial at 1 under its governor. Every assessor, research, resume, external ATS, and email worker is otherwise uncapped by skill policy and runs up to runtime capacity.
 
-Act on each completed fast result immediately.
+Group `session-state.ps1` actions by `dispatch` and emit all Task calls for a group in one assistant turn. Never call one worker, wait, and then call the next independent worker. The state snapshot carries each path once; do not reconstruct or duplicate path batches.
 
-## Slow lane
+## Fast and research waves
 
-Potentially slow/web-heavy:
-- eligibility research
-- candidate public-evidence research
-- relocation research
+Fast/local work includes assessment, deterministic transitions, resume generation, reconciliation, and routing. Dispatch and process it first.
 
-Never put slow-lane tasks in the same waiting wave as a ready/likely fast-lane job when the harness waits for all calls in the turn.
+Web-heavy eligibility/evidence work uses the single `job-autopilot-research` agent. Dispatch all research paths concurrently, but in a separate wave when the harness waits for every call. The research worker consumes an existing report without browsing or performs one bounded missing lookup, then commits final pass/fail itself. It never sends the job through a third reassessment call.
 
-Preferred order:
-1. process ready generated applications;
-2. process passed/assessment-pending jobs likely to yield an application;
-3. route/promote/resume those results;
-4. then run slow research for ambiguous jobs;
-5. discovery continues whenever no ready fast work exists.
+## Intake floor
 
-External ATS workers are uncapped by skill policy. Direct email is isolated in `job-autopilot-email-apply`; its send reservation makes ambiguous retries verification-only. LinkedIn Easy Apply remains coordinator-owned.
-
-Workers get exactly one absolute job directory. Do not paste long policy summaries into Task prompts. Packaged agent instructions are authoritative.
-
+Keep at least 8 source-ready/actionable jobs in the pipeline. This is a feed floor, not a cap. Refill after ready work; an empty queue is not required. Discovery extracts visible cards, batch-dedupes, and captures multiple complete JDs before returning to state.
 
 ## Fault isolation
 
-A failed worker or deterministic transition is never a reason to wait or end the batch. Keep the failed job recoverable, route completed jobs immediately, then continue discovery/other applications. Coordinator assessment writes are forbidden; assessor state is committed through `commit-assessment.ps1`, and queue-to-generated transitions go through `advance-workitem.ps1`.
+A failed worker affects only its job. Completed jobs continue and unused runtime capacity takes other jobs. An empty/incomplete resume result gets one direct resume-worker retry; the coordinator does not inspect compiler implementation.
+
+Worker prompts contain exactly the absolute job directory and action. Assessment commits through `commit-assessment.ps1`, positive candidate evidence merges at coordinator promotion, and every outbound side effect uses `application-send-guard.ps1`.

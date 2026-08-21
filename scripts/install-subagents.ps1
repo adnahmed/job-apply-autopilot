@@ -14,8 +14,7 @@ New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $names = @(
     'job-autopilot-assessor.md',
-    'job-autopilot-evidence.md',
-    'job-autopilot-eligibility.md',
+    'job-autopilot-research.md',
     'job-autopilot-resume.md',
     'job-autopilot-external-apply.md',
     'job-autopilot-email-apply.md'

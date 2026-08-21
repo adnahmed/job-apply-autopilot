@@ -1,17 +1,17 @@
-# Install Job Apply Autopilot V5.14.2
+# Install Job Apply Autopilot V5.15.0
 
-V5.14.2 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
+V5.15.0 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
 
 From the chosen campaign workspace:
 
 ```powershell
-$zip  = ".\job-apply-autopilot-v5.14.2.zip"
-$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.14.2"
+$zip  = ".\job-apply-autopilot-v5.15.0.zip"
+$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.15.0"
 $dst  = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-$src = Join-Path $temp "job-apply-autopilot-v5.14.2"
+$src = Join-Path $temp "job-apply-autopilot-v5.15.0"
 
 if (Test-Path $dst) {
     $backupRoot = "$HOME\.config\opencode\skill-backups"
@@ -86,7 +86,11 @@ Restart OpenCode from the campaign workspace. To make one interactive session au
 
 Do not type `/goal` when launching overnight mode below. The detached supervisor starts fresh bounded slices, and each slice creates its coordinator goal programmatically when the goal tools are available.
 
-Expected V5.14.2 behavior:
+Expected V5.15.0 behavior:
+- runnable generated and queue work is exposed together and dispatched in parallel worker waves;
+- assessor, unified research, resume, external ATS, and email workers are uncapped by skill policy while LinkedIn remains serial;
+- assessment stays local/web-free and one merged research finalizer handles only decision-changing eligibility/evidence uncertainty;
+- an 8-job intake floor keeps discovery active without delaying ready work;
 - explicitly requested persistent coordinator sessions keep a continuous goal active until `/goal pause` or `/goal stop`;
 - goal continuation never bypasses state routing, side-effect verification, or duplicate-send guards;
 - standalone CAPTCHA tabs stay open for one installed-solver trigger and a targeted wait before defer/circuit handling;
@@ -107,9 +111,9 @@ Expected V5.14.2 behavior:
 - recoverable per-job failures enter bounded cooldown while other work/discovery continues;
 - snapshot JSON is short;
 - no TodoWrite mirror;
-- ready/fast jobs are routed before slow research;
+- the unified research finalizer performs at most one decision-critical lookup branch and avoids a third reassessment call;
 - obvious rejects get one ledger row, not multiple long artifacts;
-- evidence lookup never inventories the whole GitHub account;
+- optional evidence lookup never inventories the whole GitHub account;
 - external ATS remains uncapped;
 - LinkedIn Easy Apply keeps its persistent governor.
 

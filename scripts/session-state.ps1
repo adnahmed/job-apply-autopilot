@@ -191,7 +191,7 @@ if (Test-Path -LiteralPath $queueRoot) {
         # Do not reopen an old failed skip just because policy changed. But if a reassessment was already
         # explicitly started under 5.10/5.11, allow that in-progress/passed item to finish after restart.
         $explicitReassessment = ($job -and (Has-Property $job 'allow_after_prior_skip') -and [bool]$job.allow_after_prior_skip)
-        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13','5.14') -and $status -in @('needs-evidence','needs-research','passed'))
+        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13','5.14','5.15') -and $status -in @('needs-evidence','needs-research','passed'))
         $ledgerBlocks = ($already -and -not $reassessmentInProgress)
         $shadowedByGenerated = $generatedIds.ContainsKey($id)
         $terminal = $status -in @('failed','rejected','skipped','submitted','blocked')
@@ -206,13 +206,9 @@ if (Test-Path -LiteralPath $queueRoot) {
             } elseif ($status -in @('pending','unassessed','captured-awaiting-source-and-assessment')) {
                 $stage = 'assessment_pending'; $speed = 'fast'
             } elseif ($status -eq 'needs-evidence') {
-                $candidateEvidencePath = Join-Path $dir.FullName 'candidate-evidence-research.json'
-                if (Test-Path -LiteralPath $candidateEvidencePath) { $stage = 'reassessment_pending'; $speed = 'fast' }
-                else { $stage = 'candidate_evidence_pending'; $speed = 'slow' }
+                $stage = 'candidate_evidence_pending'; $speed = 'slow'
             } elseif ($status -eq 'needs-research') {
-                $eligibilityPath = Join-Path $dir.FullName 'eligibility-research.json'
-                if (Test-Path -LiteralPath $eligibilityPath) { $stage = 'reassessment_pending'; $speed = 'fast' }
-                else { $stage = 'eligibility_research_pending'; $speed = 'slow' }
+                $stage = 'eligibility_research_pending'; $speed = 'slow'
             } elseif ($status -eq 'passed') {
                 $stage = 'coordinator_adjudication_pending'; $speed = 'fast'
             } else {
@@ -273,6 +269,7 @@ if (Test-Path -LiteralPath $generatedRoot) {
             title = if ($job) { $job.title } else { $null }
             source = if ($job) { $job.source } else { $null }
             domain = $jobDomain
+            route = if ($emailRoute -or ($sendState -and [string]$sendState.channel -eq 'email')) { 'email' } elseif (($job -and [string]$job.source -match 'linkedin') -or $jobDomain -match '(^|\.)linkedin\.com$') { 'linkedin' } else { 'external' }
             actionable = $actionable
             needs_reconcile = $needsReconcile
             stage = $stage
@@ -285,16 +282,57 @@ if (Test-Path -LiteralPath $generatedRoot) {
 
 $reconcile = @($generated | Where-Object { $_.needs_reconcile })
 $generatedActionable = @($generated | Where-Object { $_.actionable })
-$queueActionable = @($queue | Where-Object { $_.actionable } | Sort-Object @{Expression={ if ($_.speed -eq 'fast') {0} else {1} }}, @{Expression={ $_.job_id }})
+$queueActionable = @($queue | Where-Object { $_.actionable })
 
-if ($reconcile.Count -gt 0) {
-    $nextAction = 'reconcile'; $selected = $reconcile
+# V5.15 throughput contract: expose the whole runnable pipeline, not only the first
+# non-empty bucket.  The coordinator cannot dispatch concurrent workers for work it
+# cannot see, and the former generated > queue > discover selection starved both
+# assessment batches and discovery whenever one generated job existed.
+$stagePriority = @{
+    reconcile_result = 10
+    application_verification = 20
+    email_application_ready = 30
+    application_resume = 40
+    application_ready = 40
+    resume_pending = 50
+    coordinator_adjudication_pending = 60
+    assessment_repair = 60
+    reassessment_pending = 70
+    assessment_pending = 70
+    source_pending = 80
+    eligibility_research_pending = 90
+    candidate_evidence_pending = 90
+}
+
+$selected = @($reconcile) + @($generatedActionable) + @($queueActionable)
+$selected = @($selected | Sort-Object `
+    @{Expression={ if ($stagePriority.ContainsKey([string]$_.stage)) { $stagePriority[[string]$_.stage] } else { 999 } }}, `
+    @{Expression={ if ($_.speed -eq 'fast') { 0 } elseif ($_.speed -eq 'slow') { 1 } else { 2 } }}, `
+    @{Expression={ $_.job_id }})
+$nextAction = if ($reconcile.Count -gt 0) {
+    'reconcile'
 } elseif ($generatedActionable.Count -gt 0) {
-    $nextAction = 'resume-generated'; $selected = $generatedActionable
+    'resume-generated'
 } elseif ($queueActionable.Count -gt 0) {
-    $nextAction = 'process-queue'; $selected = $queueActionable
+    'process-queue'
 } else {
-    $nextAction = 'discover'; $selected = @()
+    'discover'
+}
+
+function Get-DispatchTarget($Item) {
+    $stage = [string]$Item.stage
+    if ($stage -eq 'reconcile_result' -or $stage -in @('coordinator_adjudication_pending','assessment_repair')) { return 'coordinator-local' }
+    if ($stage -eq 'resume_pending') { return 'job-autopilot-resume' }
+    if ($stage -in @('assessment_pending','reassessment_pending')) { return 'job-autopilot-assessor' }
+    if ($stage -in @('eligibility_research_pending','candidate_evidence_pending')) { return 'job-autopilot-research' }
+    if ($stage -eq 'source_pending') { return 'coordinator-browser' }
+    if ($stage -eq 'email_application_ready') { return 'job-autopilot-email-apply' }
+    if ($stage -in @('application_ready','application_resume','application_verification')) {
+        if ([string]$Item.route -eq 'email') { return 'job-autopilot-email-apply' }
+        if ([string]$Item.route -eq 'linkedin' -or [string]$Item.source -match 'linkedin' -or [string]$Item.domain -match '(^|\.)linkedin\.com$') { return 'coordinator-linkedin' }
+        return 'job-autopilot-external-apply'
+    }
+    return 'coordinator'
 }
 
 $actions = @($selected | ForEach-Object {
@@ -304,9 +342,19 @@ $actions = @($selected | ForEach-Object {
         title = $_.title
         stage = $_.stage
         speed = $_.speed
+        dispatch = Get-DispatchTarget $_
+        priority = if ($stagePriority.ContainsKey([string]$_.stage)) { $stagePriority[[string]$_.stage] } else { 999 }
         path = $_.path
     }
 })
+
+$pipelineBufferTarget = 8
+$pipelineDepth = @($selected | Where-Object { $_.stage -ne 'source_pending' }).Count
+$discoverySlots = [Math]::Max(0, $pipelineBufferTarget - $pipelineDepth)
+$concurrency = [ordered]@{
+    default = 'unbounded'
+    linkedin_easy_apply = 1
+}
 
 $circuitPath = Join-Path $root 'domain-circuit-breakers.jsonl'
 $circuitCount = 0
@@ -322,6 +370,14 @@ $out = [ordered]@{
     workspace = $Workspace
     next_action = $nextAction
     actions = $actions
+    scheduler = [ordered]@{
+        mode = 'parallel-pipeline'
+        pipeline_buffer_target = $pipelineBufferTarget
+        pipeline_depth = $pipelineDepth
+        discovery_needed = ($discoverySlots -gt 0)
+        discovery_slots = $discoverySlots
+        concurrency = $concurrency
+    }
     summary = [ordered]@{
         decisions = $ledgerCount
         submitted = $submittedUnique.Count
@@ -347,11 +403,11 @@ $out = [ordered]@{
         blocked = @($linkedinStatus.block_reasons).Count -gt 0
     }
     instruction = if ($nextAction -eq 'discover') {
-        'Discover now.'
-    } elseif (@($queueActionable | Where-Object { $_.stage -eq 'source_pending' }).Count -gt 0) {
-        'Capture source_pending JDs before assessment. Do other ready work while BrowserOS is unavailable.'
+        "Discover a batch of $pipelineBufferTarget source-ready plausible jobs before returning to state."
+    } elseif ($discoverySlots -gt 0) {
+        "Group fast actions by dispatch and emit every non-LinkedIn Task call together up to runtime capacity; then run the separate research wave. Refill $discoverySlots pipeline slot(s) after ready work."
     } else {
-        'Do fast actions first. Do not batch slow research with ready/fast work.'
+        'Group fast actions by dispatch and emit every non-LinkedIn Task call together up to runtime capacity. Run web-heavy research as a separate wave. LinkedIn Easy Apply remains serial.'
     }
 }
 $out | ConvertTo-Json -Depth 6

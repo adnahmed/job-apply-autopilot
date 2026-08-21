@@ -82,6 +82,17 @@ try {
         }
     }
 
+    $candidateEvidence = Join-Path $WorkItemDir 'candidate-evidence-research.json'
+    if (Test-Path -LiteralPath $candidateEvidence) {
+        try {
+            & (Join-Path $PSScriptRoot 'merge-candidate-evidence.ps1') -EvidenceFile $candidateEvidence -Workspace $Workspace | Out-Null
+        } catch {
+            Invoke-Defer $WorkItemDir 'evidence-merge' 'evidence-merge-exception' $_.Exception.Message | Out-Null
+            Emit @{ status='recoverable-error'; job_id=[string]$assessment.job_id; code='evidence-merge-exception'; next_stage='process_other_work' }
+            exit 0
+        }
+    }
+
     $promote = Join-Path $PSScriptRoot 'promote-workitem.ps1'
     try {
         $generatedDir = & $promote -WorkItemDir $WorkItemDir -Canonical $Canonical -Workspace $Workspace | Select-Object -Last 1

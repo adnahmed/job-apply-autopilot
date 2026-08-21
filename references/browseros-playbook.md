@@ -7,7 +7,7 @@ Use this reference only when browser work is active or a BrowserOS action fails.
 - Name the BrowserOS session once.
 - Open task-owned tabs with `tabs new`; never reuse a page ID copied from state, logs, another worker, or an earlier agent slice.
 - A `page ... is not owned by this agent` response is expected isolation, not a transient error. Open the URL in a new owned tab immediately; do not retry the foreign page.
-- Keep at most five owned tabs. Reuse one search tab and one application tab when possible. Close disposable tabs before a supervised slice returns, but never close a tab whose CAPTCHA solver is pending or whose side effect still needs verification.
+- Open only task-owned tabs that are useful now and close disposable tabs promptly. There is no skill numeric tab cap, but each worker should normally need one application tab. Never close a tab whose CAPTCHA solver is pending or whose side effect still needs verification.
 
 ## Tool fast path and one-strike fallback
 

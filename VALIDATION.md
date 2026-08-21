@@ -1,7 +1,15 @@
-# V5.14.2 Validation
+# V5.15.0 Validation
 
-- `VERSION.txt` = `5.14.2`.
-- Main skill heading/package version = `5.14.2`.
+- `VERSION.txt` = `5.15.0`.
+- Main skill heading/package version = `5.15.0`.
+- `session-state.ps1` preserves the established `next_action` enum while exposing runnable generated and queue stages together.
+- Each action names its dispatch target exactly once; state does not duplicate paths in batch arrays.
+- Assessor, unified research, resume, external ATS, and email paths are runtime-limited rather than skill-capped; only coordinator-owned LinkedIn Easy Apply is serial at 1.
+- Scheduler state exposes only `default: unbounded` and `linkedin_easy_apply: 1`, with no non-LinkedIn limit entries.
+- The assessor remains local/web-free; one unified web-heavy research finalizer commits the final decision without another assessor call.
+- The scheduler maintains an 8-job intake floor and reports `discovery_needed` plus exact `discovery_slots`; ready work runs before refill.
+- Discovery captures multiple complete JDs per pass instead of returning to state after the first plausible job.
+- A failed worker remains isolated to its job and does not consume unrelated worker capacity.
 - The pinned goal plugin registers globally and supervised slices activate one continuous coordinator goal when the user requested persistence.
 - Goal completion is forbidden for submission counts, temporary queue exhaustion, blocked routes, or slice boundaries; ordinary messages steer the loop, while `/goal pause` and `/goal stop` are explicit controls.
 - Every continuation reruns authoritative campaign state; goal control flow cannot authorize a duplicate Send/Submit or worker-created goal.
@@ -22,7 +30,7 @@
 - `application-send-guard.ps1` prevents missing/ambiguous receipts and parallel same-company/title job IDs from authorizing a second Send/Submit.
 - `reconcile-application-result.ps1` appends one ledger row per terminal job result and returns `already-reconciled` on repeats.
 - Direct email applications use the dedicated idempotent email subagent and verify Gmail Sent before any retry.
-- Persistent discovery, bounded evidence lookup, external ATS uncapped behavior, and LinkedIn governor remain intact.
+- Persistent discovery, bounded on-demand assessor lookup, uncapped non-LinkedIn workers, and the LinkedIn governor remain intact.
 - Missing/placeholder JDs route to `source_pending`, never `assessment_pending`.
 - Recent same-company/same-title reposts are semantically deduped even when the job ID changes.
 - `submitted_unique` is the headline and `submitted_rows` remains audit detail.

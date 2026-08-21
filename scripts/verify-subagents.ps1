@@ -5,8 +5,7 @@ $ErrorActionPreference = 'Stop'
 $targetDir = Join-Path $HOME '.config\opencode\agents'
 $names = @(
     'job-autopilot-assessor.md',
-    'job-autopilot-evidence.md',
-    'job-autopilot-eligibility.md',
+    'job-autopilot-research.md',
     'job-autopilot-resume.md',
     'job-autopilot-external-apply.md',
     'job-autopilot-email-apply.md'

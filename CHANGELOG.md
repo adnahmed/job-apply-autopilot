@@ -1,3 +1,15 @@
+# V5.15.0 — Compact Uncapped Pipeline Edition
+
+- Removed every skill-level worker concurrency cap except serialized LinkedIn Easy Apply; assessor, unified research, resume, external ATS, and email waves use runtime capacity.
+- Scheduler concurrency is expressed as `default: unbounded` and `linkedin_easy_apply: 1`; it carries no per-worker limit table.
+- Kept the assessor local/web-free and merged the two web-heavy eligibility/evidence workers into one optional research finalizer.
+- The research finalizer reuses existing reports first, performs only one bounded decision-changing lookup when missing, and commits final pass/fail without a third reassessment call.
+- Preserved the eight-requirement fit-map ceiling and the resume worker's completion budget while enforcing minimal tailoring and one direct incomplete-artifact retry.
+- `session-state.ps1` now exposes all runnable cross-stage actions at once instead of hiding queue work whenever generated work exists.
+- Preserved the established `next_action` enum and compact state output; each action carries its own dispatch target without duplicated path batches.
+- Added an 8-job intake floor with `discovery_needed` / `discovery_slots`; ready work runs first and discovery captures multiple complete JDs per pass.
+- Supervisor slices require each worker wave to be emitted together with exact two-line worker prompts.
+
 # V5.14.2 — Goal-Guarded Continuation Edition
 
 - Integrated `opencode-goal-plugin` as an optional coordinator continuation layer for explicitly requested persistent campaigns.

@@ -1,5 +1,5 @@
 ---
-description: Tailor and compile one already-approved job-specific LaTeX resume. Fast selection-first editing. Never browses or applies.
+description: Minimally tailor and compile one approved resume in a single pass. Never browses or applies.
 mode: subagent
 hidden: true
 temperature: 0.1
@@ -26,16 +26,16 @@ Handle exactly ONE supplied generated job directory. Do not load the main skill.
 
 Read `job.json`, `source.md`, `assessment.json`, `fit-map.json`, optional `candidate-evidence-research.json`, `canonical-source.tex`, `resume.tex`. Preconditions: assessment passed, all hard gates true, fit map complete with score.
 
-Fast tailoring:
+Minimal tailoring:
 1. select/reorder/delete canonical material;
 2. use supported aliases;
-3. make minimal factual rewrites only when they improve JD alignment;
+3. make at most a few factual rewrites only when they materially improve JD alignment;
 4. public project evidence may add project/skill claims only when marked resume-eligible; never move it into employer history without professional support.
 
 No invented technology, employer use, metrics, management, specialist identity, or precise per-technology years. Preserve contact, employers, dates, degree, numbers.
 
-Keep `tailoring-audit.json` compact: only material changes/support IDs, public-evidence claims used, and `unsupported_terms_added: []`. Do not explain unchanged bullets.
+Keep `tailoring-audit.json` compact and set `status: complete` before compiling: only material changes/support IDs, public-evidence claims used, and `unsupported_terms_added: []`. Do not explain unchanged bullets. Never return with a stub audit. If `resume.tex` already exists with an incomplete audit, finish the audit and compile immediately instead of repeating the tailoring analysis.
 
-Compile with `compile-resume.ps1 -StrictOnePage -AutoCompact`. Use the unique PDF in `resume-artifact.json`; never stale fallback.
+Compile in the same call with `compile-resume.ps1 -StrictOnePage -AutoCompact`. Use the unique PDF in `resume-artifact.json`; never stale fallback.
 
 Return one line: `ready <absolute-pdf-path>` or `failed <short-reason>`.
