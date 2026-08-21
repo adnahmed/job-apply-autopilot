@@ -13,7 +13,7 @@ Do not plan, narrate, ask routine questions, or inspect files that the state scr
 
 If the user asks to run forever, continuously, overnight, in the background, or complains that a prior continuous run stopped, treat persistent supervision as the first action. Run `get-autopilot-status.ps1`; if it is not running, run `start-autopilot.ps1`. Report the supervisor PID/state and return instead of trying to simulate persistence inside one chat turn.
 
-If `goal_status` and `goal_set` are available and the user explicitly requested this persistent campaign, inspect goal state once. When no goal is active, set one bounded coordinator goal: process the hot loop until three net-new verified submissions are recorded or `session-state.ps1` proves no useful action can proceed now. Never set goals in workers. Goal continuation is control flow only: rerun state after every continuation, verify ambiguous side effects before retrying, and never mark the goal complete while state still reports actionable work.
+If `goal_status` and `goal_set` are available and the user explicitly requested this persistent campaign, inspect goal state once. When no goal is active, set one continuous coordinator goal: keep discovering, assessing, tailoring, and submitting net-new applications until the user runs `/goal pause` or `/goal stop`. Never complete the goal because a submission count was reached, the current queue is empty, one route is blocked, or a supervisor slice ends; rotate discovery lanes and let the outer supervisor recover process/provider exits. Never set goals in workers. Goal continuation is control flow only: rerun state after every continuation and verify ambiguous side effects before retrying.
 
 At start, capture the coordinator workspace once and run:
 

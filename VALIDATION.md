@@ -2,7 +2,8 @@
 
 - `VERSION.txt` = `5.14.2`.
 - Main skill heading/package version = `5.14.2`.
-- The pinned goal plugin registers globally and supervised slices activate only one bounded coordinator goal when the user requested persistence.
+- The pinned goal plugin registers globally and supervised slices activate one continuous coordinator goal when the user requested persistence.
+- Goal completion is forbidden for submission counts, temporary queue exhaustion, blocked routes, or slice boundaries; ordinary messages steer the loop, while `/goal pause` and `/goal stop` are explicit controls.
 - Every continuation reruns authoritative campaign state; goal control flow cannot authorize a duplicate Send/Submit or worker-created goal.
 - Canonical `.tex` files are unchanged from V5.11.
 - All packaged subagents keep `question: deny`.

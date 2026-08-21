@@ -10,7 +10,21 @@
     "browseros-neo_*": "allow"
   },
   "plugin": [
-    "opencode-goal-plugin@0.8.1"
+    [
+      "opencode-goal-plugin@0.8.1",
+      {
+        "maxTurns": 9007199254740991,
+        "maxDurationMs": 9007199254740991,
+        "maxTokens": 9007199254740991,
+        "noProgressTokenThreshold": 1,
+        "noProgressTurnsBeforePause": 9007199254740991,
+        "noToolCallTurnsBeforePause": 0,
+        "noInterruptOnUserMessage": true,
+        "budgetWrapupRatio": 0.9999999999999999,
+        "maxPromptFailures": 9007199254740991,
+        "persistState": true
+      }
+    ]
   ],
   "command": {
     "goal": {

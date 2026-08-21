@@ -38,14 +38,56 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\init-workspace.ps1"
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\session-state.ps1"
 ```
 
-Restart OpenCode from the same campaign workspace, then:
+The npm command downloads the plugin but does **not** activate it by itself. Merge the `plugin` entry and `command.goal` object from `$dst\opencode-config-snippet.jsonc` into `$HOME\.config\opencode\opencode.json`. Preserve any existing plugins and commands. The resulting config must include:
 
-```text
-Use job-apply-autopilot. Continue applying to jobs.
+```json
+"plugin": [
+  [
+    "opencode-goal-plugin@0.8.1",
+    {
+        "maxTurns": 9007199254740991,
+        "maxDurationMs": 9007199254740991,
+        "maxTokens": 9007199254740991,
+      "noProgressTokenThreshold": 1,
+        "noProgressTurnsBeforePause": 9007199254740991,
+      "noToolCallTurnsBeforePause": 0,
+      "noInterruptOnUserMessage": true,
+        "budgetWrapupRatio": 0.9999999999999999,
+        "maxPromptFailures": 9007199254740991,
+      "persistState": true
+    }
+  ]
+],
+"command": {
+  "goal": {
+    "description": "Set a session-scoped goal and auto-continue until complete.",
+    "template": "$ARGUMENTS",
+    "agent": "build"
+  }
+}
 ```
 
+If `plugin` or `command` already exists, add to it rather than replacing it. Verify activation:
+
+```powershell
+opencode debug config
+opencode debug agent goal
+```
+
+## Interactive use
+
+Restart OpenCode from the campaign workspace. To make one interactive session auto-continue, use `/goal` as the prompt command:
+
+```text
+/goal "Use job-apply-autopilot. Keep discovering, assessing, tailoring, and submitting net-new job applications continuously until I explicitly run /goal pause or /goal stop." --max-turns 9007199254740991 --max-duration-ms 9007199254740991 --max-tokens 9007199254740991 --no-progress-threshold 1 --no-progress-turns 9007199254740991 --constraints "never duplicate a submission; verify every ambiguous prior side effect before retrying; never bypass CAPTCHA, MFA, security, eligibility, or truthfulness safeguards"
+```
+
+`/goal` creates the active session-scoped goal. The configured goal loop does not pause for ordinary steering messages. Use `/goal status` to inspect it; only `/goal pause` or `/goal stop` intentionally halts it. `/goal resume` starts a fresh local budget window after a safety/provider pause.
+
+Do not type `/goal` when launching overnight mode below. The detached supervisor starts fresh bounded slices, and each slice creates its coordinator goal programmatically when the goal tools are available.
+
 Expected V5.14.2 behavior:
-- explicitly requested persistent coordinator sessions use a bounded goal to recover silent model-turn exits;
+- explicitly requested persistent coordinator sessions keep a continuous goal active until `/goal pause` or `/goal stop`;
 - goal continuation never bypasses state routing, side-effect verification, or duplicate-send guards;
 - standalone CAPTCHA tabs stay open for one installed-solver trigger and a targeted wait before defer/circuit handling;
 - persistent/forever requests use the detached supervisor and expose deterministic status;
