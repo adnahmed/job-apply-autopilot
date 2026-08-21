@@ -8,5 +8,15 @@
       "job-autopilot-*": "allow"
     },
     "browseros-neo_*": "allow"
+  },
+  "plugin": [
+    "opencode-goal-plugin@0.8.1"
+  ],
+  "command": {
+    "goal": {
+      "description": "Set a session-scoped goal and auto-continue until complete.",
+      "template": "$ARGUMENTS",
+      "agent": "build"
+    }
   }
 }

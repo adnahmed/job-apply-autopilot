@@ -1,17 +1,17 @@
-# Install Job Apply Autopilot V5.14.1
+# Install Job Apply Autopilot V5.14.2
 
-V5.14.1 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
+V5.14.2 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
 
 From the chosen campaign workspace:
 
 ```powershell
-$zip  = ".\job-apply-autopilot-v5.14.1.zip"
-$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.14.1"
+$zip  = ".\job-apply-autopilot-v5.14.2.zip"
+$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.14.2"
 $dst  = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-$src = Join-Path $temp "job-apply-autopilot-v5.14.1"
+$src = Join-Path $temp "job-apply-autopilot-v5.14.2"
 
 if (Test-Path $dst) {
     $backupRoot = "$HOME\.config\opencode\skill-backups"
@@ -29,6 +29,10 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\verify-subagents.ps1
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\verify-canonical.ps1"
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\selftest-resilience.ps1"
 
+Push-Location "$HOME\.config\opencode"
+npm install --save-exact opencode-goal-plugin@0.8.1
+Pop-Location
+
 # Current directory is the campaign workspace. This also compacts old candidate-evidence cache history.
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\init-workspace.ps1"
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\session-state.ps1"
@@ -40,7 +44,9 @@ Restart OpenCode from the same campaign workspace, then:
 Use job-apply-autopilot. Continue applying to jobs.
 ```
 
-Expected V5.14.1 behavior:
+Expected V5.14.2 behavior:
+- explicitly requested persistent coordinator sessions use a bounded goal to recover silent model-turn exits;
+- goal continuation never bypasses state routing, side-effect verification, or duplicate-send guards;
 - standalone CAPTCHA tabs stay open for one installed-solver trigger and a targeted wait before defer/circuit handling;
 - persistent/forever requests use the detached supervisor and expose deterministic status;
 - direct email applications use an idempotent email subagent and verify Sent before any retry;

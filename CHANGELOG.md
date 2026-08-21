@@ -1,3 +1,10 @@
+# V5.14.2 — Goal-Guarded Continuation Edition
+
+- Integrated `opencode-goal-plugin` as an optional coordinator continuation layer for explicitly requested persistent campaigns.
+- Each supervised slice creates one bounded goal only when none is active: three net-new verified submissions or no currently useful action.
+- Goal continuations must rerun `session-state.ps1`; ledger truth, ambiguous-side-effect verification, send guards, and worker isolation remain authoritative.
+- This recovers silent `finish: unknown` model turns while retaining the existing fresh-slice supervisor as the outer reliability boundary.
+
 # V5.14.1 — Solver-Aware CAPTCHA Edition
 
 - Standalone CAPTCHAs now preserve the task-owned tab, trigger an installed external solver once through an ordinary visible control, and wait up to 120 seconds for a targeted cleared state.

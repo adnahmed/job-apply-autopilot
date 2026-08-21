@@ -1,7 +1,9 @@
-# V5.14.1 Validation
+# V5.14.2 Validation
 
-- `VERSION.txt` = `5.14.1`.
-- Main skill metadata version = `5.14.1`.
+- `VERSION.txt` = `5.14.2`.
+- Main skill heading/package version = `5.14.2`.
+- The pinned goal plugin registers globally and supervised slices activate only one bounded coordinator goal when the user requested persistence.
+- Every continuation reruns authoritative campaign state; goal control flow cannot authorize a duplicate Send/Submit or worker-created goal.
 - Canonical `.tex` files are unchanged from V5.11.
 - All packaged subagents keep `question: deny`.
 - Assessor direct `edit` is denied; only `commit-assessment.ps1` is allowed for assessment artifact writes.

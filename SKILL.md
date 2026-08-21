@@ -1,10 +1,9 @@
 ---
 name: job-apply-autopilot
 description: "Persistent autonomous job discovery, truthful fit triage, tailored resumes, and idempotent verified submission through BrowserOS neo. Uses specialized subagents, semantic dedupe, circuit breakers, and a resilient overnight supervisor."
-version: 5.14.1
 ---
 
-# Job Apply Autopilot V5.14.1 — Solver-Aware CAPTCHA Edition
+# Job Apply Autopilot V5.14.2 — Goal-Guarded Continuation Edition
 
 Mission: maximize credible, **net-new** interview opportunities per unit time. Preserve truth, Pakistan eligibility, anti-automation safety, and useful resumes. Raw tool activity, duplicate submissions, and queued placeholders are not progress.
 
@@ -13,6 +12,8 @@ Mission: maximize credible, **net-new** interview opportunities per unit time. P
 Do not plan, narrate, ask routine questions, or inspect files that the state script already summarized.
 
 If the user asks to run forever, continuously, overnight, in the background, or complains that a prior continuous run stopped, treat persistent supervision as the first action. Run `get-autopilot-status.ps1`; if it is not running, run `start-autopilot.ps1`. Report the supervisor PID/state and return instead of trying to simulate persistence inside one chat turn.
+
+If `goal_status` and `goal_set` are available and the user explicitly requested this persistent campaign, inspect goal state once. When no goal is active, set one bounded coordinator goal: process the hot loop until three net-new verified submissions are recorded or `session-state.ps1` proves no useful action can proceed now. Never set goals in workers. Goal continuation is control flow only: rerun state after every continuation, verify ambiguous side effects before retrying, and never mark the goal complete while state still reports actionable work.
 
 At start, capture the coordinator workspace once and run:
 
