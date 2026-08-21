@@ -1,4 +1,4 @@
-# Autonomous Application Policy V5.14
+# Autonomous Application Policy V6.0
 
 ## Principle
 Quality and eligibility beat volume. Requested application count is a maximum target, never a quota.
@@ -8,9 +8,9 @@ A recoverable per-job failure must never terminate the campaign. Schema mismatch
 
 Assessment artifacts are committed only through `scripts/commit-assessment.ps1`; promotion is coordinator-driven only through `scripts/advance-workitem.ps1`. Do not hand-author transition JSON.
 
-Every outbound application side effect is reserved through `scripts/application-send-guard.ps1`. An interrupted worker, missing receipt, or ambiguous return requires verification of the real Sent/ATS state before another Send/Submit. Direct email applications use `job-autopilot-email-apply`; external forms use `job-autopilot-external-apply`.
+Every outbound application side effect is reserved through `scripts/application-send-guard.ps1`. An interrupted worker, missing receipt, or ambiguous return requires authenticated verification of the real Sent/ATS state before another Send/Submit. Channel-incompatible or unavailable evidence quarantines verification. Direct email applications use `job-autopilot-email-apply`; external forms use `job-autopilot-external-apply`.
 
-Only `scripts/reconcile-application-result.ps1` converts a terminal per-job result into the shared applications ledger. It is idempotent by job ID; workers and coordinators never hand-append submission rows.
+Only `scripts/reconcile-application-result.ps1` converts a terminal per-job result into the shared applications ledger. Terminal blockers are created through `scripts/write-application-outcome.ps1`. Both are idempotent; workers and coordinators never hand-append application rows.
 
 ## Hard gates before scoring
 A job must pass all of these before a numeric score is computed:

@@ -54,7 +54,7 @@ When LinkedIn OAuth/import populates fields, verify critical facts before submis
 Correct stale or contradictory imported data using the verified profile/canonical facts.
 
 ## Do not confuse OAuth success with eligibility
-A site allowing LinkedIn OAuth or accepting a profile from Pakistan does not prove the role hires in Pakistan. Eligibility must still pass `eligibility-policy.md`.
+A site allowing LinkedIn OAuth or accepting the candidate's home-country profile does not prove the role hires in that jurisdiction. Eligibility must still pass `eligibility-policy.md`.
 
 
 ## LinkedIn governor interaction

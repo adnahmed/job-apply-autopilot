@@ -21,8 +21,8 @@ Do not create queue directories for obvious country locks, closed roles, unknown
 
 Do not stop after one dry wave. Rotate in this order, skipping any lane just exhausted in the current cycle:
 
-1. **Pakistan/local** — backend/software/Python/Node/full-stack/applied-AI variants; recent first.
-2. **APAC/APJ/Asia remote** — role must include Pakistan geographically unless conflicting text appears.
+1. **Home-country/local** — derive locations from `profile.yaml`; search relevant role variants, recent first.
+2. **Compatible regional remote** — use configured regions only when they geographically include the candidate's home country and no conflicting restriction appears.
 3. **Worldwide/international** — require role-specific worldwide/global-contractor/international-hiring evidence before submit.
 4. **Relocation/sponsorship** — explicit visa/relocation/international-candidate bridge.
 5. **Direct employer / ATS outside LinkedIn** — careers pages and official ATS boards for relevant employers; do not stay trapped in LinkedIn search.

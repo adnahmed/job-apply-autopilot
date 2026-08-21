@@ -1,5 +1,5 @@
 ---
-description: Unified bounded research finalizer for one decision-changing eligibility or candidate-evidence uncertainty. Reuses existing reports first and commits the final assessment itself.
+description: Bounded research finalizer for one claimed eligibility or candidate-evidence uncertainty.
 mode: subagent
 hidden: true
 temperature: 0.1
@@ -12,6 +12,7 @@ permission:
   edit: allow
   bash:
     "*": deny
+    "*claim-action.ps1*": allow
     "*commit-assessment.ps1*": allow
   task: deny
   websearch: allow
@@ -22,20 +23,12 @@ permission:
   "browseros-neo_*": deny
 ---
 
-Handle exactly ONE supplied queue directory. Do not load the main skill, ask questions, invoke another worker, fill forms, authenticate, or submit.
+Handle exactly ONE supplied queue directory. Do not load the main skill, ask questions, invoke another worker, authenticate, submit, or probe denied shell commands.
 
-Read `job.json`, `source.md`, `assessment.json`, canonical facts, shared candidate-evidence cache, optional `fit-map.json`, and the matching existing research report. The assessment status determines the one research kind:
+Acquire `<action>` before reading anything using `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Acquire -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>"`. If `acquired` is false, return `busy <action>` immediately. Retain `owner_id`. If no transition clears the claim, release it with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Release -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -OwnerId "<owner_id>"`.
 
-- `needs-research`: eligibility only;
-- `needs-evidence`: the listed candidate capability only.
+Read `job.json`, `source.md`, `assessment.json`, `$HOME\.config\opencode\skills\job-apply-autopilot\canonical\canonical-facts.yaml`, runtime `candidate-evidence.json`, optional `fit-map.json`, and the matching research report. `needs-research` means eligibility only; `needs-evidence` means only the listed candidate capability. Reuse decisive existing evidence. Otherwise inspect at most two authoritative eligibility sources, or at most five targeted first-party repositories and two tied deployments. Stop once decided.
 
-Reuse an existing decisive report without browsing. Otherwise follow one narrow branch and stop immediately when the decision is settled:
+Write only the matching compact research report. Then commit final `passed` or `failed` through `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\commit-assessment.ps1" -WorkItemDir "<work-item>" -ExpectedPriorStatus needs-research -AssessmentJson $assessmentJson -FitMapJson $fitMapJson` for `eligibility_research_pending`, or the same command with `-ExpectedPriorStatus needs-evidence` for `candidate_evidence_pending`. Set both research flags false and include at most eight fit requirements for passed; omit `-FitMapJson` for failed. Never create another research handoff. Treat `already-committed` as success owned by another caller.
 
-- Eligibility: exact-role official requisition/ATS evidence first; inspect at most 2 authoritative sources. Generic remote/search placement remains insufficient.
-- Candidate evidence: targeted first-party sources only; normally inspect at most 2 relevant repos, with a hard ceiling of 5 repos and 2 tied deployments. Never inventory the account or research to prove absence.
-
-Keep reports compact. Eligibility writes `eligibility-research.json` with `job_id`, `state`, `reason_code`, `decisive_source_url`, `decisive_evidence`, `official_job_verified`, and `researched_at`. Candidate evidence writes `candidate-evidence-research.json` with at most 6 findings using `capability`, `evidence_class`, `source_url`, `observed`, `resume_eligible`, and optional `allowed_resume_claim`, plus short `unresolved` values.
-
-Finish the assessment in this same call. Commit `passed` or `failed` through `scripts/commit-assessment.ps1` with both research flags false; never create another research or reassessment handoff. An unresolved ordinary capability becomes a score penalty, while unresolved positive eligibility cannot pass. Passed jobs include at most 8 central fit requirements.
-
-Return exactly one line: `job_id passed|failed score eligibility next_stage`.
+Return exactly one line: `researched <job_id> passed|failed <score> <eligibility>`, `already-committed <job_id> <current_status>`, `busy <action>`, or `recoverable-error <short_code>`.

@@ -20,7 +20,7 @@ function Has-Property($Object, [string]$Name) {
 
 function New-PendingAssessment([string]$JobId) {
     return [ordered]@{
-        policy_version = '5.14'
+        policy_version = '6.0'
         job_id = $JobId
         status = 'pending'
         score = $null
@@ -104,7 +104,12 @@ try {
         Copy-Item -LiteralPath $fitPath -Destination (Join-Path $WorkItemDir "fit-map.invalid.$stamp.json") -Force
         Remove-Item -LiteralPath $fitPath -Force
     }
-    New-PendingAssessment ([string]$job.job_id) | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $assessmentPath -Encoding UTF8
+    $temp = "$assessmentPath.$PID.$([Guid]::NewGuid().ToString('N')).tmp"
+    New-PendingAssessment ([string]$job.job_id) | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $temp -Encoding UTF8
+    [IO.File]::Move($temp, $assessmentPath, $true)
+    $runtimeRoot = Split-Path -Parent (Split-Path -Parent $WorkItemDir)
+    $workspace = Split-Path -Parent $runtimeRoot
+    & (Join-Path $PSScriptRoot 'claim-action.ps1') -Action ClearStage -Scope WorkItem -Stage 'assessment_repair' -WorkItemDir $WorkItemDir -Workspace $workspace | Out-Null
 
     Emit @{ status='repaired'; job_id=[string]$job.job_id; reason=$reason; next_stage='assessment_pending' }
 } catch {

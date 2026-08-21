@@ -6,6 +6,11 @@ $skillRoot = Split-Path -Parent $PSScriptRoot
 $workspace = Join-Path ([IO.Path]::GetTempPath()) ("job-autopilot-resilience-" + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $workspace | Out-Null
 
+function Add-SelfTestLedgerRow([hashtable]$Row) {
+    $ledgerPath = Join-Path $workspace '.job-apply-autopilot\applications.jsonl'
+    Add-Content -LiteralPath $ledgerPath -Value ($Row | ConvertTo-Json -Compress -Depth 6) -Encoding UTF8
+}
+
 try {
     & (Join-Path $PSScriptRoot 'init-workspace.ps1') -Workspace $workspace | Out-Null
     $workItem = & (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId 'selftest-001' -Company 'Self Test Co' -Title 'Backend Engineer' -Location 'Pakistan' -Source 'selftest' -Workspace $workspace | Select-Object -Last 1
@@ -73,7 +78,7 @@ try {
   ]
 }
 '@
-    $commit = (& (Join-Path $PSScriptRoot 'commit-assessment.ps1') -WorkItemDir $workItem -AssessmentJson $assessmentJson -FitMapJson $fitMapJson | Select-Object -Last 1) | ConvertFrom-Json
+    $commit = (& (Join-Path $PSScriptRoot 'commit-assessment.ps1') -WorkItemDir $workItem -ExpectedPriorStatus unassessed -AssessmentJson $assessmentJson -FitMapJson $fitMapJson | Select-Object -Last 1) | ConvertFrom-Json
     if ($commit.status -ne 'committed' -or $commit.next_stage -ne 'coordinator_adjudication_pending') {
         throw "Canonical assessment commit failed: $($commit | ConvertTo-Json -Compress)."
     }
@@ -116,7 +121,7 @@ try {
     $freshSkip = & (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId 'fresh-skip' -Company 'Training Market' -Title 'LLM Evaluator' -Location 'Pakistan' -Source 'test' -Workspace $workspace | Select-Object -Last 1
     "# LLM Evaluator`n`nContractor task marketplace for model-training data evaluation in Pakistan." | Set-Content -LiteralPath (Join-Path $freshSkip 'source.md') -Encoding UTF8
     $freshAssessment = $assessmentJson -replace '"job_id"\s*:\s*"[^"]+"', '"job_id": "fresh-skip"'
-    $freshCommit = (& (Join-Path $PSScriptRoot 'commit-assessment.ps1') -WorkItemDir $freshSkip -AssessmentJson $freshAssessment -FitMapJson $fitMapJson | Select-Object -Last 1) | ConvertFrom-Json
+    $freshCommit = (& (Join-Path $PSScriptRoot 'commit-assessment.ps1') -WorkItemDir $freshSkip -ExpectedPriorStatus unassessed -AssessmentJson $freshAssessment -FitMapJson $fitMapJson | Select-Object -Last 1) | ConvertFrom-Json
     if ($freshCommit.status -ne 'committed') { throw 'Fresh skip setup assessment failed.' }
     & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId 'fresh-skip' -Status 'skipped-role-family' -ReasonCode 'test-terminal-skip' `
         -Company 'Training Market' -Title 'LLM Evaluator' -Source 'test' -Workspace $workspace | Out-Null
@@ -124,8 +129,7 @@ try {
     if (@($snapshot.actions | Where-Object { $_.job_id -eq 'fresh-skip' }).Count -ne 0) { throw 'Fresh terminal skip was incorrectly reopened.' }
 
     # A new ID for a recently submitted company/title must be treated as a semantic duplicate.
-    & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId 'dup-old' -Status 'submitted' -ReasonCode 'test-submitted' `
-        -Company 'Acme Ltd.' -Title 'Backend Engineer' -Source 'external' -Workspace $workspace | Out-Null
+    Add-SelfTestLedgerRow ([ordered]@{ timestamp=[DateTimeOffset]::UtcNow.ToString('o'); job_id='dup-old'; status='submitted'; reason_code='test-submitted'; company='Acme Ltd.'; title='Backend Engineer'; source='external' })
     $candidateJson = @([ordered]@{ job_id='dup-new'; company='Acme'; title='Backend Engineer' }) | ConvertTo-Json -Compress
     $dedupe = (& (Join-Path $PSScriptRoot 'dedupe-jobs.ps1') -CandidatesJson $candidateJson -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
     $duplicate = @($dedupe | Where-Object { $_.job_id -eq 'dup-new' }) | Select-Object -First 1
@@ -139,8 +143,7 @@ try {
 
     # Governor must reconstruct Easy Apply history from reason_code even when source is only 'linkedin',
     # accept -JobId, and avoid recording the same job twice.
-    & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId 'li-ledger' -Status 'submitted' -ReasonCode 'easy-apply-submitted' `
-        -Company 'Linked Test' -Title 'Platform Engineer' -Source 'linkedin' -Workspace $workspace | Out-Null
+    Add-SelfTestLedgerRow ([ordered]@{ timestamp=[DateTimeOffset]::UtcNow.ToString('o'); job_id='li-ledger'; status='submitted'; reason_code='easy-apply-submitted'; company='Linked Test'; title='Platform Engineer'; source='linkedin' })
     $governor = (& (Join-Path $PSScriptRoot 'linkedin-governor.ps1') -Action Status -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
     if ($governor.easy_apply_submissions_last_24h -ne 1) { throw "Governor did not recover the ledger Easy Apply event: $($governor | ConvertTo-Json -Compress)." }
     $governor = (& (Join-Path $PSScriptRoot 'linkedin-governor.ps1') -Action RecordEasyApply -JobId 'li-new' -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
@@ -165,7 +168,7 @@ try {
     if ($null -eq $sendAction -or $sendAction.stage -ne 'application_verification') { throw 'Reserved send did not route to application_verification.' }
     if ($sendAction.dispatch -ne 'job-autopilot-email-apply') { throw 'Email verification was dispatched to the wrong applicator.' }
     $grace = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $sendDir -Action MarkVerifiedAbsent `
-        -ReservationId $reserve.reservation_id -Proof 'Sent search empty' | Select-Object -Last 1) | ConvertFrom-Json
+        -ReservationId $reserve.reservation_id -ProofKind exact-sent-search-absence -Proof 'Sent search empty' | Select-Object -Last 1) | ConvertFrom-Json
     if ($grace.status -ne 'verification-grace' -or $grace.safe_to_submit) { throw 'Send verification grace failed.' }
     $submitted = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $sendDir -Action MarkSubmitted `
         -ReservationId $reserve.reservation_id -Proof 'Message visible in Sent' | Select-Object -Last 1) | ConvertFrom-Json

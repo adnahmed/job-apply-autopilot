@@ -31,7 +31,7 @@ After a lane has at least 8 resolved jobs:
 
 Examples:
 - `Worldwide` searches that mostly produce region-locked roles should lose priority,
-- Pakistan-targeted backend searches that yield direct employers should gain priority,
+- home-country-targeted backend searches that yield direct employers should gain priority,
 - relocation searches remain active even with lower volume because their upside differs from ordinary remote searches.
 
 ## Never optimize the wrong target

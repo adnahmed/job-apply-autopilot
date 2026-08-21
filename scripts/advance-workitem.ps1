@@ -22,6 +22,13 @@ function Invoke-Defer([string]$Dir, [string]$Stage, [string]$Code, [string]$Mess
     return (& $deferScript -WorkItemDir $Dir -Stage $Stage -Code $Code -Message $Message | Select-Object -Last 1)
 }
 
+function Clear-AdvanceClaims {
+    if ([string]::IsNullOrWhiteSpace([string]$WorkItemDir) -or -not (Test-Path -LiteralPath $WorkItemDir) -or [string]::IsNullOrWhiteSpace([string]$Workspace)) { return }
+    foreach ($stage in @('coordinator_adjudication_pending','assessment_repair')) {
+        try { & (Join-Path $PSScriptRoot 'claim-action.ps1') -Action ClearStage -Scope WorkItem -Stage $stage -WorkItemDir $WorkItemDir -Workspace $Workspace | Out-Null } catch {}
+    }
+}
+
 
 try {
     if ([string]::IsNullOrWhiteSpace($Workspace)) { $Workspace = (Get-Location).Path }
@@ -115,4 +122,6 @@ try {
 } catch {
     Emit @{ status='recoverable-error'; code='advance-workitem-exception'; message=$_.Exception.Message; next_stage='process_other_work' }
     exit 0
+} finally {
+    Clear-AdvanceClaims
 }

@@ -30,8 +30,20 @@ foreach ($name in $names) {
         $failed = $true
         continue
     }
+    if ($text -notmatch '(?m)^\s{4}"\*claim-action\.ps1\*":\s*allow\s*$' -or $text -notmatch '\-Action Acquire') {
+        Write-Error "ACTION CLAIM CONTRACT MISSING in $path"
+        $failed = $true
+        continue
+    }
+    if ($text -notmatch [regex]::Escape('$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1') -or
+        $text -notmatch '(?s)-Action Release.*?-Scope WorkItem.*?-Stage.*?-WorkItemDir.*?-OwnerId' -or
+        $text -notmatch 'Return exactly one') {
+        Write-Error "WORKER PATH/RELEASE/RETURN CONTRACT INVALID in $path"
+        $failed = $true
+        continue
+    }
     if ($name -eq 'job-autopilot-assessor.md') {
-        if ($text -notmatch '(?m)^\s{2}edit:\s*deny\s*$' -or $text -notmatch '(?m)^\s{4}"\*commit-assessment\.ps1\*":\s*allow\s*$') {
+        if ($text -notmatch '(?m)^\s{2}edit:\s*deny\s*$' -or $text -notmatch '(?m)^\s{4}"\*commit-assessment\.ps1\*":\s*allow\s*$' -or $text -notmatch 'ExpectedPriorStatus') {
             Write-Error "ASSESSOR DETERMINISTIC COMMIT PERMISSION INVALID in $path"
             $failed = $true
             continue
@@ -50,6 +62,15 @@ foreach ($name in $names) {
     if ($name -in @('job-autopilot-external-apply.md','job-autopilot-email-apply.md')) {
         if ($text -notmatch '(?m)^\s{2}"browseros-neo_\*":\s*allow\s*$') {
             Write-Error "APPLICATOR BROWSEROS ALLOW MISSING in $path"
+            $failed = $true
+            continue
+        }
+        if ($text -notmatch '(?m)^\s{4}"\*write-application-outcome\.ps1\*":\s*allow\s*$' -or
+            $text -notmatch 'one-strike rule' -or $text -notmatch 'never call (it|`run`) again' -or
+            $text -notmatch 'probe denied shell commands|Never probe shell/CDP' -or $text -notmatch 'quarantined' -or
+            $text -notmatch [regex]::Escape('$HOME\.config\opencode\skills\job-apply-autopilot\scripts\write-application-outcome.ps1') -or
+            $text -notmatch [regex]::Escape('$HOME\.config\opencode\skills\job-apply-autopilot\references\browseros-playbook.md')) {
+            Write-Error "APPLICATOR V6 OUTCOME/QUARANTINE CONTRACT MISSING in $path"
             $failed = $true
             continue
         }

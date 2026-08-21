@@ -14,7 +14,7 @@ Use this only for a CAPTCHA/challenge page. The user has an external solver inst
 - Do not click Submit again, refresh-loop, open alternate challenge endpoints, synthesize tokens, or inspect anti-bot internals.
 - Leave the CAPTCHA tab open for the external solver/operator instead of treating it as disposable.
 - Record `application-progress.json` stage `captcha-waiting` with the URL and observed challenge text when the worker can checkpoint.
-- If Send/Submit definitely has not occurred, call `application-send-guard.ps1 -Action CancelBeforeSubmit`, then `defer-workitem.ps1 -Stage captcha-waiting -Code captcha-solver-pending` and continue other work.
+- If Send/Submit definitely has not occurred, call `$HOME\.config\opencode\skills\job-apply-autopilot\scripts\application-send-guard.ps1 -Action CancelBeforeSubmit` with the work item and reservation ID, then call `$HOME\.config\opencode\skills\job-apply-autopilot\scripts\defer-workitem.ps1 -WorkItemDir <work-item> -Stage captcha-waiting -Code captcha-solver-pending`. The defer transition clears the actual active action claim even though `captcha-waiting` is a checkpoint stage.
 - If Send/Submit may already have occurred, call `MarkAmbiguous`; the next action is verification, never another Send/Submit.
 - A challenge that remains after this window or reappears after clearing counts as failed/repeated recovery. Record the affected domain through `domain-circuit-breaker.ps1 -Action Record` and stop that route.
 

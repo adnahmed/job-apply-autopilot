@@ -1,62 +1,51 @@
-# V5.15.1 Validation
+# V6.0.0 Release Contract
 
-- `VERSION.txt` = `5.15.1`.
-- Main skill heading/package version = `5.15.1`.
-- Assessor inputs and commit script use deterministic installed/runtime paths and its bounded local budget covers one rejected-payload correction.
-- Verification grace is derived from the original UTC reservation, persists in send state, never slides on retry, and is scheduler-deferred without worker-side waiting.
-- Worker actions expose an exact two-line `worker_prompt`; coordinators use it verbatim and never take over assessor-owned commits.
-- `session-state.ps1` preserves the established `next_action` enum while exposing runnable generated and queue stages together.
-- Each action names its dispatch target exactly once; state does not duplicate paths in batch arrays.
-- Assessor, unified research, resume, external ATS, and email paths are runtime-limited rather than skill-capped; only coordinator-owned LinkedIn Easy Apply is serial at 1.
-- Scheduler state exposes only `default: unbounded` and `linkedin_easy_apply: 1`, with no non-LinkedIn limit entries.
-- The assessor remains local/web-free; one unified web-heavy research finalizer commits the final decision without another assessor call.
-- The scheduler maintains an 8-job intake floor and reports `discovery_needed` plus exact `discovery_slots`; ready work runs before refill.
-- Discovery captures multiple complete JDs per pass instead of returning to state after the first plausible job.
-- A failed worker remains isolated to its job and does not consume unrelated worker capacity.
-- The pinned goal plugin registers globally and supervised slices activate one continuous coordinator goal when the user requested persistence.
-- Goal completion is forbidden for submission counts, temporary queue exhaustion, blocked routes, or slice boundaries; ordinary messages steer the loop, while `/goal pause` and `/goal stop` are explicit controls.
-- Every continuation reruns authoritative campaign state; goal control flow cannot authorize a duplicate Send/Submit or worker-created goal.
-- Canonical `.tex` files are unchanged from V5.11.
-- All packaged subagents keep `question: deny`.
-- Assessor direct `edit` is denied; only `commit-assessment.ps1` is allowed for assessment artifact writes.
-- `commit-assessment.ps1` validates canonical status/score/hard-gate/fit-map shape and writes atomically.
-- `session-state.ps1` detects malformed or contradictory passed assessment artifacts and routes them to `assessment_repair`.
-- Queue copies are non-actionable after promotion, and only an explicit `allow_after_prior_skip` flag may reopen a technical skip.
-- `repair-workitem.ps1` backs up malformed artifacts and resets safely to pending rather than inferring truth/gates.
-- `advance-workitem.ps1` is the coordinator promotion boundary; it catches promotion exceptions as recoverable job-local results.
-- `defer-workitem.ps1` applies bounded retry backoff, and `session-state.ps1` excludes deferred queue/generated items so they cannot stall discovery or other applications.
-- `promote-workitem.ps1` accepts either `-WorkItemDir` or `-JobId`, eliminating the V5.11.4 binder mistake.
-- Recoverable schema/script/browser/resume/worker errors are explicitly non-terminal for the campaign.
-- A standalone CAPTCHA preserves its tab and gets exactly one installed-solver trigger plus a targeted wait of up to 120 seconds; CAPTCHA presence alone is not an immediate domain circuit.
-- Failed/repeated CAPTCHA recovery, MFA, and security/automation controls remain zero-Submit-retry and route-local; unaffected jobs continue.
-- `domain-circuit-breaker.ps1` repairs legacy concatenated JSONL, writes atomic markers, and `session-state.ps1` suppresses active domains including subdomains.
-- `application-send-guard.ps1` prevents missing/ambiguous receipts and parallel same-company/title job IDs from authorizing a second Send/Submit.
-- `reconcile-application-result.ps1` appends one ledger row per terminal job result and returns `already-reconciled` on repeats.
-- Direct email applications use the dedicated idempotent email subagent and verify Gmail Sent before any retry.
-- Persistent discovery, bounded on-demand assessor lookup, uncapped non-LinkedIn workers, and the LinkedIn governor remain intact.
-- Missing/placeholder JDs route to `source_pending`, never `assessment_pending`.
-- Recent same-company/same-title reposts are semantically deduped even when the job ID changes.
-- `submitted_unique` is the headline and `submitted_rows` remains audit detail.
-- The LinkedIn governor merges ledger truth, parses JSON `DateTime` values safely, serializes writers, and replaces state atomically.
-- The BrowserOS playbook includes current session ownership, one-strike fallback, connection-loss, and upload behavior.
-- BrowserOS health uses IPv4 loopback by default so Windows `localhost`/IPv6 resolution cannot falsely report both ports down.
-- Supervisor validation resolves OpenCode without launching it; `get-autopilot-status.ps1` distinguishes running, stopped, stale, and stop-requested state.
-- Per-slice launch/logging failures enter `slice-error-recovering` and do not terminate the persistent supervisor.
-- Installation backups are stored under `~/.config/opencode/skill-backups`, outside skill discovery.
+This document describes the required implementation state. It does not invoke a test suite.
 
-## Regression self-test
+- `VERSION.txt` and the main skill heading are `6.0.0`.
+- Persistence is owned only by `opencode-goal-plugin@0.8.1`, with `noContinueWhileChildrenActive: true` and durable state enabled.
+- Every goal continuation reruns `session-state.ps1`; restart recovery remains paused until `/goal resume`.
+- No packaged command launches, monitors, stops, health-gates, or keeps awake an OS background coordinator.
+- Queue/generated/discovery stages use expiring claims; matching transitions clear claims and expired claims do not suppress work.
+- Assessment commits require expected prior state and serialize under the work-item lock.
+- Promotion and resume compilation reuse valid existing outputs under work-item locks.
+- Applicators write terminal blockers through `write-application-outcome.ps1`.
+- Terminal progress without `application-result.json` exposes `application_outcome_repair`, never `application_resume`.
+- `log-decision.ps1` accepts only enumerated discovery/assessment skip statuses, serializes writes, and rejects promoted application work.
+- External ATS absence requires `authenticated-ats-tracker-absence`; email absence requires `exact-sent-search-absence`; user confirmation is accepted only through the resolution command.
+- Public job pages, history, missing files, and missing confirmation email cannot clear a reservation.
+- Unavailable authoritative verification becomes `application_verification_quarantined`, creates no ledger row, consumes no discovery slot, and does not block unrelated work.
+- `resolve-application-quarantine.ps1` exposes `List`, `Reverify`, `ConfirmSubmitted`, `ConfirmAbsent`, `RetryApplication`, and `Abandon`.
+- Retry refuses any submitted exact or semantic duplicate and accepts only proven pre-submit/cancelled or verified-absent state.
+- Session state reports quarantine count, outcome-repair count, per-item claim metadata, and discovery claim metadata.
+- Every worker uses exact installed script/reference paths, acquires its stage before reading, does not probe denied shell commands, and returns one canonical status line.
+- Browser workers use `run` at most once after failure, then granular tools; connection loss ends browser calls for that worker.
+- When BrowserOS is unavailable, local work continues; if no useful local work remains, the active goal blocks with the concrete BrowserOS reason until restoration and `/goal resume`.
+- Package verification must use temporary campaign workspaces and must never send an application or email.
 
-Run:
+## Retained pipeline invariants
 
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\selftest-resilience.ps1
-```
+- The coordinator workspace is captured once; runtime remains `<workspace>\.job-apply-autopilot`, with no sibling/home workspace discovery.
+- `session-state.ps1` preserves the established `next_action` compatibility enum while exposing all runnable cross-stage actions once, each with one dispatch target and an exact two-line `worker_prompt`.
+- Scheduler concurrency exposes `default: unbounded` and `linkedin_easy_apply: 1`; it has no non-LinkedIn skill caps or duplicate dispatch batches.
+- The assessor remains local/web-free and can request only one bounded research kind; the research finalizer commits the decision without a third reassessment worker.
+- Passed fit maps contain at most eight central requirements. Positive eligibility for the candidate's documented home jurisdiction remains mandatory before submission.
+- Canonical `.tex` files remain immutable; generated scaffolds record their canonical SHA-256, compilation checks it, and upload uses only the unique manifest PDF.
+- All packaged subagents keep `question: deny` and `task: deny`. Non-browser workers deny BrowserOS; applicators alone receive browser permission.
+- A placeholder or missing JD routes to `source_pending`. Promoted queue copies are shadowed by their generated work item.
+- `repair-workitem.ps1` backs up malformed artifacts and resets them without inventing truth or hard-gate values.
+- `advance-workitem.ps1` remains the coordinator promotion boundary and converts promotion exceptions into recoverable job-local state.
+- Recoverable failures retain bounded 1m/5m/30m cooldowns and do not hide unrelated application, queue, or discovery work.
+- Domain circuit state remains serialized, supports subdomains, repairs legacy concatenated JSONL, and suppresses only affected routes until clearance/expiry.
+- `application-send-guard.ps1` remains the only outbound reservation/receipt boundary and prevents parallel semantic company/title attempts.
+- `reconcile-application-result.ps1` remains the only result-to-ledger application boundary and is idempotent on repeated calls.
+- The LinkedIn governor reconstructs ledger history, parses timestamps invariantly, serializes writers, and avoids duplicate job-ID records.
+- Discovery still batch-dedupes visible identities before detail-page work, rotates lanes after dry results, and does not stop after the first plausible job.
+- Candidate evidence remains bounded to decision-changing first-party sources; missing evidence is not proof of inability.
+- Browser automation retains task-owned tabs, fresh upload-input references, exact filename verification, one-strike `run` fallback, and immediate stop after connection loss.
+- Truth boundaries still prohibit invented identity, employment, education, authorization, management, metrics, and technology-specific duration.
+- No coordinator may declare completion or a natural pause while unclaimed actions or needed discovery remain.
 
-The test verifies source gating, deterministic repair/commit/promotion, semantic dedupe, idempotent outbound reservations, ambiguity grace, legacy circuit repair, active-domain routing, unique metrics, and governor recovery.
+## Release review boundaries
 
-Validate the supervisor without launching an agent:
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-campaign.ps1 -Workspace <campaign-workspace> -ValidateOnly
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-browseros-health.ps1
-```
+Release review is static and non-sending. Any future executable verification must use a newly created temporary campaign workspace and must not authenticate, submit, send email, or mutate an existing campaign.

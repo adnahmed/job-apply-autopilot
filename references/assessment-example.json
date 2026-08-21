@@ -1,11 +1,11 @@
 {
-  "policy_version": "5.14",
+  "policy_version": "6.0",
   "job_id": "example",
   "status": "passed",
   "score": 78,
   "trust_class": "DIRECT_REASONABLE",
   "role_family": "backend-engineer",
-  "eligibility_state": "PAKISTAN_ELIGIBLE",
+  "eligibility_state": "HOME_JURISDICTION_ELIGIBLE",
   "hard_gates": {
     "integrity": true,
     "eligibility": true,

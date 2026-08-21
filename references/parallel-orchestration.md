@@ -1,4 +1,4 @@
-# Parallel Orchestration V5.15 — Compact Uncapped Pipeline
+# Parallel Orchestration V6.0 — Claimed Uncapped Pipeline
 
 Optimize verified net-new submissions per hour. Keeping one independent job in flight is a scheduler failure.
 
@@ -6,7 +6,7 @@ Optimize verified net-new submissions per hour. Keeping one independent job in f
 
 LinkedIn Easy Apply is coordinator-owned and serial at 1 under its governor. Every assessor, research, resume, external ATS, and email worker is otherwise uncapped by skill policy and runs up to runtime capacity.
 
-Group `session-state.ps1` actions by `dispatch` and emit all Task calls for a group in one assistant turn. Never call one worker, wait, and then call the next independent worker. The state snapshot carries each path once; do not reconstruct or duplicate path batches.
+Group `session-state.ps1` actions by `dispatch` and emit all Task calls for a group in one assistant turn. Never call one worker, wait, and then call the next independent worker. The state snapshot carries each path once; do not reconstruct or duplicate path batches. Every worker and coordinator-local action must acquire its stage claim before reading or acting; a losing owner exits immediately.
 
 ## Fast and research waves
 
@@ -22,4 +22,4 @@ Keep at least 8 source-ready/actionable jobs in the pipeline. This is a feed flo
 
 A failed worker affects only its job. Completed jobs continue and unused runtime capacity takes other jobs. An empty/incomplete resume result gets one direct resume-worker retry; the coordinator does not inspect compiler implementation.
 
-Worker prompts contain exactly the absolute job directory and action. Assessment commits through `commit-assessment.ps1`, positive candidate evidence merges at coordinator promotion, and every outbound side effect uses `application-send-guard.ps1`.
+Worker prompts contain exactly the absolute job directory and action. Assessment commits through `commit-assessment.ps1` with expected prior state, positive candidate evidence merges at coordinator promotion, and every outbound side effect uses `application-send-guard.ps1`. Verification quarantine is excluded from the intake floor.

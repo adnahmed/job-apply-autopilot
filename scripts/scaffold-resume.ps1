@@ -43,10 +43,32 @@ New-Item -ItemType Directory -Force -Path $jobDir | Out-Null
 
 $auditPath = Join-Path $jobDir 'canonical-source.tex'
 $texPath = Join-Path $jobDir 'resume.tex'
-Copy-Item -LiteralPath $canonicalPath -Destination $auditPath -Force
-Copy-Item -LiteralPath $canonicalPath -Destination $texPath -Force
+$existingJobPath = Join-Path $jobDir 'job.json'
+$canonicalHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $canonicalPath).Hash.ToLowerInvariant()
+if (Test-Path -LiteralPath $existingJobPath) {
+    try {
+        $existingJob = Get-Content -LiteralPath $existingJobPath -Raw | ConvertFrom-Json
+        if ([string]$existingJob.job_id -ne $JobId) { throw "Generated directory belongs to a different job: $jobDir" }
+        if ([string]$existingJob.canonical -ne $Canonical) { throw "Generated directory uses canonical '$($existingJob.canonical)', not '$Canonical'." }
+        if ([string]::IsNullOrWhiteSpace([string]$existingJob.canonical_sha256)) { throw 'Existing generated scaffold has no recorded canonical hash.' }
+        $tailoringPath = Join-Path $jobDir 'tailoring-audit.json'
+        $validExisting = ((Test-Path -LiteralPath $auditPath) -and (Test-Path -LiteralPath $texPath) -and (Test-Path -LiteralPath $tailoringPath))
+        if ($validExisting) {
+            $auditHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $auditPath).Hash.ToLowerInvariant()
+            if ($auditHash -ne [string]$existingJob.canonical_sha256) { throw 'Existing canonical-source.tex does not match its recorded immutable hash.' }
+            $tailoring = Get-Content -LiteralPath $tailoringPath -Raw | ConvertFrom-Json
+            if ([string]$tailoring.job_id -ne $JobId) { throw 'Existing tailoring audit belongs to a different job.' }
+            Write-Output $texPath
+            exit 0
+        }
+    } catch {
+        throw "Existing generated scaffold is invalid: $($_.Exception.Message)"
+    }
+}
 
-$hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $canonicalPath).Hash.ToLowerInvariant()
+if (-not (Test-Path -LiteralPath $auditPath)) { Copy-Item -LiteralPath $canonicalPath -Destination $auditPath }
+if (-not (Test-Path -LiteralPath $texPath)) { Copy-Item -LiteralPath $canonicalPath -Destination $texPath }
+
 $meta = [ordered]@{
     job_id = $JobId
     company = $Company
@@ -55,11 +77,11 @@ $meta = [ordered]@{
     job_url = $JobUrl
     canonical = $Canonical
     canonical_path = $canonicalPath
-    canonical_sha256 = $hash
+    canonical_sha256 = $canonicalHash
     created_at = (Get-Date).ToUniversalTime().ToString('o')
     status = 'canonical-scaffolded-awaiting-assessment-fit-map-and-tailoring'
 }
-$meta | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $jobDir 'job.json') -Encoding UTF8
+$meta | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $existingJobPath -Encoding UTF8
 
 $assessment = [ordered]@{
     job_id = $JobId
@@ -75,7 +97,10 @@ $assessment = [ordered]@{
     }
     status = 'must-pass-hard-gates-before-score-or-tailoring'
 }
-$assessment | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $jobDir 'assessment.json') -Encoding UTF8
+$scaffoldAssessmentPath = Join-Path $jobDir 'assessment.json'
+if (-not (Test-Path -LiteralPath $scaffoldAssessmentPath)) {
+    $assessment | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $scaffoldAssessmentPath -Encoding UTF8
+}
 
 $fitMap = [ordered]@{
     job_id = $JobId
@@ -83,7 +108,10 @@ $fitMap = [ordered]@{
     score = $null
     status = 'must-be-filled-before-resume-tailoring'
 }
-$fitMap | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $jobDir 'fit-map.json') -Encoding UTF8
+$scaffoldFitPath = Join-Path $jobDir 'fit-map.json'
+if (-not (Test-Path -LiteralPath $scaffoldFitPath)) {
+    $fitMap | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $scaffoldFitPath -Encoding UTF8
+}
 
 $tailoringAudit = [ordered]@{
     job_id = $JobId
@@ -97,6 +125,9 @@ $tailoringAudit = [ordered]@{
     unsupported_terms_added = @()
     status = 'must-be-completed-before-compile'
 }
-$tailoringAudit | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $jobDir 'tailoring-audit.json') -Encoding UTF8
+$tailoringAuditPath = Join-Path $jobDir 'tailoring-audit.json'
+if (-not (Test-Path -LiteralPath $tailoringAuditPath)) {
+    $tailoringAudit | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $tailoringAuditPath -Encoding UTF8
+}
 
 Write-Output $texPath

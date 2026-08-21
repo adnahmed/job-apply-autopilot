@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$WorkItemDir,
     [Parameter(Mandatory=$true)][string]$AssessmentJson,
-    [string]$FitMapJson = ''
+    [string]$FitMapJson = '',
+    [Parameter(Mandatory=$true)][ValidateSet('unassessed','needs-research','needs-evidence','malformed')][string]$ExpectedPriorStatus
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,6 +18,42 @@ function Has-Property($Object, [string]$Name) {
 
 function Is-Bool($Value) {
     return ($Value -is [bool])
+}
+
+function Write-JsonAtomic([string]$Path, $Value, [int]$Depth = 10) {
+    $temp = "$Path.$PID.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        $Value | ConvertTo-Json -Depth $Depth | Set-Content -LiteralPath $temp -Encoding UTF8
+        [IO.File]::Move($temp, $Path, $true)
+    } finally {
+        if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+function Get-CurrentAssessmentStatus([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return 'unassessed' }
+    try {
+        $current = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+        if ([string]$current.status -in @('pending','captured-awaiting-source-and-assessment')) { return 'unassessed' }
+        if ([string]$current.status -in @('passed','needs-research','needs-evidence','failed')) { return [string]$current.status }
+        return 'malformed'
+    } catch { return 'malformed' }
+}
+
+function Clear-TransitionClaims([string]$Dir, [string]$PriorStatus) {
+    $claimScript = Join-Path $PSScriptRoot 'claim-action.ps1'
+    if (-not (Test-Path -LiteralPath $claimScript)) { return }
+    $runtimeRoot = Split-Path -Parent (Split-Path -Parent $Dir)
+    $workspace = Split-Path -Parent $runtimeRoot
+    $stages = switch ($PriorStatus) {
+        'unassessed' { @('assessment_pending','reassessment_pending') }
+        'malformed' { @('assessment_repair') }
+        'needs-research' { @('eligibility_research_pending') }
+        'needs-evidence' { @('candidate_evidence_pending') }
+    }
+    foreach ($stage in $stages) {
+        & $claimScript -Action ClearStage -Scope WorkItem -Stage $stage -WorkItemDir $Dir -Workspace $workspace | Out-Null
+    }
 }
 
 try {
@@ -107,7 +144,7 @@ try {
     }
 
     $assessment = [ordered]@{
-        policy_version = '5.14'
+        policy_version = '6.0'
         job_id = [string]$job.job_id
         status = [string]$draft.status
         score = $score
@@ -154,7 +191,7 @@ try {
             }
         }
         $fit = [ordered]@{
-            policy_version = '5.14'
+            policy_version = '6.0'
             job_id = [string]$job.job_id
             status = 'complete'
             score = $score
@@ -163,21 +200,34 @@ try {
     }
 
     $assessmentPath = Join-Path $WorkItemDir 'assessment.json'
-    $assessmentTmp = "$assessmentPath.tmp"
-    $assessment | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $assessmentTmp -Encoding UTF8
-    Move-Item -LiteralPath $assessmentTmp -Destination $assessmentPath -Force
-
     $fitPath = Join-Path $WorkItemDir 'fit-map.json'
-    if ($null -ne $fit) {
-        $fitTmp = "$fitPath.tmp"
-        $fit | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $fitTmp -Encoding UTF8
-        Move-Item -LiteralPath $fitTmp -Destination $fitPath -Force
-    } elseif (Test-Path -LiteralPath $fitPath) {
-        Remove-Item -LiteralPath $fitPath -Force
-    }
+    $lockPath = Join-Path $WorkItemDir '.work-item.lock'
+    $lock = $null
+    try {
+        try { $lock = [IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None') }
+        catch {
+            Emit @{ status='busy'; job_id=[string]$job.job_id; next_stage=$ExpectedPriorStatus }
+            exit 0
+        }
 
-    $recoverablePath = Join-Path $WorkItemDir 'recoverable-error.json'
-    if (Test-Path -LiteralPath $recoverablePath) { Remove-Item -LiteralPath $recoverablePath -Force }
+        $currentStatus = Get-CurrentAssessmentStatus $assessmentPath
+        if ($currentStatus -ne $ExpectedPriorStatus) {
+            Emit @{ status='already-committed'; job_id=[string]$job.job_id; expected_prior_status=$ExpectedPriorStatus; current_status=$currentStatus; next_stage='rerun_session_state' }
+            exit 0
+        }
+
+        Write-JsonAtomic $assessmentPath $assessment 10
+        if ($null -ne $fit) {
+            Write-JsonAtomic $fitPath $fit 12
+        } elseif (Test-Path -LiteralPath $fitPath) {
+            Remove-Item -LiteralPath $fitPath -Force
+        }
+
+        $recoverablePath = Join-Path $WorkItemDir 'recoverable-error.json'
+        if (Test-Path -LiteralPath $recoverablePath) { Remove-Item -LiteralPath $recoverablePath -Force }
+    } finally {
+        if ($null -ne $lock) { $lock.Dispose() }
+    }
 
     $nextStage = switch ([string]$assessment.status) {
         'passed' { 'coordinator_adjudication_pending' }
@@ -185,7 +235,8 @@ try {
         'needs-evidence' { 'candidate_evidence_pending' }
         'failed' { 'terminal' }
     }
-    Emit @{ status='committed'; job_id=[string]$job.job_id; assessment_status=[string]$assessment.status; score=$score; next_stage=$nextStage }
+    Clear-TransitionClaims $WorkItemDir $ExpectedPriorStatus
+    Emit @{ status='committed'; job_id=[string]$job.job_id; assessment_status=[string]$assessment.status; score=$score; expected_prior_status=$ExpectedPriorStatus; next_stage=$nextStage }
 } catch {
     Emit @{ status='recoverable-error'; code='commit-assessment-exception'; message=$_.Exception.Message; next_stage='assessment_pending' }
     exit 0

@@ -13,7 +13,7 @@ For the exact requisition, prefer:
 4. direct-employer LinkedIn location/region,
 5. general company hiring policy.
 
-A closed official country list excluding Pakistan is decisive negative evidence. An official exact-role APAC/APJ/Asia/global scope with no narrower contradiction is positive evidence under `eligibility-policy.md`.
+A closed official country list excluding the candidate's home country is decisive negative evidence. An official exact-role regional/global scope is positive only when it includes the home country or supplies an explicit hiring bridge under `eligibility-policy.md`.
 
 ## Workable
 Observed official widget endpoint pattern:
@@ -23,8 +23,8 @@ Observed official widget endpoint pattern:
 Procedure:
 - identify the exact requisition by title + shortcode / publication metadata,
 - inspect repeated country variants for the same exact requisition,
-- if the ATS enumerates a finite set of countries and Pakistan is not present, classify `NOT_ELIGIBLE` unless explicit sponsorship/relocation bridges the gap,
-- if Pakistan is present, treat it as strong positive evidence.
+- if the ATS enumerates a finite set of countries and the candidate's home country is absent, classify `NOT_ELIGIBLE` unless explicit sponsorship/relocation bridges the gap,
+- if the candidate's home country is present, treat it as strong positive evidence.
 
 Do not infer worldwide eligibility merely from `telecommuting=true`.
 
@@ -36,11 +36,11 @@ Observed official posting API pattern:
 Procedure:
 - match the exact requisition / posting id,
 - inspect `location`, `secondaryLocations`, remote/workplace fields, and any explicit region description,
-- `Remote (Europe)` / Europe-only evidence excludes Pakistan absent an explicit bridge,
+- a region-locked remote role excludes a candidate outside that region absent an explicit bridge,
 - generic marketing such as `remote-first` or `around the world` does not override an exact requisition location.
 
 ## Lever
-Lever job pages are often sufficient for identity and location, but a location text box accepting Pakistan during an application is NOT by itself positive eligibility evidence.
+Lever job pages are often sufficient for identity and location, but a location text box accepting the candidate's home country during an application is NOT by itself positive eligibility evidence.
 
 Use:
 - exact job page location / team / commitment fields,

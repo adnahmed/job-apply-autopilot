@@ -34,7 +34,7 @@ Do not infer relocation from:
 - a global company,
 - offices in multiple countries,
 - employees/team members in multiple countries,
-- an ATS accepting a Pakistan address,
+- an ATS accepting the candidate's home-country address,
 - LinkedIn `Remote`,
 - LinkedIn `Worldwide`,
 - salary shown in another country,
@@ -45,8 +45,8 @@ Do not infer relocation from:
 If user says `remote only`, do not submit non-remote relocation jobs. Keep strong explicit relocation opportunities on the watchlist.
 
 ## Default campaigns
-If user does not specify location restrictions, search both:
-- Pakistan / explicitly worldwide remote,
+If the user does not specify location restrictions, derive local lanes from `profile.yaml` and search both:
+- candidate home-country / explicitly worldwide remote,
 - verified relocation/sponsorship roles.
 
 ## Relocation never repairs weak fit

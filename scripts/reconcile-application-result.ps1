@@ -21,6 +21,9 @@ $job = Get-Content -LiteralPath $jobPath -Raw | ConvertFrom-Json
 $assessment = if (Test-Path -LiteralPath $assessmentPath) { try { Get-Content -LiteralPath $assessmentPath -Raw | ConvertFrom-Json } catch { $null } } else { $null }
 $jobId = [string]$job.job_id
 if ([string]::IsNullOrWhiteSpace($jobId)) { throw 'job.json has no job_id.' }
+function Clear-ReconcileClaim {
+    & (Join-Path $PSScriptRoot 'claim-action.ps1') -Action ClearStage -Scope WorkItem -Stage 'reconcile_result' -WorkItemDir $WorkItemDir -Workspace $Workspace | Out-Null
+}
 if ([string]$result.status -like 'handoff-*') {
     [ordered]@{ status='handoff-not-reconciled'; job_id=$jobId; result_status=$result.status } | ConvertTo-Json -Compress
     exit 0
@@ -40,6 +43,7 @@ try {
         try {
             $existing = $line | ConvertFrom-Json
             if ([string]$existing.job_id -eq $jobId -and ([string]$existing.status -eq 'submitted' -or [string]$existing.status -eq [string]$result.status)) {
+                Clear-ReconcileClaim
                 [ordered]@{ status='already-reconciled'; job_id=$jobId; ledger_status=$existing.status } | ConvertTo-Json -Compress
                 exit 0
             }
@@ -83,7 +87,9 @@ try {
         $stream.Flush($true)
     } finally { $stream.Dispose() }
     & (Join-Path $PSScriptRoot 'update-campaign-stats.ps1') -Workspace $Workspace | Out-Null
+    Clear-ReconcileClaim
     [ordered]@{ status='reconciled'; job_id=$jobId; ledger_status=$ledgerStatus; reason_code=$reasonCode } | ConvertTo-Json -Compress
 } finally {
     if ($null -ne $lock) { $lock.Dispose() }
+    try { Clear-ReconcileClaim } catch {}
 }

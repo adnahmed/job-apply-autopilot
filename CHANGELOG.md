@@ -1,3 +1,18 @@
+# V6.0.0 — Goal-Only Reliability Hardening
+
+- Made the session goal plugin the sole persistence owner and enabled its child-session continuation gate.
+- Removed all packaged OS-process lifecycle and browser-health commands.
+- Added stage-scoped expiring claims for work items and discovery.
+- Made assessment commits first-writer-safe with expected prior status and a work-item lock.
+- Made promotion and resume compilation idempotent, reusing valid outputs under work-item locks.
+- Added deterministic terminal application blocker outcomes and `application_outcome_repair` routing.
+- Restricted and serialized discovery/assessment decision logging.
+- Added structured channel-compatible absence proof to the send guard.
+- Added non-ledger verification quarantine and the user-facing quarantine resolution command.
+- Exposed quarantine, outcome repair, and claim metadata in session state.
+- Updated every worker to use exact installed paths, claim before work, follow the BrowserOS one-strike rule, and return canonical status lines.
+- BrowserOS and OS lifecycle management are now external; restoration is followed by `/goal resume`.
+
 # V5.15.1 — Reliability Hotfix
 
 - Restored deterministic canonical-facts, shared-evidence, and commit-script locators to the assessor after V5.15 prompt compaction removed them; restored its compact payload contract and raised its bounded local step budget.

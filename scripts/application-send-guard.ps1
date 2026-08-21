@@ -1,16 +1,21 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$WorkItemDir,
-    [Parameter(Mandatory=$true)][ValidateSet('Status','Reserve','MarkSubmitted','MarkAmbiguous','MarkVerifiedAbsent','CancelBeforeSubmit')][string]$Action,
-    [string]$Channel = '',
+    [Parameter(Mandatory=$true)][ValidateSet('Status','Reserve','MarkSubmitted','MarkAmbiguous','MarkVerifiedAbsent','CancelBeforeSubmit','QuarantineVerification','ReopenVerification','AbandonVerification')][string]$Action,
+    [ValidateSet('','external-ats','email','linkedin-easy-apply')][string]$Channel = '',
     [string]$Target = '',
     [string]$Subject = '',
     [string]$ReservationId = '',
     [string]$Proof = '',
+    [ValidateSet('','authenticated-ats-tracker-absence','exact-sent-search-absence','user-confirmed-absence')][string]$ProofKind = '',
+    [switch]$ResolutionCommand,
     [int]$VerificationGraceMinutes = 15
 )
 
 $ErrorActionPreference = 'Stop'
+$resolverScriptPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'resolve-application-quarantine.ps1'))
+$callerScriptPath = if ([string]::IsNullOrWhiteSpace([string]$MyInvocation.ScriptName)) { '' } else { [IO.Path]::GetFullPath([string]$MyInvocation.ScriptName) }
+$resolutionCommandAuthorized = ([bool]$ResolutionCommand -and $callerScriptPath -eq $resolverScriptPath)
 $WorkItemDir = (Resolve-Path -LiteralPath $WorkItemDir).Path
 $statePath = Join-Path $WorkItemDir 'application-send-state.json'
 $resultPath = Join-Path $WorkItemDir 'application-result.json'
@@ -45,6 +50,21 @@ function Write-Result($Value) {
 
 function Set-StateProperty($State, [string]$Name, $Value) {
     $State | Add-Member -NotePropertyName $Name -NotePropertyValue $Value -Force
+}
+
+function Clear-ApplicationClaims {
+    if (-not $runtimeRoot) { return }
+    $workspace = Split-Path -Parent $runtimeRoot
+    $claimScript = Join-Path $PSScriptRoot 'claim-action.ps1'
+    foreach ($stage in @('application_ready','application_resume','application_verification','email_application_ready','application_outcome_repair')) {
+        & $claimScript -Action ClearStage -Scope WorkItem -Stage $stage -WorkItemDir $WorkItemDir -Workspace $workspace | Out-Null
+    }
+}
+
+function Test-AbsenceProofKind($State, [string]$Kind) {
+    if ($Kind -eq 'user-confirmed-absence') { return $resolutionCommandAuthorized }
+    if ([string]$State.channel -eq 'email') { return $Kind -eq 'exact-sent-search-absence' }
+    return $Kind -eq 'authenticated-ats-tracker-absence'
 }
 
 function Get-TargetDomain([string]$Value, [string]$ChannelName) {
@@ -106,7 +126,7 @@ function Find-SemanticConflict($Job) {
             if ($otherIdentity -ne $identity) { continue }
             $otherState = Read-JsonSafe (Join-Path $dir.FullName 'application-send-state.json')
             $otherResult = Read-JsonSafe (Join-Path $dir.FullName 'application-result.json')
-            if (($otherState -and [string]$otherState.status -in @('reserved','verification-required','submitted')) -or ($otherResult -and ([bool]$otherResult.submitted -or [string]$otherResult.status -eq 'submitted'))) {
+            if (($otherState -and [string]$otherState.status -in @('reserved','verification-required','verification-quarantined','abandoned-unknown-outcome','submitted')) -or ($otherResult -and ([bool]$otherResult.submitted -or [string]$otherResult.status -eq 'submitted'))) {
                 return [ordered]@{ status='semantic-reservation-exists'; matched_job_id=$otherId; identity=$identity }
             }
         }
@@ -157,6 +177,7 @@ try {
             }
             Write-JsonAtomic $resultPath $existingResult
         }
+        Clear-ApplicationClaims
         Write-Result ([ordered]@{
             status = 'already-submitted'
             safe_to_submit = $false
@@ -180,12 +201,26 @@ try {
                     target = $state.target
                     subject = $state.subject
                     retry_after = $state.verification_retry_after
+                    quarantine_reason = $state.quarantine_reason
                 })
             }
         }
         'Reserve' {
             if ([string]::IsNullOrWhiteSpace($Channel) -or [string]::IsNullOrWhiteSpace($Target)) {
                 throw 'Reserve requires -Channel and -Target.'
+            }
+            if ($state -and [string]$state.status -in @('verification-quarantined','abandoned-unknown-outcome')) {
+                Clear-ApplicationClaims
+                Write-Result ([ordered]@{
+                    status = if ([string]$state.status -eq 'verification-quarantined') { 'quarantined' } else { 'abandoned' }
+                    safe_to_submit = $false
+                    reservation_id = $state.reservation_id
+                    channel = $state.channel
+                    target = $state.target
+                    subject = $state.subject
+                    reason = if ($state.quarantine_reason) { $state.quarantine_reason } else { $state.abandonment_reason }
+                })
+                exit 0
             }
             if ($state -and [string]$state.status -in @('reserved','verification-required')) {
                 Write-Result ([ordered]@{
@@ -203,6 +238,7 @@ try {
             $job = Read-JsonSafe $jobPath
             $semanticConflict = Find-SemanticConflict $job
             if ($semanticConflict) {
+                Clear-ApplicationClaims
                 Write-Result ([ordered]@{ status=$semanticConflict.status; safe_to_submit=$false; matched_job_id=$semanticConflict.matched_job_id; identity=$semanticConflict.identity })
                 exit 0
             }
@@ -251,6 +287,7 @@ try {
                 blocker = $null
             }
             Write-JsonAtomic $resultPath $result
+            Clear-ApplicationClaims
             Write-Result ([ordered]@{ status='submitted'; safe_to_submit=$false; reservation_id=$state.reservation_id; result=$resultPath })
         }
         'MarkAmbiguous' {
@@ -261,30 +298,39 @@ try {
             Set-StateProperty $state 'verification_retry_after' $null
             $state.updated_at = $now.ToString('o')
             Write-JsonAtomic $statePath $state
+            Clear-ApplicationClaims
             Write-Result ([ordered]@{ status='verify-required'; safe_to_submit=$false; reservation_id=$state.reservation_id; reserved_at=$state.reserved_at })
         }
         'MarkVerifiedAbsent' {
             if (-not (Test-Reservation $state $ReservationId)) { exit 0 }
             if ([string]::IsNullOrWhiteSpace($Proof)) { throw 'MarkVerifiedAbsent requires -Proof.' }
+            if (-not (Test-AbsenceProofKind $state $ProofKind)) {
+                $requiredKind = if ($ProofKind -eq 'user-confirmed-absence' -and -not $resolutionCommandAuthorized) { 'resolution-command-required' } elseif ([string]$state.channel -eq 'email') { 'exact-sent-search-absence' } else { 'authenticated-ats-tracker-absence' }
+                Write-Result ([ordered]@{ status='rejected-proof'; safe_to_submit=$false; reservation_id=$state.reservation_id; channel=$state.channel; proof_kind=$ProofKind; required_proof_kind=$requiredKind })
+                exit 0
+            }
             $reservedAt = Parse-Time $state.reserved_at
             if ($null -eq $reservedAt) {
                 Write-Result ([ordered]@{ status='invalid-reservation-time'; safe_to_submit=$false; reservation_id=$state.reservation_id })
                 exit 0
             }
             $retryAt = $reservedAt.AddMinutes([Math]::Max(1, $VerificationGraceMinutes))
-            if ($now -lt $retryAt) {
+            if ($ProofKind -ne 'user-confirmed-absence' -and $now -lt $retryAt) {
                 Set-StateProperty $state 'verification_retry_after' $retryAt.ToString('o')
                 $state.updated_at = $now.ToString('o')
                 Write-JsonAtomic $statePath $state
+                Clear-ApplicationClaims
                 Write-Result ([ordered]@{ status='verification-grace'; safe_to_submit=$false; retry_after=$retryAt.ToString('o'); reservation_id=$state.reservation_id })
                 exit 0
             }
             $state.status = 'verified-absent'
             Set-StateProperty $state 'verification_proof' $Proof.Trim()
+            Set-StateProperty $state 'verification_proof_kind' $ProofKind
             Set-StateProperty $state 'verified_at' $now.ToString('o')
             Set-StateProperty $state 'verification_retry_after' $null
             $state.updated_at = $now.ToString('o')
             Write-JsonAtomic $statePath $state
+            Clear-ApplicationClaims
             Write-Result ([ordered]@{ status='verified-absent'; safe_to_submit=$true; reservation_id=$state.reservation_id })
         }
         'CancelBeforeSubmit' {
@@ -296,7 +342,50 @@ try {
             Set-StateProperty $state 'verification_retry_after' $null
             $state.updated_at = $now.ToString('o')
             Write-JsonAtomic $statePath $state
+            Clear-ApplicationClaims
             Write-Result ([ordered]@{ status='cancelled-before-submit'; safe_to_submit=$true; reservation_id=$state.reservation_id })
+        }
+        'QuarantineVerification' {
+            if (-not (Test-Reservation $state $ReservationId)) { exit 0 }
+            if ([string]::IsNullOrWhiteSpace($Proof)) { throw 'QuarantineVerification requires -Proof describing why authoritative verification is unavailable.' }
+            $state.status = 'verification-quarantined'
+            Set-StateProperty $state 'quarantine_reason' $Proof.Trim()
+            Set-StateProperty $state 'quarantined_at' $now.ToString('o')
+            Set-StateProperty $state 'verification_retry_after' $null
+            $state.updated_at = $now.ToString('o')
+            Write-JsonAtomic $statePath $state
+            Clear-ApplicationClaims
+            Write-Result ([ordered]@{ status='quarantined'; safe_to_submit=$false; reservation_id=$state.reservation_id; reason=$state.quarantine_reason })
+        }
+        'ReopenVerification' {
+            if (-not (Test-Reservation $state $ReservationId)) { exit 0 }
+            if ([string]$state.status -ne 'verification-quarantined') {
+                Write-Result ([ordered]@{ status='not-quarantined'; safe_to_submit=$false; reservation_id=$state.reservation_id })
+                exit 0
+            }
+            $state.status = 'verification-required'
+            Set-StateProperty $state 'reverified_at' $now.ToString('o')
+            Set-StateProperty $state 'verification_retry_after' $null
+            $state.updated_at = $now.ToString('o')
+            Write-JsonAtomic $statePath $state
+            Clear-ApplicationClaims
+            Write-Result ([ordered]@{ status='verify-required'; safe_to_submit=$false; reservation_id=$state.reservation_id })
+        }
+        'AbandonVerification' {
+            if (-not (Test-Reservation $state $ReservationId)) { exit 0 }
+            if ([string]::IsNullOrWhiteSpace($Proof)) { throw 'AbandonVerification requires -Proof.' }
+            if ([string]$state.status -notin @('verification-quarantined','verification-required','reserved')) {
+                Write-Result ([ordered]@{ status='not-abandonable'; safe_to_submit=$false; reservation_id=$state.reservation_id })
+                exit 0
+            }
+            $state.status = 'abandoned-unknown-outcome'
+            Set-StateProperty $state 'abandonment_reason' $Proof.Trim()
+            Set-StateProperty $state 'abandoned_at' $now.ToString('o')
+            Set-StateProperty $state 'verification_retry_after' $null
+            $state.updated_at = $now.ToString('o')
+            Write-JsonAtomic $statePath $state
+            Clear-ApplicationClaims
+            Write-Result ([ordered]@{ status='abandoned'; safe_to_submit=$false; reservation_id=$state.reservation_id })
         }
     }
 } finally {

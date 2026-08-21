@@ -1,11 +1,11 @@
-# BrowserOS Operational Playbook V5.14
+# BrowserOS Operational Playbook V6.0
 
 Use this reference only when browser work is active or a BrowserOS action fails. It restores the working techniques accidentally removed in V5.11.4.
 
 ## Session and tab ownership
 
 - Name the BrowserOS session once.
-- Open task-owned tabs with `tabs new`; never reuse a page ID copied from state, logs, another worker, or an earlier agent slice.
+- Open task-owned tabs with `tabs new`; never reuse a page ID copied from state, logs, another worker, or an earlier worker turn.
 - A `page ... is not owned by this agent` response is expected isolation, not a transient error. Open the URL in a new owned tab immediately; do not retry the foreign page.
 - Open only task-owned tabs that are useful now and close disposable tabs promptly. There is no skill numeric tab cap, but each worker should normally need one application tab. Never close a tab whose CAPTCHA solver is pending or whose side effect still needs verification.
 
@@ -26,9 +26,9 @@ Do not call raw CDP methods such as `Page.getFrameTree`, `DOM.getDocument`, `DOM
 `Unable to connect`, `CDP connection lost`, a failed `tabs list`, or owned tabs suddenly disappearing means the browser route is unavailable. An OAuth/popup click that resets the session or removes the owned tab is the same outage, not permission to repeat the click.
 
 - After the first timeout, make one cheap granular health probe (`tabs list` or `tabs new`).
-- If that probe reports connection/CDP loss or the owned tab remains gone, stop browser calls for the slice. Do not retry the triggering OAuth/popup interaction or wrap it in `_run`. Continue any already-available local assessment, resume, reconciliation, or logging work.
-- Persist the current job as recoverable when needed and return from the slice. Do not describe this as campaign completion or market exhaustion.
-- The supervisor checks both MCP port 9010 and browser CDP port 9110. It waits without launching another paid/model session until both are healthy, then starts a fresh slice.
+- If that probe reports connection/CDP loss or the owned tab remains gone, stop browser calls for the worker turn. Do not retry the triggering OAuth/popup interaction or wrap it in `_run`. Continue any already-available local assessment, resume, reconciliation, or logging work.
+- Persist the current job as recoverable when needed and return. Do not describe this as campaign completion or market exhaustion.
+- After all useful local work is exhausted, block the active session goal with the concrete BrowserOS failure. Restore BrowserOS, then use `/goal resume`.
 
 The MCP server can remain alive while the browser/CDP process is dead. A running `browseros-claw-server` process alone is not proof of health.
 
@@ -52,7 +52,7 @@ For LinkedIn only, after one tailored-upload fallback fails, an already uploaded
 - Check `linkedin-governor.ps1 -Action Status` before opening a new application.
 - A `Continue`/Draft state is resumable, not a new application.
 - Verify contact fields and the selected resume immediately before Submit.
-- Submit once, verify explicit confirmation or Job Tracker state, then call `RecordEasyApply -JobId <id>` and log the result.
+- Submit once, verify explicit confirmation or Job Tracker state, call the send guard `MarkSubmitted`, then call `RecordEasyApply -JobId <id>`; reconciliation writes the ledger.
 - A governor cooldown never blocks external ATS work or discovery.
 
 ## Covered controls and framework fields
@@ -75,4 +75,5 @@ If a Lever/framework field appends or garbles text, use the native value setter 
 - Before any external Submit or email Send, acquire a reservation through `application-send-guard.ps1`.
 - If the browser diff/result is ambiguous after the click, mark the reservation ambiguous and stop. A new worker verifies the real ATS/Sent state first.
 - Missing local result/progress files never prove the side effect did not happen.
+- Only authenticated ATS tracker absence or an exact authenticated Gmail Sent search may clear an ambiguous reservation. When that evidence is unavailable, quarantine the verification.
 - Gmail application email uses the dedicated email worker. Do not inject diagnostic inputs/overlays or toggle formatting modes in Gmail.

@@ -20,6 +20,7 @@
         "noProgressTurnsBeforePause": 9007199254740991,
         "noToolCallTurnsBeforePause": 0,
         "noInterruptOnUserMessage": true,
+        "noContinueWhileChildrenActive": true,
         "budgetWrapupRatio": 0.9999999999999999,
         "maxPromptFailures": 9007199254740991,
         "persistState": true

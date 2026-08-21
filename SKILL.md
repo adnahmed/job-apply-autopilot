@@ -1,92 +1,107 @@
 ---
 name: job-apply-autopilot
-description: "Persistent autonomous job discovery, truthful fit triage, tailored resumes, and idempotent verified submission through BrowserOS neo. Uses specialized subagents, semantic dedupe, circuit breakers, and a resilient overnight supervisor."
+description: "Goal-driven autonomous job discovery, truthful fit triage, tailored resumes, and idempotent verified submission through BrowserOS neo. Uses claimed actions, semantic dedupe, verification quarantine, and deterministic application outcomes."
 ---
 
-# Job Apply Autopilot V5.15.1 — Reliability Hotfix
+# Job Apply Autopilot V6.0.0 — Goal-Only Reliability
 
-Mission: maximize credible, **net-new** interview opportunities per unit time. Preserve truth, Pakistan eligibility, anti-automation safety, and useful resumes. Raw tool activity, duplicate submissions, and queued placeholders are not progress.
+Mission: maximize credible net-new interview opportunities per unit time while preserving truth, the candidate's documented geographic eligibility, security controls, and duplicate safety. Tool activity, duplicate work, placeholders, and unverified outcomes are not progress.
 
-## Hot loop
+## Persistence contract
 
-Do not plan, narrate, ask routine questions, or inspect files that the state script already summarized.
+Persistent campaigns use exactly one session-scoped goal from `opencode-goal-plugin@0.8.1`. Never start a watchdog, OS background process, campaign runner, second coordinator loop, or another persistence mechanism.
 
-If the user asks to run forever, continuously, overnight, in the background, or complains that a prior continuous run stopped, treat persistent supervision as the first action. Run `get-autopilot-status.ps1`; if it is not running, run `start-autopilot.ps1`. Report the supervisor PID/state and return instead of trying to simulate persistence inside one chat turn.
+When the user explicitly requests continuous operation and no goal is active, create one goal: keep discovering, assessing, tailoring, and submitting net-new applications until the user runs `/goal pause` or `/goal stop`. Never complete it because a submission count was reached, the queue is temporarily empty, a route is blocked, or BrowserOS is down. Goal restart recovery is deliberately paused; after an OpenCode restart the user resumes it with `/goal resume`.
 
-If `goal_status` and `goal_set` are available and the user explicitly requested this persistent campaign, inspect goal state once. When no goal is active, set one continuous coordinator goal: keep discovering, assessing, tailoring, and submitting net-new applications until the user runs `/goal pause` or `/goal stop`. Never complete the goal because a submission count was reached, the current queue is empty, one route is blocked, or a supervisor slice ends; rotate discovery lanes and let the outer supervisor recover process/provider exits. Never set goals in workers. Goal continuation is control flow only: rerun state after every continuation and verify ambiguous side effects before retrying.
-
-At start, capture the coordinator workspace once and run:
+Every initial turn and every goal continuation must rerun the authoritative state:
 
 ```powershell
 $workspace = (Get-Location).Path
-$state = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\session-state.ps1" -Workspace $workspace
+$state = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\session-state.ps1" -Workspace $workspace | ConvertFrom-Json
 ```
 
-Trust `next_action`, `actions`, and `scheduler`. `actions` is the complete runnable cross-stage pipeline, not a single-job suggestion. Dispatch independent work concurrently, rerun `session-state.ps1` after each wave, and repeat:
+Never set goals in workers. The configured child-session gate prevents continuation coordinator turns while workers are active.
 
-1. `reconcile_result`: run `reconcile-application-result.ps1` for the supplied directory and continue; never hand-append the ledger.
-2. `application_verification`: dispatch the matching applicator to verify the prior side effect; never start a fresh application.
-3. `email_application_ready`: dispatch `job-autopilot-email-apply`.
-4. `application_ready` / `application_resume`: route immediately.
-5. `resume_pending`: dispatch the resume worker.
-6. `coordinator_adjudication_pending` / `assessment_repair`: run `advance-workitem.ps1`.
-7. `assessment_pending` / `reassessment_pending`: dispatch the lean all-in-one assessors.
-8. `source_pending`: capture the full JD from `job_url` into `source.md`; never assess a placeholder.
-9. `discover`: search and queue unseen plausible jobs.
-10. `eligibility_research_pending` / `candidate_evidence_pending`: dispatch `job-autopilot-research` as a separate web-heavy wave.
+## State routing
 
-`recoverable_cooldown` and `domain_circuit_breaker` are intentionally omitted until their retry time. Never wait for them while other work or discovery exists.
+Trust `actions`, `scheduler`, claim metadata, and these stages:
 
-## Throughput scheduler — mandatory
+1. `reconcile_result`: claim, run `reconcile-application-result.ps1`, rerun state.
+2. `application_outcome_repair`: dispatch the matching applicator only to write/reconstruct the terminal result; never resume the form.
+3. `application_verification`: dispatch the matching applicator to verify the prior side effect; never start a fresh application.
+4. `application_verification_quarantined`: do nothing automatically. It is isolated from the ledger and unrelated work.
+5. `email_application_ready`: dispatch `job-autopilot-email-apply`.
+6. `linkedin_application_ready`: handle LinkedIn Easy Apply serially under its governor.
+7. `application_ready` / `application_resume`: route to the matching applicator immediately.
+8. `resume_pending`: dispatch `job-autopilot-resume`.
+9. `coordinator_adjudication_pending`: claim and run `advance-workitem.ps1`.
+10. `assessment_repair`: claim and repair deterministically, then rerun state.
+11. `assessment_pending` / `reassessment_pending`: dispatch `job-autopilot-assessor`.
+12. `source_pending`: claim, capture the complete source, release the claim, rerun state.
+13. `eligibility_research_pending` / `candidate_evidence_pending`: dispatch `job-autopilot-research` in a separate web-heavy wave.
 
-The campaign is a parallel pipeline, not a one-job transaction loop. A single job remains sequential across its own dependencies, but independent jobs must overlap.
+Cooldown, verification grace, domain circuit breaker, and actively claimed items are non-actionable until their timestamps expire. Never wait for them while other work or discovery exists.
 
-- Issue all eligible worker Task calls in one assistant turn so the harness can run them concurrently. Never call one worker and wait before issuing the next eligible call.
-- Dispatch every assessor, research, resume, external ATS, and email worker path concurrently up to runtime capacity. There is no skill numeric cap for any of them. LinkedIn Easy Apply alone stays coordinator-owned and serial at 1.
-- Group `actions` by their `dispatch` field and emit every eligible Task call together. Do not reduce a group to its first path.
-- A worker failure does not create a global barrier. Verify its artifact once, defer or re-dispatch that job as appropriate, and keep every other completed job moving.
-- Maintain a minimum pipeline buffer of 8 source-ready/actionable jobs. This is an intake floor, not a work cap. Dispatch ready work first, then refill the reported `discovery_slots`; never require an empty queue before discovery.
-- Keep web-heavy `job-autopilot-research` calls out of a fast-worker wave when the harness waits for the whole wave. Fast results and ready applications must not wait behind research.
+## Action claims
 
-Throughput is measured by verified net-new submissions per hour. Lower first-job latency is useful, but it must not collapse worker utilization or discovery intake.
+Competing sessions may snapshot the same action, but only one owner proceeds. Workers acquire their own stage before reading. For every coordinator-local work item, acquire first:
 
-## Progress definition
+```powershell
+$claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.ps1" `
+  -Action Acquire -Scope WorkItem -Stage '<state-stage>' -WorkItemDir '<absolute-path>' -Workspace $workspace | ConvertFrom-Json
+```
 
-A useful submission is a verified submission to a company/title identity not submitted in the previous 45 days. A repost, regional mirror, or new job ID for the same company/title is a duplicate—not another application.
+If `acquired` is false, exit that action immediately. Keep `owner_id`. Transition scripts clear matching claims. If no transition occurred, release with the complete identity tuple; `-OwnerId` alone is not a valid command:
 
-Use structured semantic dedupe whenever cards include company/title:
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.ps1" `
+  -Action Release -Scope WorkItem -Stage '<state-stage>' -WorkItemDir '<absolute-path>' `
+  -Workspace $workspace -OwnerId '<owner_id>'
+```
+
+Claims expire automatically after the lease.
+
+Discovery is also claimed:
+
+```powershell
+$claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.ps1" `
+  -Action Acquire -Scope Discovery -Stage discovery -Workspace $workspace | ConvertFrom-Json
+```
+
+Only the acquired discovery owner browses or creates items. Release after the pass with:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.ps1" `
+  -Action Release -Scope Discovery -Stage discovery -Workspace $workspace -OwnerId '<owner_id>'
+```
+
+## Parallel pipeline
+
+Issue all independent worker Task calls in one assistant turn. Group by `dispatch`, use every supplied `worker_prompt` verbatim, and rerun state after each wave. LinkedIn Easy Apply alone is serial at one; assessor, research, resume, external ATS, and email workers run up to host capacity. Keep web-heavy research out of a fast-worker wave when the harness waits for all calls.
+
+Maintain the reported eight-item source-ready/actionable intake floor. Dispatch ready work, then fill `scheduler.discovery_slots`. Quarantined jobs do not consume discovery capacity.
+
+Each worker prompt is exactly two lines:
+
+```text
+Work item directory: <absolute-path>
+Action: <action>
+```
+
+Never append policy, evidence opinions, job summaries, or recovery instructions. Workers return only their documented canonical status line.
+
+## Discovery and dedupe
+
+Derive local and regional lanes from `profile.yaml` (`candidate.location` and `search_defaults.locations`). Rotate lanes: home-country/local direct; explicitly compatible regional remote; worldwide/international contractor; sponsorship/relocation; direct employer/ATS; broader backend/platform/AI/software synonyms.
+
+Batch visible-card identity through:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\dedupe-jobs.ps1" `
-  -CandidatesJson '<JSON array: job_id, company, title>' -Workspace $workspace
+  -CandidatesJson '<job_id/company/title JSON array>' -Workspace $workspace
 ```
 
-Exact-ID-only `-JobIdsCsv` remains available when cards expose no identity. `new-workitem.ps1` performs a second semantic guard. If it returns `DUPLICATE:...`, continue immediately and never treat that string as a path.
-
-Reports use `submitted_unique` as the headline. `submitted_rows` is audit detail only.
-
-## Discovery fast path
-
-Search in this order, switching lane immediately after a dry result:
-
-1. Pakistan/local direct roles;
-2. APAC/APJ/Asia remote roles with explicit regional eligibility;
-3. worldwide/international-contractor roles;
-4. sponsorship/relocation roles;
-5. direct employer and ATS sources beyond LinkedIn;
-6. broader backend/platform/AI/software title synonyms and freshness window.
-
-Use one BrowserOS extraction for visible card identity, then batch dedupe before opening details. Open full pages only for unseen plausible candidates and close completed disposable tabs promptly. A discovery pass fills the reported pipeline buffer: capture complete JDs continuously until the buffer target is met or the lane is dry, and only then rerun state. Do not stop discovery after the first plausible job.
-
-Obvious closed, ineligible, unrelated, marketplace/agency-without-client, management-only, licence/clearance, or decisive stack-identity failures get one compact row:
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\log-decision.ps1" `
-  -JobId '<id>' -Status '<skip-status>' -ReasonCode '<code>' -Company '<company>' `
-  -Title '<title>' -JobUrl '<url>' -Source '<source>' -Workspace $workspace
-```
-
-For each plausible job in the current discovery batch, create a work item and write concise metadata plus the complete JD to its `source.md`. Rerun state after the batch, not after each job. Never leave a newly created placeholder as `assessment_pending`:
+Create plausible jobs only through `new-workitem.ps1`, then replace the source placeholder with the complete JD before assessment. A `DUPLICATE:` return is not a path.
 
 ```powershell
 $workItem = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\new-workitem.ps1" `
@@ -95,97 +110,84 @@ $workItem = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\ne
   -SearchQuery '<query>' -Workspace $workspace
 ```
 
-## Fast assessment
-
-Queue only roles plausibly worth applying to. Default threshold is 72; 68–71 may pass opportunistically when role identity and eligibility are strong. A few adjacent learnable gaps are normal.
-
-Hard failures are limited to legal/work-auth/credential blockers, fundamentally different specialist identity, defining unsupported management, or several clearly absent role-defining capabilities.
-
-`job-autopilot-assessor` is local and web-free. It reads `job.json`, real `source.md`, canonical facts, cached evidence, and existing per-job reports, then commits through:
+Discovery/assessment skips use only an allowed value through `log-decision.ps1`: `skipped-obvious`, `skipped-duplicate`, `skipped-closed`, `skipped-ineligible`, `skipped-low-fit`, `skipped-mandatory-gate`, `skipped-stack-mismatch`, `skipped-role-family`, `skipped-location-lock`, `skipped-work-auth-gate`, `skipped-location-gate`, `skipped-agency-unknown-client`, `skipped-agency`, `skipped-aggregator`, `skipped-management-only`, or `skipped-license-clearance`. The command rejects application-route statuses and promoted jobs; application blockers use the application outcome writer.
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\commit-assessment.ps1" ...
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\log-decision.ps1" `
+  -JobId '<id>' -Status '<allowed-skip-status>' -ReasonCode '<code>' `
+  -Company '<company>' -Title '<title>' -JobUrl '<url>' -Source '<source>' -Workspace $workspace
 ```
 
-Do not hand-write assessment transition JSON. Passed jobs have at most eight central fit requirements. The assessor may request exactly one decision-changing research kind. Both eligibility and candidate-evidence requests go to `job-autopilot-research`, which consumes existing reports first, performs only bounded missing research, and commits the final pass/fail itself—there is no third reassessment call. Unresolved ordinary stack evidence reduces score rather than proving absence; unresolved positive eligibility cannot pass.
+## Assessment, promotion, and resume
 
-Positive Pakistan eligibility is required before Submit: exact Pakistan, explicit worldwide/international hiring, Pakistan in a list, explicit APAC/APJ/Asia without conflict, global contractor wording, sponsorship, or relocation. Generic `Remote` alone is not evidence.
+Queue roles plausibly worth applying to. Default score threshold is 72; 68–71 may pass only with strong role identity and eligibility. Hard failures are legal/work-auth/credential blockers, fundamentally different specialist identity, defining unsupported management, or several absent defining capabilities.
 
-## Promotion, resume, and routing
+Assessment writes go only through `commit-assessment.ps1` with `-ExpectedPriorStatus`. It is first-writer-safe: `already-committed` means stale or duplicate work must stop. Research finalizes pass/fail in the same worker call.
 
-Advance passed work only through:
+Passed work advances only through:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\advance-workitem.ps1" `
-  -WorkItemDir $workItem -Canonical <ai|backend> -Workspace $workspace
+  -WorkItemDir '<path>' -Canonical <ai|backend> -Workspace $workspace
 ```
 
-On `promoted`, add the job to the next resume wave immediately. Route completed resume artifacts without waiting for unrelated work; this does not authorize serial one-job worker dispatch.
+Promotion and resume compilation reuse valid existing generated directories/artifacts under work-item locks.
 
-LinkedIn Easy Apply is coordinator-owned. Check the governor before opening the modal; after explicit confirmation record:
+Route ready work immediately. Direct employer-email applications go only to `job-autopilot-email-apply`; external ATS/company forms go only to `job-autopilot-external-apply`. Both remain uncapped by skill policy. LinkedIn Easy Apply remains coordinator-owned and serial: check `linkedin-governor.ps1` before opening the modal and record an explicitly confirmed submission with `-Action RecordEasyApply -JobId '<id>' -Workspace $workspace`.
+
+## Submission and quarantine
+
+Every external side effect uses `application-send-guard.ps1`. A missing result, interrupted worker, public page, browser history entry, missing local file, or missing confirmation email never proves absence.
+
+Channel-compatible absence proof is mandatory:
+
+- external ATS: authenticated application tracker absence (`authenticated-ats-tracker-absence`);
+- email: exact authenticated recipient/subject Sent-search absence (`exact-sent-search-absence`);
+- user: `ConfirmAbsent` through `resolve-application-quarantine.ps1` (`user-confirmed-absence`).
+
+If authoritative verification is unavailable, the applicator calls `QuarantineVerification`. A quarantined job is non-actionable, creates no ledger row, is neither submitted nor skipped, and cannot block other jobs or discovery.
+
+Terminal blockers are written only through `write-application-outcome.ps1`, then reconciled. Terminal progress without a result routes only to `application_outcome_repair`.
+
+Coordinator-owned LinkedIn Easy Apply follows the same claim and send guard: reserve with `-Channel linkedin-easy-apply` before opening the modal, mark only explicit tracker/success confirmation as submitted, then record the governor event. It never writes the ledger or uses `log-decision.ps1` for an application outcome.
+
+Users resolve quarantine without editing JSON:
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\linkedin-governor.ps1" `
-  -Action RecordEasyApply -JobId '<id>' -Workspace $workspace
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\resolve-application-quarantine.ps1" -Action List -Workspace $workspace
 ```
 
-Direct employer-email applications go only to `job-autopilot-email-apply`. External ATS/company forms go to `job-autopilot-external-apply`. Both are uncapped by skill policy and run concurrently up to runtime capacity. OAuth/existing session comes before password signup.
+Other actions are `Reverify`, `ConfirmSubmitted`, `ConfirmAbsent`, `RetryApplication`, and `Abandon`, with `-WorkItemDir` and `-Proof` where required. `Reverify` authorizes verification only, never Submit. `RetryApplication` accepts only a proven pre-submit/cancelled or verified-absent state and refuses submitted/semantic duplicates; it can reopen eligible legacy `route_blocked` entries.
 
-Both applicators must reserve the outbound attempt through `scripts/application-send-guard.ps1`. A missing `application-result.json`, interrupted worker, or ambiguous return is not proof that nothing was sent. Route the same worker back for verification; it must search the real Sent/ATS state before a second side effect is even eligible.
+## BrowserOS and blocking
 
-## BrowserOS rules
+Read the installed `references\browseros-playbook.md` when browser work starts. Call BrowserOS `run` at most once after a compatibility failure, then use granular tools; never probe denied shell or raw CDP methods. Use only task-owned tabs and fresh real upload-input refs.
 
-Read `references/browseros-playbook.md` when browser work begins or the first browser action fails. Its rules are operational, not optional:
+On BrowserOS connection loss, stop browser calls after one cheap health probe, finish all available local actions, persist/checkpoint affected work, and continue unrelated local work. If state exposes nothing useful that can proceed without BrowserOS, block the active goal with the concrete BrowserOS failure. Recovery is BrowserOS restoration followed by `/goal resume`.
 
-- always open task-owned tabs; never retry a foreign page ID;
-- try `run` at most once per MCP session after a compatibility failure, then use granular tools;
-- never probe unavailable raw CDP DOM methods;
-- upload only through a fresh ref to an actual file input;
-- after `Unable to connect`/CDP loss, stop browser calls for the slice, do local work, persist state, and return for supervisor recovery;
-- browser loss is not campaign completion.
+Never bypass CAPTCHA, MFA, security, truth, identity, eligibility, or work-authorization controls. One bad job or domain never ends unrelated work.
 
-One bad site/job never ends the campaign. For recoverable technical failures call `defer-workitem.ps1 -WorkItemDir <path> -Stage <current-stage> -Code <compact-code> -Message <compact-message>` (1m, 5m, then 30m backoff), then continue. Do not invent `-Reason` or `-Workspace` parameters. A standalone CAPTCHA gets the solver-aware recovery flow in `references/captcha-recovery.md`: preserve the tab, click one ordinary challenge trigger when available, wait up to 120 seconds, and continue if it clears. CAPTCHA presence alone does not trip a domain circuit. MFA, account restrictions, explicit automation/security warnings, attributable 429s, failed solver recovery, or a repeated challenge are recorded only through `domain-circuit-breaker.ps1 -Action Record`. Never hand-append circuit-breaker JSONL.
+For a recoverable job-local failure, checkpoint through the exact transition command and continue other work:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\defer-workitem.ps1" `
+  -WorkItemDir '<absolute-path>' -Stage '<checkpoint-stage>' -Code '<short-code>' -Message '<message>'
+```
+
+The checkpoint stage may differ from the scheduler claim stage; the defer transition clears the active claim that actually exists. Backoff remains 1 minute, 5 minutes, then 30 minutes.
 
 ## Truth and autonomy
 
-Never ask the user to choose, approve, or clarify routine workflow decisions. Choose Recommended, otherwise the first safe benign option. For factual fields use canonical/profile evidence, an honest decline/N/A, or skip the job.
+Never ask the user to choose, approve, or clarify routine campaign decisions. Choose `Recommended` when present, otherwise the first safe benign option. Factual fields must come from canonical/profile evidence or verified per-job evidence; otherwise use an honest decline/N/A or a terminal job-local blocker.
 
-Never fabricate employer history, degree/licence/clearance, work authorization, people management, production metrics, specialist identity, or precise technology-specific duration. Overall software tenure may support a requirement only when the capability itself is supported or reasonably plausible.
-
-Ordinary form validation gets one correction. Confirm explicit success before recording `submitted`. Keep logs compact.
-
-Never declare a natural pause, completion, or exhaustion while the final `session-state.ps1` snapshot contains actions. The final words and the machine state must agree.
+Never fabricate employer history, degree/licence/clearance, work authorization, people management, production metrics, specialist identity, or precise technology-specific duration. Overall software tenure supports a requirement only when the capability itself is supported or reasonably plausible. Ordinary form validation gets one correction. Confirm explicit success before recording `submitted`.
 
 ## Fault containment
 
-Schema, script, worker, resume, and browser implementation errors are job/route-local. Correct once when deterministic; otherwise defer and continue. Do not repeatedly reconsider the same branch. Never compensate for a packaged assessor failure by adding prompt lines, reading candidate evidence in the coordinator, building its payload, or calling `commit-assessment.ps1` yourself. If a resume worker returns empty or leaves `resume.tex` with an incomplete audit, inspect only `resume-artifact.json`, then re-dispatch that same resume worker once; the coordinator must not inspect compiler code/parameters or attempt manual compilation.
+Schema, script, worker, resume, and browser implementation errors are job/route-local. Correct once when deterministic; otherwise defer and continue. Never compensate for an assessor failure by having the coordinator construct or commit an assessment. If a resume worker returns empty or leaves an incomplete artifact, inspect only `resume-artifact.json` and re-dispatch that resume worker once; do not hand-tailor or manually compile in the coordinator.
 
-Only the affected route stops for truthful impossibility, an unresolved CAPTCHA after solver recovery, MFA/security controls, or unavailable BrowserOS. Other domains, local stages, and discovery continue.
+Only the affected route stops for truthful impossibility, unresolved CAPTCHA after the single recovery window, MFA/security controls, or unavailable BrowserOS. Every unaffected domain, local stage, and discovery lane continues.
 
-## Overnight supervision
+## Final invariant
 
-A single chat/agent turn cannot keep running after its host process exits. For persistent operation, use the packaged supervisor from the campaign workspace after BrowserOS neo is open and healthy:
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\start-autopilot.ps1" -Workspace $workspace
-```
-
-It keeps Windows awake without keeping the display on, launches bounded fresh OpenCode slices, restarts after normal/error exits, and waits without spending model sessions when MCP port 9010 is up but browser CDP port 9110 is down. State and slice logs live under `.job-apply-autopilot\supervisor`.
-
-Inspect it deterministically with:
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\get-autopilot-status.ps1" -Workspace $workspace
-```
-
-Stop it cleanly with:
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\stop-autopilot.ps1" -Workspace $workspace
-```
-
-BrowserOS neo, its signed-in profile, internet access, and the PC must remain available. If BrowserOS itself crashes and does not relaunch, the supervisor waits until the user starts it again; it does not bypass BrowserOS or security controls.
-
-## Worker prompt contract
-
-Use `actions[].worker_prompt` verbatim when present. Each worker prompt is exactly two lines: `Work item directory: <absolute-path>` and `Action: <action>`. Do not append efficiency notes, policy, evidence opinions, job summaries, or recovery instructions. Multiple one-job Task calls belong in the same assistant turn. Workers do not load this main skill, invoke nested workers, write shared ledgers, or ask questions. They return one terse status line; the coordinator reruns state after the wave and continues.
+Never claim completion or a natural pause while state contains unclaimed actions or needed discovery. Never invent ledger statuses. Verified net-new unique company/title submissions are the headline; raw ledger rows are audit detail.

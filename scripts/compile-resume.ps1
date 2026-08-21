@@ -18,7 +18,16 @@ $tailoringAuditPath = Join-Path $workDir 'tailoring-audit.json'
 $jobMetaPath = Join-Path $workDir 'job.json'
 $canonicalAuditPath = Join-Path $workDir 'canonical-source.tex'
 $artifactPath = Join-Path $workDir 'resume-artifact.json'
+$compileLock = $null
+try { $compileLock = [IO.File]::Open((Join-Path $workDir '.work-item.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
+catch { throw 'Resume transition is busy; rerun session state.' }
 
+function Clear-ResumeClaim {
+    $workspace = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $workDir))
+    & (Join-Path $PSScriptRoot 'claim-action.ps1') -Action ClearStage -Scope WorkItem -Stage 'resume_pending' -WorkItemDir $workDir -Workspace $workspace | Out-Null
+}
+
+try {
 $skillRoot = Split-Path -Parent $PSScriptRoot
 $profilePath = Join-Path $skillRoot 'profile.yaml'
 if (-not (Test-Path -LiteralPath $profilePath)) { throw "Candidate profile not found: $profilePath" }
@@ -121,6 +130,37 @@ $jobMeta = Get-Content -LiteralPath $jobMetaPath -Raw | ConvertFrom-Json
 $auditHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $canonicalAuditPath).Hash.ToLowerInvariant()
 if ($auditHash -ne [string]$jobMeta.canonical_sha256) { throw 'canonical-source.tex does not match the immutable canonical hash recorded at scaffold time.' }
 
+if (Test-Path -LiteralPath $artifactPath) {
+    try {
+        $existingArtifact = Get-Content -LiteralPath $artifactPath -Raw | ConvertFrom-Json
+        $existingPdf = [string]$existingArtifact.path
+        $validExisting = (
+            [string]$existingArtifact.status -eq 'ready-for-upload' -and
+            [string]$existingArtifact.job_id -eq [string]$jobMeta.job_id -and
+            -not [string]::IsNullOrWhiteSpace([string]$existingArtifact.filename) -and
+            -not [string]::IsNullOrWhiteSpace([string]$existingArtifact.sha256) -and
+            -not [string]::IsNullOrWhiteSpace($existingPdf) -and
+            (Test-Path -LiteralPath $existingPdf) -and
+            (Get-Item -LiteralPath $existingPdf).Length -ge 5000 -and
+            [IO.Path]::GetFileName($existingPdf) -eq [string]$existingArtifact.filename -and
+            [IO.Path]::GetFullPath([string]$existingArtifact.source_tex) -eq [IO.Path]::GetFullPath($TexPath)
+        )
+        if ($validExisting) {
+            $validExisting = ((Get-FileHash -Algorithm SHA256 -LiteralPath $existingPdf).Hash.ToLowerInvariant() -eq [string]$existingArtifact.sha256)
+        }
+        if ($validExisting -and $StrictOnePage) {
+            $actualPages = Get-PdfPageCount -Path $existingPdf
+            if ($null -ne $actualPages) { $validExisting = ($actualPages -eq 1) }
+            if ($validExisting -and $null -ne $existingArtifact.pages) { $validExisting = ([int]$existingArtifact.pages -eq 1) }
+        }
+        if ($validExisting) {
+            Clear-ResumeClaim
+            Write-Output $existingPdf
+            exit 0
+        }
+    } catch {}
+}
+
 Push-Location $workDir
 try {
     Invoke-PdfCompile -Name $texName
@@ -178,10 +218,20 @@ try {
         created_at = (Get-Date).ToUniversalTime().ToString('o')
         status = 'ready-for-upload'
     }
-    $artifact | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $artifactPath -Encoding UTF8
+    $artifactTemp = "$artifactPath.$PID.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        $artifact | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $artifactTemp -Encoding UTF8
+        [IO.File]::Move($artifactTemp, $artifactPath, $true)
+    } finally {
+        if (Test-Path -LiteralPath $artifactTemp) { Remove-Item -LiteralPath $artifactTemp -Force -ErrorAction SilentlyContinue }
+    }
 
+    Clear-ResumeClaim
     Write-Output $applicationPdf
 }
 finally {
     Pop-Location
+}
+} finally {
+    if ($null -ne $compileLock) { $compileLock.Dispose() }
 }
