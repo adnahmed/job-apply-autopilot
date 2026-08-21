@@ -30,6 +30,45 @@ function Convert-ToSlug([string]$Text) {
 
 $slug = Convert-ToSlug "$Company-$Title"
 $queueRoot = Join-Path $Workspace '.job-apply-autopilot\queue'
+$generatedRoot = Join-Path $Workspace '.job-apply-autopilot\generated'
+$runtimeRoot = Join-Path $Workspace '.job-apply-autopilot'
+if (-not (Test-Path -LiteralPath $runtimeRoot)) {
+    throw "No job-apply-autopilot runtime at $runtimeRoot"
+}
+New-Item -ItemType Directory -Force -Path $queueRoot | Out-Null
+
+# Exact-ID creation is idempotent. Never overwrite an assessment or source captured by an earlier slice.
+foreach ($base in @($queueRoot, $generatedRoot)) {
+    if (-not (Test-Path -LiteralPath $base)) { continue }
+    foreach ($existing in Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue) {
+        $existingJobPath = Join-Path $existing.FullName 'job.json'
+        if (-not (Test-Path -LiteralPath $existingJobPath)) { continue }
+        try {
+            $existingJob = Get-Content -LiteralPath $existingJobPath -Raw | ConvertFrom-Json
+            if ([string]$existingJob.job_id -eq $JobId) {
+                Write-Output $existing.FullName
+                exit 0
+            }
+        } catch {}
+    }
+}
+
+# Guard against reposts/region variants with a new job ID after the same company/title was
+# already submitted or is already active. Exact job-ID dedupe alone allowed duplicate applications.
+$dedupeScript = Join-Path $PSScriptRoot 'dedupe-jobs.ps1'
+$candidateJson = @([ordered]@{ job_id=$JobId; company=$Company; title=$Title }) | ConvertTo-Json -Compress
+$dedupe = (& $dedupeScript -CandidatesJson $candidateJson -Workspace $Workspace | Select-Object -Last 1) | ConvertFrom-Json
+$duplicate = @($dedupe | Where-Object { $_.job_id -eq $JobId -and $_.seen }) | Select-Object -First 1
+if ($duplicate) {
+    if ([string]$duplicate.reason -notlike 'exact-*') {
+        & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $JobId -Status 'skipped-duplicate' `
+            -ReasonCode ([string]$duplicate.reason) -Company $Company -Title $Title -Location $Location `
+            -JobUrl $JobUrl -Source $Source -Notes "Matches $($duplicate.matched_job_id)." -Workspace $Workspace | Out-Null
+    }
+    Write-Output "DUPLICATE:${JobId}:$($duplicate.reason):$($duplicate.matched_job_id)"
+    exit 0
+}
+
 $workDir = Join-Path $queueRoot "$JobId-$slug"
 New-Item -ItemType Directory -Force -Path $workDir | Out-Null
 
@@ -48,7 +87,7 @@ $job = [ordered]@{
 $job | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $workDir 'job.json') -Encoding UTF8
 
 $assessment = [ordered]@{
-    policy_version = '5.12'
+    policy_version = '5.13'
     job_id = $JobId
     status = 'pending'
     score = $null

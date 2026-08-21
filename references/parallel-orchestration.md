@@ -1,4 +1,4 @@
-# Parallel Orchestration V5.12 — Latency-Aware + Fault-Isolated
+# Parallel Orchestration V5.13 — Latency-Aware + Fault-Isolated
 
 Parallelism is useful only when it does not delay the first useful result.
 

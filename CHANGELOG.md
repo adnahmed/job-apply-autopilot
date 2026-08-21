@@ -1,3 +1,17 @@
+# V5.13.0 — Net-New Throughput Edition
+
+- Added an unattended OpenCode supervisor (`start-autopilot.ps1` / `run-campaign.ps1` / `stop-autopilot.ps1`) with bounded fresh slices, a single-instance lock, keep-awake support, clean stop markers, and persistent logs/state.
+- Added dual BrowserOS health gating: MCP port 9010 and browser CDP port 9110 must both be live. A half-alive MCP server no longer burns agent sessions while the browser process is dead.
+- Restored the BrowserOS operational playbook accidentally truncated in V5.11.4, including tab ownership, `_run` one-strike fallback, unavailable CDP methods, hidden-input upload, connection-loss routing, covered controls, and success proof.
+- Added explicit handling for the upstream transient/no-ref upload limitation tracked by BrowserOS issue #2156.
+- `session-state.ps1` now routes placeholder/missing JDs to `source_pending`; it no longer advertises them as fast assessment work.
+- Added semantic company/title dedupe for recent submissions and active work items. `new-workitem.ps1` now blocks repost/new-ID duplicates and is idempotent for exact IDs.
+- Submission headlines now count unique company/title identities; raw ledger submission rows remain available as audit detail.
+- Fixed LinkedIn governor state loss caused by PowerShell JSON timestamps being converted to locale-formatted `DateTime` values before parsing.
+- The governor now merges ledger truth on every read, recognizes `easy-apply-submitted` rows even when `source` is only `linkedin`, accepts `-JobId`, avoids double-recording an ID, serializes writers with a lock, and replaces state atomically.
+- Expanded the resilience self-test to cover source gating, semantic dedupe, unique metrics, and governor recovery/idempotency.
+- Compressed the coordinator prompt into one deterministic hot loop and made net-new submissions the explicit throughput objective.
+
 # V5.12.0 — Deterministic Recovery Edition
 
 - Added `commit-assessment.ps1`: assessor decisions are schema-validated and atomically serialized; coordinator hand-written assessment/fit JSON is forbidden.

@@ -24,6 +24,22 @@ function Has-Property($Object, [string]$Name) {
     return ($null -ne $Object -and $Object.PSObject.Properties.Name -contains $Name)
 }
 
+function Test-SourceReady([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return $false }
+    try { $text = Get-Content -LiteralPath $Path -Raw } catch { return $false }
+    if ([string]::IsNullOrWhiteSpace($text)) { return $false }
+    if ($text -match 'Coordinator:\s*replace this placeholder') { return $false }
+    return $text.Trim().Length -ge 80
+}
+
+function Get-SubmissionIdentity([string]$Company, [string]$Title, [string]$JobId) {
+    $companyKey = (($Company.ToLowerInvariant() -replace '&', ' and ' -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
+    $companyKey = ($companyKey -replace '\s+(private limited|pvt ltd|pvt limited|limited|ltd|llc|incorporated|inc|corporation|corp|gmbh|plc|company|co)$', '').Trim()
+    $titleKey = (($Title.ToLowerInvariant() -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
+    if ($companyKey -and $titleKey) { return "$companyKey|$titleKey" }
+    return "job:$JobId"
+}
+
 function Test-AssessmentMalformed($Assessment, $Fit, [bool]$AssessmentFileExists) {
     if ($AssessmentFileExists -and $null -eq $Assessment) { return $true }
     if ($null -eq $Assessment) { return $false }
@@ -50,78 +66,38 @@ function Test-AssessmentMalformed($Assessment, $Fit, [bool]$AssessmentFileExists
     return $false
 }
 
-function Parse-Utc([string]$Value) {
-    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
-    try { return [DateTimeOffset]::Parse($Value).ToUniversalTime() } catch { return $null }
+function Parse-Utc($Value) {
+    if ($null -eq $Value) { return $null }
+    try {
+        if ($Value -is [DateTimeOffset]) { return $Value.ToUniversalTime() }
+        if ($Value -is [DateTime]) { return ([DateTimeOffset]$Value).ToUniversalTime() }
+        $text = [string]$Value
+        if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+        return [DateTimeOffset]::Parse($text, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
+    } catch { return $null }
 }
 
-function Get-LinkedInGovernorStatus([array]$BootstrapSubmissions) {
-    $maxHour = 4
-    $max24 = 20
-    $minSpacing = 600
-    $now = [DateTimeOffset]::UtcNow
-    $state = Read-JsonSafe (Join-Path $root 'linkedin-activity-state.json')
-    $submissions = @()
-    $manualBlock = $false
-    $pauseUntil = $null
-    $pauseReason = $null
-    $lastSignal = $null
-    if ($state) {
-        $manualBlock = [bool]$state.manual_block
-        $pauseUntil = Parse-Utc ([string]$state.pause_until)
-        $pauseReason = $state.pause_reason
-        $lastSignal = $state.last_signal_type
-        foreach ($x in @($state.easy_apply_submissions)) {
-            $dt = Parse-Utc ([string]$x)
-            if ($null -ne $dt -and $dt -gt $now.AddHours(-24)) { $submissions += $dt }
+function Get-LinkedInGovernorStatus {
+    $script = Join-Path $PSScriptRoot 'linkedin-governor.ps1'
+    try {
+        return ((& $script -Action Status -Workspace $Workspace | Select-Object -Last 1) | ConvertFrom-Json)
+    } catch {
+        return [pscustomobject]@{
+            easy_apply_allowed = $false
+            easy_apply_submissions_last_hour = 0
+            easy_apply_submissions_last_24h = 0
+            next_easy_apply_at = $null
+            block_reasons = @('governor-unavailable')
         }
-    } else {
-        foreach ($x in @($BootstrapSubmissions)) {
-            $dt = Parse-Utc ([string]$x)
-            if ($null -ne $dt -and $dt -gt $now.AddHours(-24)) { $submissions += $dt }
-        }
-    }
-    $lastHour = @($submissions | Sort-Object -Unique | Where-Object { $_ -gt $now.AddHours(-1) })
-    $submissions = @($submissions | Sort-Object -Unique)
-    $next = $now
-    $reasons = @()
-    if ($manualBlock) { $reasons += 'manual-block' }
-    if ($null -ne $pauseUntil -and $pauseUntil -gt $next) { $next = $pauseUntil; $reasons += 'signal-cooldown' }
-    if ($submissions.Count -gt 0) {
-        $last = ($submissions | Sort-Object)[-1]
-        $candidate = $last.AddSeconds($minSpacing)
-        if ($candidate -gt $next) { $next = $candidate }
-        if ($candidate -gt $now) { $reasons += 'minimum-spacing' }
-    }
-    if ($lastHour.Count -ge $maxHour) {
-        $candidate = (($lastHour | Sort-Object)[0]).AddHours(1)
-        if ($candidate -gt $next) { $next = $candidate }
-        $reasons += 'rolling-hour-limit'
-    }
-    if ($submissions.Count -ge $max24) {
-        $candidate = (($submissions | Sort-Object)[0]).AddHours(24)
-        if ($candidate -gt $next) { $next = $candidate }
-        $reasons += 'rolling-24h-limit'
-    }
-    $allowed = (-not $manualBlock -and $next -le $now)
-    return [ordered]@{
-        easy_apply_allowed = $allowed
-        submissions_last_hour = $lastHour.Count
-        submissions_last_24h = $submissions.Count
-        next_easy_apply_at = if ($allowed) { $now.ToString('o') } elseif ($manualBlock) { $null } else { $next.ToString('o') }
-        block_reasons = @($reasons | Select-Object -Unique)
-        pause_reason = $pauseReason
-        last_signal_type = $lastSignal
-        external_applications_restricted = $false
     }
 }
 
 $ledgerPath = Join-Path $root 'applications.jsonl'
 $ledgerCount = 0
 $submittedCount = 0
+$submittedUnique = @{}
 $ledgerIds = @{}
 $ledgerLastStatus = @{}
-$ledgerEasyApplySubmissions = @()
 if (Test-Path -LiteralPath $ledgerPath) {
     foreach ($line in Get-Content -LiteralPath $ledgerPath) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
@@ -129,9 +105,10 @@ if (Test-Path -LiteralPath $ledgerPath) {
             $row = $line | ConvertFrom-Json
             $ledgerCount++
             $isSubmitted = ($row.status -eq 'submitted' -or $row.submitted -eq $true)
-            if ($isSubmitted) { $submittedCount++ }
-            if ($isSubmitted -and ([string]$row.source) -match 'linkedin.*easy.*apply' -and $row.timestamp) {
-                $ledgerEasyApplySubmissions += [string]$row.timestamp
+            if ($isSubmitted) {
+                $submittedCount++
+                $submissionKey = Get-SubmissionIdentity ([string]$row.company) ([string]$row.title) ([string]$row.job_id)
+                $submittedUnique[$submissionKey] = $true
             }
             if ($null -ne $row.job_id) {
                 $jid = [string]$row.job_id
@@ -151,9 +128,10 @@ if (Test-Path -LiteralPath $queueRoot) {
         $assessmentFileExists = Test-Path -LiteralPath $assessmentPath
         $assessment = Read-JsonSafe $assessmentPath
         $fit = Read-JsonSafe (Join-Path $dir.FullName 'fit-map.json')
+        $sourceReady = Test-SourceReady (Join-Path $dir.FullName 'source.md')
         $assessmentMalformed = Test-AssessmentMalformed $assessment $fit $assessmentFileExists
         $recoverable = Read-JsonSafe (Join-Path $dir.FullName 'recoverable-error.json')
-        $retryAfter = if ($recoverable -and $recoverable.retry_after) { Parse-Utc ([string]$recoverable.retry_after) } else { $null }
+        $retryAfter = if ($recoverable -and $recoverable.retry_after) { Parse-Utc $recoverable.retry_after } else { $null }
         $recoverableDeferred = ($null -ne $retryAfter -and $retryAfter -gt [DateTimeOffset]::UtcNow)
         $id = if ($job -and $job.job_id) { [string]$job.job_id } else { $dir.Name.Split('-')[0] }
         $status = if ($assessmentMalformed) { 'malformed' } elseif ($assessment -and $assessment.status) { [string]$assessment.status } else { 'unassessed' }
@@ -163,14 +141,16 @@ if (Test-Path -LiteralPath $queueRoot) {
         $technicalPriorSkips = @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family')
         # Do not reopen an old failed skip just because policy changed. But if a reassessment was already
         # explicitly started under 5.10/5.11, allow that in-progress/passed item to finish after restart.
-        $reassessmentInProgress = ($priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12') -and $status -in @('needs-evidence','needs-research','passed'))
+        $reassessmentInProgress = ($priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13') -and $status -in @('needs-evidence','needs-research','passed'))
         $ledgerBlocks = ($already -and -not $reassessmentInProgress)
         $terminal = $status -in @('failed','rejected','skipped','submitted','blocked')
         $actionable = (-not $ledgerBlocks -and -not $terminal -and -not $recoverableDeferred)
         $stage = if ($recoverableDeferred) { 'recoverable_cooldown' } else { $null }
         $speed = if ($recoverableDeferred) { 'deferred' } else { $null }
         if ($actionable) {
-            if ($status -eq 'malformed') {
+            if (-not $sourceReady) {
+                $stage = 'source_pending'; $speed = 'fast'
+            } elseif ($status -eq 'malformed') {
                 $stage = 'assessment_repair'; $speed = 'fast'
             } elseif ($status -in @('pending','unassessed','captured-awaiting-source-and-assessment')) {
                 $stage = 'assessment_pending'; $speed = 'fast'
@@ -211,7 +191,7 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $progress = Read-JsonSafe (Join-Path $dir.FullName 'application-progress.json')
         $artifact = Read-JsonSafe (Join-Path $dir.FullName 'resume-artifact.json')
         $recoverable = Read-JsonSafe (Join-Path $dir.FullName 'recoverable-error.json')
-        $retryAfter = if ($recoverable -and $recoverable.retry_after) { Parse-Utc ([string]$recoverable.retry_after) } else { $null }
+        $retryAfter = if ($recoverable -and $recoverable.retry_after) { Parse-Utc $recoverable.retry_after } else { $null }
         $recoverableDeferred = ($null -ne $retryAfter -and $retryAfter -gt [DateTimeOffset]::UtcNow)
         $id = if ($job -and $job.job_id) { [string]$job.job_id } else { $dir.Name.Split('-')[0] }
         $priorLedgerStatus = if ($ledgerLastStatus.ContainsKey($id)) { [string]$ledgerLastStatus[$id] } else { $null }
@@ -272,7 +252,7 @@ $circuitCount = 0
 if (Test-Path -LiteralPath $circuitPath) {
     $circuitCount = @((Get-Content -LiteralPath $circuitPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })).Count
 }
-$linkedinStatus = Get-LinkedInGovernorStatus -BootstrapSubmissions $ledgerEasyApplySubmissions
+$linkedinStatus = Get-LinkedInGovernorStatus
 
 $out = [ordered]@{
     workspace = $Workspace
@@ -280,11 +260,14 @@ $out = [ordered]@{
     actions = $actions
     summary = [ordered]@{
         decisions = $ledgerCount
-        submitted = $submittedCount
+        submitted = $submittedUnique.Count
+        submitted_unique = $submittedUnique.Count
+        submitted_rows = $submittedCount
         queue_actionable = $queueActionable.Count
         queue_fast = @($queueActionable | Where-Object { $_.speed -eq 'fast' }).Count
         queue_slow = @($queueActionable | Where-Object { $_.speed -eq 'slow' }).Count
         queue_deferred = @($queue | Where-Object { $_.stage -eq 'recoverable_cooldown' }).Count
+        queue_source_pending = @($queue | Where-Object { $_.stage -eq 'source_pending' }).Count
         generated_actionable = $generatedActionable.Count
         generated_deferred = @($generated | Where-Object { $_.stage -eq 'recoverable_cooldown' }).Count
         reconcile = $reconcile.Count
@@ -292,11 +275,17 @@ $out = [ordered]@{
     }
     linkedin = [ordered]@{
         easy_apply_allowed = $linkedinStatus.easy_apply_allowed
-        last_hour = $linkedinStatus.submissions_last_hour
-        last_24h = $linkedinStatus.submissions_last_24h
+        last_hour = $linkedinStatus.easy_apply_submissions_last_hour
+        last_24h = $linkedinStatus.easy_apply_submissions_last_24h
         next_at = $linkedinStatus.next_easy_apply_at
         blocked = @($linkedinStatus.block_reasons).Count -gt 0
     }
-    instruction = if ($nextAction -eq 'discover') { 'Discover now.' } else { 'Do fast actions first. Do not batch slow research with ready/fast work.' }
+    instruction = if ($nextAction -eq 'discover') {
+        'Discover now.'
+    } elseif (@($queueActionable | Where-Object { $_.stage -eq 'source_pending' }).Count -gt 0) {
+        'Capture source_pending JDs before assessment. Do other ready work while BrowserOS is unavailable.'
+    } else {
+        'Do fast actions first. Do not batch slow research with ready/fast work.'
+    }
 }
 $out | ConvertTo-Json -Depth 6

@@ -1,7 +1,7 @@
-# V5.12.0 Validation
+# V5.13.0 Validation
 
-- `VERSION.txt` = `5.12.0`.
-- Main skill metadata version = `5.12.0`.
+- `VERSION.txt` = `5.13.0`.
+- Main skill metadata version = `5.13.0`.
 - Canonical `.tex` files are unchanged from V5.11.
 - All packaged subagents keep `question: deny`.
 - Assessor direct `edit` is denied; only `commit-assessment.ps1` is allowed for assessment artifact writes.
@@ -14,6 +14,12 @@
 - Recoverable schema/script/browser/resume/worker errors are explicitly non-terminal for the campaign.
 - CAPTCHA/MFA/security/automation controls remain zero-bypass and route-local; unaffected jobs continue.
 - Persistent discovery, bounded evidence lookup, external ATS uncapped behavior, and LinkedIn governor remain intact.
+- Missing/placeholder JDs route to `source_pending`, never `assessment_pending`.
+- Recent same-company/same-title reposts are semantically deduped even when the job ID changes.
+- `submitted_unique` is the headline and `submitted_rows` remains audit detail.
+- The LinkedIn governor merges ledger truth, parses JSON `DateTime` values safely, serializes writers, and replaces state atomically.
+- The BrowserOS playbook includes current session ownership, one-strike fallback, connection-loss, and upload behavior.
+- Supervisor validation resolves OpenCode without launching it; when BrowserOS is unhealthy it enters `waiting-browseros` without starting a model session.
 
 ## Regression self-test
 
@@ -23,4 +29,11 @@ Run:
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\selftest-resilience.ps1
 ```
 
-The test reproduces the exact V5.11.4 malformed `assessment.json` pattern, verifies `assessment_repair`, verifies canonical commit, then verifies `advance-workitem.ps1 -JobId ...` promotes successfully instead of stopping on a parameter/schema exception.
+The test verifies source gating, reproduces the V5.11.4 malformed `assessment.json` pattern, validates repair/commit/promotion, catches a new-ID semantic duplicate, checks unique metrics, and proves governor ledger recovery plus duplicate-JobId protection.
+
+Validate the supervisor without launching an agent:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-campaign.ps1 -Workspace <campaign-workspace> -ValidateOnly
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-browseros-health.ps1
+```

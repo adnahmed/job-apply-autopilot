@@ -3,6 +3,7 @@ param(
     [ValidateSet('Status','RecordEasyApply','RecordSignal','ClearManualBlock')]
     [string]$Action = 'Status',
     [string]$Workspace = (Get-Location).Path,
+    [string]$JobId = '',
     [ValidateSet('rate-limit','security-warning','captcha','mfa','account-restriction','other')]
     [string]$SignalType = 'other',
     [int]$MaxPerHour = 4,
@@ -11,38 +12,59 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-
-# Treat an explicitly empty -Workspace exactly like an omitted one.
-# This matters when callers pass an unset PowerShell variable such as -Workspace "$workspace".
-if ([string]::IsNullOrWhiteSpace($Workspace)) {
-    $Workspace = (Get-Location).Path
-}
-
+if ([string]::IsNullOrWhiteSpace($Workspace)) { $Workspace = (Get-Location).Path }
 $Workspace = (Resolve-Path -LiteralPath $Workspace).Path
 $root = Join-Path $Workspace '.job-apply-autopilot'
 if (-not (Test-Path -LiteralPath $root)) { throw "No job-apply-autopilot runtime at $root" }
 $statePath = Join-Path $root 'linkedin-activity-state.json'
+$lockPath = Join-Path $root 'linkedin-activity-state.lock'
 
-function New-State {
-    $seed = @()
+function Parse-Utc($Value) {
+    if ($null -eq $Value) { return $null }
+    try {
+        if ($Value -is [DateTimeOffset]) { return $Value.ToUniversalTime() }
+        if ($Value -is [DateTime]) { return ([DateTimeOffset]$Value).ToUniversalTime() }
+        $text = [string]$Value
+        if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+        return [DateTimeOffset]::Parse($text, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
+    } catch { return $null }
+}
+
+function Test-EasyApplyRow($Row) {
+    $submitted = ([string]$Row.status -eq 'submitted' -or $Row.submitted -eq $true)
+    if (-not $submitted) { return $false }
+    return (
+        ([string]$Row.source -match 'linkedin.*easy.*apply') -or
+        ([string]$Row.reason_code -eq 'easy-apply-submitted') -or
+        ([string]$Row.route -eq 'linkedin-easy-apply')
+    )
+}
+
+function Get-LedgerSeed {
+    $times = @()
+    $ids = @()
     $ledger = Join-Path $root 'applications.jsonl'
     if (Test-Path -LiteralPath $ledger) {
         foreach ($line in Get-Content -LiteralPath $ledger) {
             if ([string]::IsNullOrWhiteSpace($line)) { continue }
             try {
                 $row = $line | ConvertFrom-Json
-                $source = [string]$row.source
-                $submitted = ($row.status -eq 'submitted' -or $row.submitted -eq $true)
-                if ($submitted -and $source -match 'linkedin.*easy.*apply' -and $row.timestamp) {
-                    $dt = [DateTimeOffset]::Parse([string]$row.timestamp).ToUniversalTime()
-                    if ($dt -gt [DateTimeOffset]::UtcNow.AddHours(-24)) { $seed += $dt.ToString('o') }
-                }
+                if (-not (Test-EasyApplyRow $row)) { continue }
+                $dt = Parse-Utc $row.timestamp
+                if ($null -ne $dt -and $dt -gt [DateTimeOffset]::UtcNow.AddHours(-24)) { $times += $dt.ToString('o') }
+                if ($row.job_id) { $ids += [string]$row.job_id }
             } catch {}
         }
     }
+    return [ordered]@{ times=@($times | Sort-Object -Unique); ids=@($ids | Sort-Object -Unique) }
+}
+
+function New-State {
+    $seed = Get-LedgerSeed
     return [ordered]@{
-        version = 1
-        easy_apply_submissions = @($seed | Sort-Object -Unique)
+        version = 2
+        easy_apply_submissions = @($seed.times)
+        easy_apply_job_ids = @($seed.ids)
         pause_until = $null
         pause_reason = $null
         manual_block = $false
@@ -53,68 +75,68 @@ function New-State {
 }
 
 function Read-State {
-    if (-not (Test-Path -LiteralPath $statePath)) { return (New-State) }
-    try {
-        $raw = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
-        $s = New-State
-        if ($null -ne $raw.easy_apply_submissions) { $s.easy_apply_submissions = @($raw.easy_apply_submissions) }
-        if ($raw.pause_until) { $s.pause_until = [string]$raw.pause_until }
-        if ($raw.pause_reason) { $s.pause_reason = [string]$raw.pause_reason }
-        if ($null -ne $raw.manual_block) { $s.manual_block = [bool]$raw.manual_block }
-        if ($raw.last_signal_at) { $s.last_signal_at = [string]$raw.last_signal_at }
-        if ($raw.last_signal_type) { $s.last_signal_type = [string]$raw.last_signal_type }
-        return $s
-    } catch { return (New-State) }
+    $state = New-State
+    if (Test-Path -LiteralPath $statePath) {
+        try {
+            $raw = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+            $state.easy_apply_submissions = @($state.easy_apply_submissions) + @($raw.easy_apply_submissions)
+            $state.easy_apply_job_ids = @($state.easy_apply_job_ids) + @($raw.easy_apply_job_ids)
+            if ($raw.pause_until) { $state.pause_until = [string]$raw.pause_until }
+            if ($raw.pause_reason) { $state.pause_reason = [string]$raw.pause_reason }
+            if ($null -ne $raw.manual_block) { $state.manual_block = [bool]$raw.manual_block }
+            if ($raw.last_signal_at) { $state.last_signal_at = [string]$raw.last_signal_at }
+            if ($raw.last_signal_type) { $state.last_signal_type = [string]$raw.last_signal_type }
+        } catch {
+            # The ledger seed is authoritative. A partial/corrupt state file must never erase pacing history.
+        }
+    }
+    $parsed = @()
+    foreach ($value in @($state.easy_apply_submissions)) {
+        $dt = Parse-Utc $value
+        if ($null -ne $dt -and $dt -gt [DateTimeOffset]::UtcNow.AddHours(-24)) { $parsed += $dt.ToString('o') }
+    }
+    $state.easy_apply_submissions = @($parsed | Sort-Object -Unique)
+    $state.easy_apply_job_ids = @($state.easy_apply_job_ids | Where-Object { $_ } | Sort-Object -Unique)
+    return $state
 }
 
 function Write-State($State) {
     $State.updated_at = (Get-Date).ToUniversalTime().ToString('o')
-    $State | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statePath -Encoding UTF8
-}
-
-function Parse-Utc([string]$Value) {
-    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
-    try { return [DateTimeOffset]::Parse($Value).ToUniversalTime() } catch { return $null }
+    $tempPath = "$statePath.$PID.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        $State | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $tempPath -Encoding UTF8
+        [IO.File]::Move($tempPath, $statePath, $true)
+    } finally {
+        if (Test-Path -LiteralPath $tempPath) { Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue }
+    }
 }
 
 function Get-Status($State) {
     $now = [DateTimeOffset]::UtcNow
-    $parsed = @()
-    foreach ($x in @($State.easy_apply_submissions)) {
-        $dt = Parse-Utc ([string]$x)
-        if ($null -ne $dt -and $dt -gt $now.AddHours(-24)) { $parsed += $dt }
-    }
-    $State.easy_apply_submissions = @($parsed | Sort-Object | ForEach-Object { $_.ToString('o') })
-
+    $parsed = @($State.easy_apply_submissions | ForEach-Object { Parse-Utc $_ } | Where-Object { $null -ne $_ -and $_ -gt $now.AddHours(-24) })
     $lastHour = @($parsed | Where-Object { $_ -gt $now.AddHours(-1) })
-    $last24 = @($parsed)
     $candidates = @($now)
     $reasons = @()
 
     if ($State.manual_block) { $reasons += 'manual-block' }
-
-    $pause = Parse-Utc ([string]$State.pause_until)
+    $pause = Parse-Utc $State.pause_until
     if ($null -ne $pause -and $pause -gt $now) {
         $candidates += $pause
         $reasons += 'signal-cooldown'
-    } elseif ($null -ne $pause -and $pause -le $now) {
+    } elseif ($null -ne $pause) {
         $State.pause_until = $null
         $State.pause_reason = $null
     }
-
     if ($parsed.Count -gt 0) {
-        $last = ($parsed | Sort-Object)[-1]
-        $spacing = $last.AddSeconds($MinIntervalSeconds)
+        $spacing = (($parsed | Sort-Object)[-1]).AddSeconds($MinIntervalSeconds)
         if ($spacing -gt $now) { $candidates += $spacing; $reasons += 'minimum-spacing' }
     }
     if ($lastHour.Count -ge $MaxPerHour) {
-        $oldestHour = ($lastHour | Sort-Object)[0]
-        $candidates += $oldestHour.AddHours(1)
+        $candidates += (($lastHour | Sort-Object)[0]).AddHours(1)
         $reasons += 'rolling-hour-limit'
     }
-    if ($last24.Count -ge $MaxPer24Hours) {
-        $oldest24 = ($last24 | Sort-Object)[0]
-        $candidates += $oldest24.AddHours(24)
+    if ($parsed.Count -ge $MaxPer24Hours) {
+        $candidates += (($parsed | Sort-Object)[0]).AddHours(24)
         $reasons += 'rolling-24h-limit'
     }
 
@@ -125,7 +147,7 @@ function Get-Status($State) {
         state_path = $statePath
         easy_apply_allowed = $allowed
         easy_apply_submissions_last_hour = $lastHour.Count
-        easy_apply_submissions_last_24h = $last24.Count
+        easy_apply_submissions_last_24h = $parsed.Count
         max_per_hour = $MaxPerHour
         max_per_rolling_24h = $MaxPer24Hours
         min_interval_seconds = $MinIntervalSeconds
@@ -139,35 +161,45 @@ function Get-Status($State) {
     }
 }
 
-$state = Read-State
-$nowText = [DateTimeOffset]::UtcNow.ToString('o')
-
-switch ($Action) {
-    'RecordEasyApply' {
-        $state.easy_apply_submissions = @($state.easy_apply_submissions) + @($nowText)
-        Write-State $state
+$lock = $null
+try {
+    for ($attempt = 0; $attempt -lt 100 -and $null -eq $lock; $attempt++) {
+        try { $lock = [IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None') }
+        catch { Start-Sleep -Milliseconds 25 }
     }
-    'RecordSignal' {
-        $state.last_signal_at = $nowText
-        $state.last_signal_type = $SignalType
-        $state.pause_reason = $SignalType
-        if ($SignalType -in @('captcha','mfa','account-restriction')) {
-            $state.manual_block = $true
-            $state.pause_until = $null
-        } else {
-            $state.pause_until = [DateTimeOffset]::UtcNow.AddHours(24).ToString('o')
+    if ($null -eq $lock) { throw 'Timed out waiting for the LinkedIn governor lock.' }
+
+    $state = Read-State
+    $nowText = [DateTimeOffset]::UtcNow.ToString('o')
+    switch ($Action) {
+        'RecordEasyApply' {
+            $alreadyRecorded = ($JobId -and $JobId -in @($state.easy_apply_job_ids))
+            if (-not $alreadyRecorded) {
+                $state.easy_apply_submissions = @($state.easy_apply_submissions) + @($nowText)
+                if ($JobId) { $state.easy_apply_job_ids = @($state.easy_apply_job_ids) + @($JobId) }
+            }
         }
-        Write-State $state
+        'RecordSignal' {
+            $state.last_signal_at = $nowText
+            $state.last_signal_type = $SignalType
+            $state.pause_reason = $SignalType
+            if ($SignalType -in @('captcha','mfa','account-restriction')) {
+                $state.manual_block = $true
+                $state.pause_until = $null
+            } else {
+                $state.pause_until = [DateTimeOffset]::UtcNow.AddHours(24).ToString('o')
+            }
+        }
+        'ClearManualBlock' {
+            $state.manual_block = $false
+            $state.pause_until = $null
+            $state.pause_reason = $null
+        }
     }
-    'ClearManualBlock' {
-        $state.manual_block = $false
-        $state.pause_until = $null
-        $state.pause_reason = $null
-        Write-State $state
-    }
-    default { }
-}
 
-$status = Get-Status $state
-Write-State $state
-$status | ConvertTo-Json -Depth 6
+    $status = Get-Status $state
+    Write-State $state
+    $status | ConvertTo-Json -Depth 6
+} finally {
+    if ($null -ne $lock) { $lock.Dispose() }
+}

@@ -39,7 +39,13 @@ if (Test-Path -LiteralPath $appLog) {
             $source = if ($r.source) { [string]$r.source } elseif ($job -and $job.source) { [string]$job.source } else { 'unknown' }
             $status = [string]$r.status
             $bucket = if ($status -eq 'submitted') { 'submitted' } elseif ($status -like 'blocked-*' -or $status -like '*blocked*' -or $status -eq 'failed') { 'blocked' } else { 'skipped' }
-            $rows += [pscustomobject]@{ job_id=[string]$r.job_id; status=$status; bucket=$bucket; source=$source; lane=$lane }
+            $company = [string]$r.company
+            $title = [string]$r.title
+            $companyKey = (($company.ToLowerInvariant() -replace '&', ' and ' -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
+            $companyKey = ($companyKey -replace '\s+(private limited|pvt ltd|pvt limited|limited|ltd|llc|incorporated|inc|corporation|corp|gmbh|plc|company|co)$', '').Trim()
+            $titleKey = (($title.ToLowerInvariant() -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
+            $identity = if ($companyKey -and $titleKey) { "$companyKey|$titleKey" } else { "job:$([string]$r.job_id)" }
+            $rows += [pscustomobject]@{ job_id=[string]$r.job_id; identity=$identity; status=$status; bucket=$bucket; source=$source; lane=$lane }
         } catch { }
         }
     }
@@ -65,11 +71,15 @@ function Summarize($items, [string]$property) {
 }
 
 $total = @($rows).Count
-$submittedTotal = @($rows | Where-Object bucket -eq 'submitted').Count
+$submittedRows = @($rows | Where-Object bucket -eq 'submitted')
+$submittedTotal = @($submittedRows | Group-Object identity).Count
 $stats = [ordered]@{
     generated_at = (Get-Date).ToUniversalTime().ToString('o')
     total_decisions = $total
     submitted = $submittedTotal
+    submitted_unique = $submittedTotal
+    submitted_rows = $submittedRows.Count
+    duplicate_submission_rows = [math]::Max(0, $submittedRows.Count - $submittedTotal)
     blocked = @($rows | Where-Object bucket -eq 'blocked').Count
     skipped = @($rows | Where-Object bucket -eq 'skipped').Count
     submission_rate = if ($total) { [math]::Round($submittedTotal / $total, 4) } else { 0 }

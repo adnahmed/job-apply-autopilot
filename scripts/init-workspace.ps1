@@ -30,7 +30,7 @@ foreach ($path in @($appLog, $relocLog, $circuitLog)) {
 
 
 if (-not (Test-Path -LiteralPath $statsPath)) {
-    [ordered]@{ generated_at = $null; total_decisions = 0; submitted = 0; blocked = 0; skipped = 0; submission_rate = 0; statuses = @(); by_source = @(); by_discovery_lane = @() } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statsPath -Encoding UTF8
+    [ordered]@{ generated_at = $null; total_decisions = 0; submitted = 0; submitted_unique = 0; submitted_rows = 0; duplicate_submission_rows = 0; blocked = 0; skipped = 0; submission_rate = 0; statuses = @(); by_source = @(); by_discovery_lane = @() } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statsPath -Encoding UTF8
 }
 if (-not (Test-Path -LiteralPath $candidateEvidencePath)) {
     [ordered]@{
@@ -50,7 +50,7 @@ if (-not (Test-Path -LiteralPath $linkedinStatePath)) {
                 $source = [string]$row.source
                 $submitted = ($row.status -eq 'submitted' -or $row.submitted -eq $true)
                 if ($submitted -and $source -match 'linkedin.*easy.*apply' -and $row.timestamp) {
-                    $dt = [DateTimeOffset]::Parse([string]$row.timestamp).ToUniversalTime()
+                    $dt = if ($row.timestamp -is [DateTime]) { ([DateTimeOffset]$row.timestamp).ToUniversalTime() } else { [DateTimeOffset]::Parse(([string]$row.timestamp), [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime() }
                     if ($dt -gt [DateTimeOffset]::UtcNow.AddHours(-24)) { $easyApplySeed += $dt.ToString('o') }
                 }
             } catch {}
