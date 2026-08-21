@@ -3,7 +3,7 @@ name: job-apply-autopilot
 description: "Persistent autonomous job discovery, truthful fit triage, tailored resumes, and idempotent verified submission through BrowserOS neo. Uses specialized subagents, semantic dedupe, circuit breakers, and a resilient overnight supervisor."
 ---
 
-# Job Apply Autopilot V5.15.0 — Compact Uncapped Pipeline Edition
+# Job Apply Autopilot V5.15.1 — Reliability Hotfix
 
 Mission: maximize credible, **net-new** interview opportunities per unit time. Preserve truth, Pakistan eligibility, anti-automation safety, and useful resumes. Raw tool activity, duplicate submissions, and queued placeholders are not progress.
 
@@ -144,7 +144,7 @@ Read `references/browseros-playbook.md` when browser work begins or the first br
 - after `Unable to connect`/CDP loss, stop browser calls for the slice, do local work, persist state, and return for supervisor recovery;
 - browser loss is not campaign completion.
 
-One bad site/job never ends the campaign. Use `defer-workitem.ps1` for recoverable technical failures (1m, 5m, then 30m backoff), then continue. A standalone CAPTCHA gets the solver-aware recovery flow in `references/captcha-recovery.md`: preserve the tab, click one ordinary challenge trigger when available, wait up to 120 seconds, and continue if it clears. CAPTCHA presence alone does not trip a domain circuit. MFA, account restrictions, explicit automation/security warnings, attributable 429s, failed solver recovery, or a repeated challenge are recorded only through `domain-circuit-breaker.ps1 -Action Record`. Never hand-append circuit-breaker JSONL.
+One bad site/job never ends the campaign. For recoverable technical failures call `defer-workitem.ps1 -WorkItemDir <path> -Stage <current-stage> -Code <compact-code> -Message <compact-message>` (1m, 5m, then 30m backoff), then continue. Do not invent `-Reason` or `-Workspace` parameters. A standalone CAPTCHA gets the solver-aware recovery flow in `references/captcha-recovery.md`: preserve the tab, click one ordinary challenge trigger when available, wait up to 120 seconds, and continue if it clears. CAPTCHA presence alone does not trip a domain circuit. MFA, account restrictions, explicit automation/security warnings, attributable 429s, failed solver recovery, or a repeated challenge are recorded only through `domain-circuit-breaker.ps1 -Action Record`. Never hand-append circuit-breaker JSONL.
 
 ## Truth and autonomy
 
@@ -158,7 +158,7 @@ Never declare a natural pause, completion, or exhaustion while the final `sessio
 
 ## Fault containment
 
-Schema, script, worker, resume, and browser implementation errors are job/route-local. Correct once when deterministic; otherwise defer and continue. Do not repeatedly reconsider the same branch. If a resume worker returns empty or leaves `resume.tex` with an incomplete audit, inspect only `resume-artifact.json`, then re-dispatch that same resume worker once; the coordinator must not inspect compiler code/parameters or attempt manual compilation.
+Schema, script, worker, resume, and browser implementation errors are job/route-local. Correct once when deterministic; otherwise defer and continue. Do not repeatedly reconsider the same branch. Never compensate for a packaged assessor failure by adding prompt lines, reading candidate evidence in the coordinator, building its payload, or calling `commit-assessment.ps1` yourself. If a resume worker returns empty or leaves `resume.tex` with an incomplete audit, inspect only `resume-artifact.json`, then re-dispatch that same resume worker once; the coordinator must not inspect compiler code/parameters or attempt manual compilation.
 
 Only the affected route stops for truthful impossibility, an unresolved CAPTCHA after solver recovery, MFA/security controls, or unavailable BrowserOS. Other domains, local stages, and discovery continue.
 
@@ -188,4 +188,4 @@ BrowserOS neo, its signed-in profile, internet access, and the PC must remain av
 
 ## Worker prompt contract
 
-Each worker prompt is exactly two lines: `Work item directory: <absolute-path>` and `Action: <action>`. Do not paste policy, evidence opinions, job summaries, or instructions already owned by the packaged agent. Multiple one-job Task calls belong in the same assistant turn. Workers do not load this main skill, invoke nested workers, write shared ledgers, or ask questions. They return one terse status line; the coordinator reruns state after the wave and continues.
+Use `actions[].worker_prompt` verbatim when present. Each worker prompt is exactly two lines: `Work item directory: <absolute-path>` and `Action: <action>`. Do not append efficiency notes, policy, evidence opinions, job summaries, or recovery instructions. Multiple one-job Task calls belong in the same assistant turn. Workers do not load this main skill, invoke nested workers, write shared ledgers, or ask questions. They return one terse status line; the coordinator reruns state after the wave and continues.

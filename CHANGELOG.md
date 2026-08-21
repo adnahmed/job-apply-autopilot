@@ -1,3 +1,11 @@
+# V5.15.1 — Reliability Hotfix
+
+- Restored deterministic canonical-facts, shared-evidence, and commit-script locators to the assessor after V5.15 prompt compaction removed them; restored its compact payload contract and raised its bounded local step budget.
+- Fixed `application-send-guard.ps1` verification grace under locale-sensitive PowerShell JSON timestamp conversion. Deadlines now derive from the original reservation, persist durably, and never slide forward on retry.
+- `session-state.ps1` suppresses grace-deferred verification until its stored deadline and emits exact two-line `worker_prompt` values for worker actions.
+- Applicators now yield immediately on verification grace, stop after one BrowserOS connection-loss probe, and require authoritative account/Sent evidence before clearing an ambiguous reservation.
+- Documented the exact defer command and prohibited coordinator-side assessor completion or prompt augmentation.
+
 # V5.15.0 — Compact Uncapped Pipeline Edition
 
 - Removed every skill-level worker concurrency cap except serialized LinkedIn Easy Apply; assessor, unified research, resume, external ATS, and email waves use runtime capacity.

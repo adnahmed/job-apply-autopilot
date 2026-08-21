@@ -32,7 +32,7 @@ Use `scripts/application-send-guard.ps1` as the only writer of send state and `a
 
 1. Call `-Action Reserve -Channel email -Target <recipient> -Subject <subject>` before opening Compose.
 2. On `already-submitted`, return it without browser work.
-3. On `verify-required`, do **not** compose. Search Gmail Sent by exact recipient plus the reserved subject/time. If found, call `MarkSubmitted` with the existing reservation and concise proof. If absent, call `MarkVerifiedAbsent`; respect its 15-minute verification grace. Only a later `Reserve` returning `acquired` permits a new email.
+3. On `verify-required`, do **not** compose. Search Gmail Sent by exact recipient plus the reserved subject/time. If found, call `MarkSubmitted` with the existing reservation and concise proof. If absent, call `MarkVerifiedAbsent`. On `verification-grace`, checkpoint `retry_after` and return immediately—never sleep, poll, or hold the Gmail tab open. Only a later `Reserve` returning `acquired` permits a new email.
 4. On `acquired`, keep the returned reservation ID. Open a new owned Gmail tab, compose one email, attach the exact PDF, and send once.
 5. After explicit `Message sent` plus the message visible in Sent, call `MarkSubmitted` with the reservation ID and proof.
 6. If failure is definitely before Send, call `CancelBeforeSubmit`. If Send may have happened but proof is incomplete, call `MarkAmbiguous`. Never infer absence from a missing local result.

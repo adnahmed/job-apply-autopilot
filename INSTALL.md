@@ -1,17 +1,17 @@
-# Install Job Apply Autopilot V5.15.0
+# Install Job Apply Autopilot V5.15.1
 
-V5.15.0 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
+V5.15.1 upgrades the existing campaign in place. Do **not** delete `<workspace>\.job-apply-autopilot`.
 
 From the chosen campaign workspace:
 
 ```powershell
-$zip  = ".\job-apply-autopilot-v5.15.0.zip"
-$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.15.0"
+$zip  = ".\job-apply-autopilot-v5.15.1.zip"
+$temp = Join-Path $env:TEMP "job-apply-autopilot-v5.15.1"
 $dst  = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-$src = Join-Path $temp "job-apply-autopilot-v5.15.0"
+$src = Join-Path $temp "job-apply-autopilot-v5.15.1"
 
 if (Test-Path $dst) {
     $backupRoot = "$HOME\.config\opencode\skill-backups"
@@ -86,7 +86,7 @@ Restart OpenCode from the campaign workspace. To make one interactive session au
 
 Do not type `/goal` when launching overnight mode below. The detached supervisor starts fresh bounded slices, and each slice creates its coordinator goal programmatically when the goal tools are available.
 
-Expected V5.15.0 behavior:
+Expected V5.15.1 behavior:
 - runnable generated and queue work is exposed together and dispatched in parallel worker waves;
 - assessor, unified research, resume, external ATS, and email workers are uncapped by skill policy while LinkedIn remains serial;
 - assessment stays local/web-free and one merged research finalizer handles only decision-changing eligibility/evidence uncertainty;

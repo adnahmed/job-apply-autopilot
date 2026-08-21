@@ -32,7 +32,7 @@ Preconditions: assessment passed/all gates true; unique resume artifact exists. 
 
 External ATS has no skill-imposed numeric run/day/concurrency cap. Direct email applications belong to `job-autopilot-email-apply`; if the only usable route is email, write compact `application-route.json` with `route: email` and `target: <address>`, return `handoff-email <address>`, and stop without writing a result.
 
-BrowserOS: use the available tools normally. If one interaction technique fails, use at most one documented fallback from `references/browseros-playbook.md` rather than experimenting repeatedly.
+BrowserOS: use the available tools normally. If one interaction technique fails, use at most one documented fallback from `references/browseros-playbook.md` rather than experimenting repeatedly. An OAuth click that drops owned tabs or resets the session is connection loss: make one cheap tabs health probe, then checkpoint, defer, and return. Do not retry the OAuth click or wrap it in `_run`.
 
 Authentication priority: existing session > LinkedIn OAuth/import > other appropriate authenticated OAuth > password account. Password generation/autofill allowed. OAuth is authentication, not Easy Apply activity.
 
@@ -42,7 +42,9 @@ Upload exact PDF from `resume-artifact.json`; verify displayed filename before S
 
 Checkpoint `application-progress.json` only at meaningful stages: `started`, `auth-complete`, `resume-uploaded`, `form-complete`, `submit-clicked`, terminal.
 
-Before browser work, call `application-send-guard.ps1 -Action Reserve -Channel external-ats -Target <domain-or-application-url>`. Keep its reservation ID. On `verify-required`, verify the prior ATS outcome before touching Submit; never infer no side effect from a missing result file. Call `MarkSubmitted` after explicit success, `CancelBeforeSubmit` for a definite pre-submit stop, or `MarkAmbiguous` whenever Submit may have happened but proof is incomplete. On resume after `submit-clicked`, verify success before any second click.
+Before browser work, call `application-send-guard.ps1 -Action Reserve -Channel external-ats -Target <domain-or-application-url>`. Keep its reservation ID. On `verify-required`, verify the prior ATS outcome before touching Submit; never infer no side effect from a missing result file. An authenticated ATS application tracker/state is required to prove absence; a public `Apply Now`, missing progress/result, browser history, or no confirmation email alone is insufficient. Call `MarkSubmitted` after explicit success, `CancelBeforeSubmit` for a definite pre-submit stop, or `MarkAmbiguous` whenever Submit may have happened but proof is incomplete. On `verification-grace`, checkpoint the returned `retry_after` and return immediately—never sleep, poll, or keep a browser session open. On resume after `submit-clicked`, verify success before any second click.
+
+For recoverable browser failures call `defer-workitem.ps1 -WorkItemDir <supplied-dir> -Stage <current-action> -Code <compact-code> -Message <compact-message>` and return.
 
 CAPTCHA: when a standalone challenge appears, read `references/captcha-recovery.md`. Keep the task-owned tab open, click one ordinary checkbox/challenge trigger if available, then wait up to 120 seconds for a targeted cleared/success state. Re-snapshot and continue once if it clears. Do not manually solve image/audio puzzles, synthesize tokens, or repeatedly click. If it remains or returns, preserve the tab, checkpoint `captcha-waiting`, cancel a definitely pre-submit reservation and defer with `defer-workitem.ps1`; if Submit may already have occurred, mark the reservation ambiguous for verification. Record a circuit only after failed/repeated solver recovery or when accompanied by an explicit automation/security signal.
 

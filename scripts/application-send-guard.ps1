@@ -179,6 +179,7 @@ try {
                     channel = $state.channel
                     target = $state.target
                     subject = $state.subject
+                    retry_after = $state.verification_retry_after
                 })
             }
         }
@@ -195,6 +196,7 @@ try {
                     channel = $state.channel
                     target = $state.target
                     subject = $state.subject
+                    retry_after = $state.verification_retry_after
                 })
                 exit 0
             }
@@ -229,6 +231,7 @@ try {
             $state.status = 'submitted'
             Set-StateProperty $state 'proof' $Proof.Trim()
             Set-StateProperty $state 'submitted_at' $now.ToString('o')
+            Set-StateProperty $state 'verification_retry_after' $null
             $state.updated_at = $now.ToString('o')
             Write-JsonAtomic $statePath $state
             $result = [ordered]@{
@@ -255,6 +258,7 @@ try {
             if ([string]::IsNullOrWhiteSpace($Proof)) { throw 'MarkAmbiguous requires -Proof describing the uncertain outcome.' }
             $state.status = 'verification-required'
             Set-StateProperty $state 'proof' $Proof.Trim()
+            Set-StateProperty $state 'verification_retry_after' $null
             $state.updated_at = $now.ToString('o')
             Write-JsonAtomic $statePath $state
             Write-Result ([ordered]@{ status='verify-required'; safe_to_submit=$false; reservation_id=$state.reservation_id; reserved_at=$state.reserved_at })
@@ -262,15 +266,23 @@ try {
         'MarkVerifiedAbsent' {
             if (-not (Test-Reservation $state $ReservationId)) { exit 0 }
             if ([string]::IsNullOrWhiteSpace($Proof)) { throw 'MarkVerifiedAbsent requires -Proof.' }
-            $reservedAt = try { [DateTimeOffset]::Parse([string]$state.reserved_at) } catch { $now }
-            $retryAt = $reservedAt.ToUniversalTime().AddMinutes([Math]::Max(1, $VerificationGraceMinutes))
+            $reservedAt = Parse-Time $state.reserved_at
+            if ($null -eq $reservedAt) {
+                Write-Result ([ordered]@{ status='invalid-reservation-time'; safe_to_submit=$false; reservation_id=$state.reservation_id })
+                exit 0
+            }
+            $retryAt = $reservedAt.AddMinutes([Math]::Max(1, $VerificationGraceMinutes))
             if ($now -lt $retryAt) {
+                Set-StateProperty $state 'verification_retry_after' $retryAt.ToString('o')
+                $state.updated_at = $now.ToString('o')
+                Write-JsonAtomic $statePath $state
                 Write-Result ([ordered]@{ status='verification-grace'; safe_to_submit=$false; retry_after=$retryAt.ToString('o'); reservation_id=$state.reservation_id })
                 exit 0
             }
             $state.status = 'verified-absent'
             Set-StateProperty $state 'verification_proof' $Proof.Trim()
             Set-StateProperty $state 'verified_at' $now.ToString('o')
+            Set-StateProperty $state 'verification_retry_after' $null
             $state.updated_at = $now.ToString('o')
             Write-JsonAtomic $statePath $state
             Write-Result ([ordered]@{ status='verified-absent'; safe_to_submit=$true; reservation_id=$state.reservation_id })
@@ -281,6 +293,7 @@ try {
             $state.status = 'cancelled-before-submit'
             Set-StateProperty $state 'cancellation_proof' $Proof.Trim()
             Set-StateProperty $state 'cancelled_at' $now.ToString('o')
+            Set-StateProperty $state 'verification_retry_after' $null
             $state.updated_at = $now.ToString('o')
             Write-JsonAtomic $statePath $state
             Write-Result ([ordered]@{ status='cancelled-before-submit'; safe_to_submit=$true; reservation_id=$state.reservation_id })

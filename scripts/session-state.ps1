@@ -254,9 +254,11 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $circuitBlocked = ($null -ne $domainCircuit)
         $sendStatus = if ($sendState -and $sendState.status) { [string]$sendState.status } else { $null }
         $needsSendVerification = $sendStatus -in @('reserved','verification-required','submitted')
+        $verificationRetryAfter = if ($sendState -and $sendState.verification_retry_after) { Parse-Utc $sendState.verification_retry_after } else { $null }
+        $verificationGraceDeferred = ($needsSendVerification -and $null -ne $verificationRetryAfter -and $verificationRetryAfter -gt [DateTimeOffset]::UtcNow)
         $emailRoute = ($route -and [string]$route.route -eq 'email' -and $route.target)
-        $actionable = (-not $already -and -not $needsReconcile -and -not $terminalResult -and -not $recoverableDeferred -and -not $circuitBlocked)
-        $stage = if ($circuitBlocked) { 'domain_circuit_breaker' } elseif ($recoverableDeferred) { 'recoverable_cooldown' } else { $null }
+        $actionable = (-not $already -and -not $needsReconcile -and -not $terminalResult -and -not $recoverableDeferred -and -not $verificationGraceDeferred -and -not $circuitBlocked)
+        $stage = if ($circuitBlocked) { 'domain_circuit_breaker' } elseif ($recoverableDeferred) { 'recoverable_cooldown' } elseif ($verificationGraceDeferred) { 'verification_grace' } else { $null }
         if ($needsReconcile) { $stage = 'reconcile_result' }
         elseif ($actionable -and -not $resumeReady) { $stage = 'resume_pending' }
         elseif ($actionable -and $needsSendVerification) { $stage = 'application_verification' }
@@ -273,9 +275,9 @@ if (Test-Path -LiteralPath $generatedRoot) {
             actionable = $actionable
             needs_reconcile = $needsReconcile
             stage = $stage
-            speed = if ($recoverableDeferred -or $circuitBlocked) { 'deferred' } else { 'fast' }
+            speed = if ($recoverableDeferred -or $verificationGraceDeferred -or $circuitBlocked) { 'deferred' } else { 'fast' }
             path = $dir.FullName
-            retry_after = if ($circuitBlocked) { $domainCircuit.expires_at } elseif ($recoverableDeferred) { $retryAfter.ToString('o') } else { $null }
+            retry_after = if ($circuitBlocked) { $domainCircuit.expires_at } elseif ($recoverableDeferred) { $retryAfter.ToString('o') } elseif ($verificationGraceDeferred) { $verificationRetryAfter.ToString('o') } else { $null }
         }
     }
 }
@@ -336,16 +338,21 @@ function Get-DispatchTarget($Item) {
 }
 
 $actions = @($selected | ForEach-Object {
-    [ordered]@{
+    $dispatch = Get-DispatchTarget $_
+    $action = [ordered]@{
         job_id = $_.job_id
         company = $_.company
         title = $_.title
         stage = $_.stage
         speed = $_.speed
-        dispatch = Get-DispatchTarget $_
+        dispatch = $dispatch
         priority = if ($stagePriority.ContainsKey([string]$_.stage)) { $stagePriority[[string]$_.stage] } else { 999 }
         path = $_.path
     }
+    if ($dispatch -like 'job-autopilot-*') {
+        $action['worker_prompt'] = "Work item directory: $($_.path)`nAction: $($_.stage)"
+    }
+    $action
 })
 
 $pipelineBufferTarget = 8
@@ -390,6 +397,7 @@ $out = [ordered]@{
         queue_source_pending = @($queue | Where-Object { $_.stage -eq 'source_pending' }).Count
         generated_actionable = $generatedActionable.Count
         generated_deferred = @($generated | Where-Object { $_.stage -eq 'recoverable_cooldown' }).Count
+        generated_verification_deferred = @($generated | Where-Object { $_.stage -eq 'verification_grace' }).Count
         generated_circuit_blocked = @($generated | Where-Object { $_.stage -eq 'domain_circuit_breaker' }).Count
         reconcile = $reconcile.Count
         circuit_breaker_events = $circuitCount

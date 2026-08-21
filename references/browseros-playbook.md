@@ -23,10 +23,10 @@ Do not call raw CDP methods such as `Page.getFrameTree`, `DOM.getDocument`, `DOM
 
 ## Connection loss is a browser-route outage
 
-`Unable to connect`, `CDP connection lost`, a failed `tabs list`, or owned tabs suddenly disappearing means the browser route is unavailable.
+`Unable to connect`, `CDP connection lost`, a failed `tabs list`, or owned tabs suddenly disappearing means the browser route is unavailable. An OAuth/popup click that resets the session or removes the owned tab is the same outage, not permission to repeat the click.
 
 - After the first timeout, make one cheap granular health probe (`tabs list` or `tabs new`).
-- If that probe reports connection/CDP loss, stop browser calls for the slice. Continue any already-available local assessment, resume, reconciliation, or logging work.
+- If that probe reports connection/CDP loss or the owned tab remains gone, stop browser calls for the slice. Do not retry the triggering OAuth/popup interaction or wrap it in `_run`. Continue any already-available local assessment, resume, reconciliation, or logging work.
 - Persist the current job as recoverable when needed and return from the slice. Do not describe this as campaign completion or market exhaustion.
 - The supervisor checks both MCP port 9010 and browser CDP port 9110. It waits without launching another paid/model session until both are healthy, then starts a fresh slice.
 

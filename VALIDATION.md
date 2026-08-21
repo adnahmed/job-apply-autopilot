@@ -1,7 +1,10 @@
-# V5.15.0 Validation
+# V5.15.1 Validation
 
-- `VERSION.txt` = `5.15.0`.
-- Main skill heading/package version = `5.15.0`.
+- `VERSION.txt` = `5.15.1`.
+- Main skill heading/package version = `5.15.1`.
+- Assessor inputs and commit script use deterministic installed/runtime paths and its bounded local budget covers one rejected-payload correction.
+- Verification grace is derived from the original UTC reservation, persists in send state, never slides on retry, and is scheduler-deferred without worker-side waiting.
+- Worker actions expose an exact two-line `worker_prompt`; coordinators use it verbatim and never take over assessor-owned commits.
 - `session-state.ps1` preserves the established `next_action` enum while exposing runnable generated and queue stages together.
 - Each action names its dispatch target exactly once; state does not duplicate paths in batch arrays.
 - Assessor, unified research, resume, external ATS, and email paths are runtime-limited rather than skill-capped; only coordinator-owned LinkedIn Easy Apply is serial at 1.
