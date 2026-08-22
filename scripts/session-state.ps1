@@ -51,24 +51,24 @@ function Test-AssessmentMalformed($Assessment, $Fit, [bool]$AssessmentFileExists
     if ($AssessmentFileExists -and $null -eq $Assessment) { return $true }
     if ($null -eq $Assessment) { return $false }
     if (-not (Has-Property $Assessment 'status')) { return $true }
-    if ([string]$Assessment.status -notin @('pending','passed','needs-research','needs-evidence','failed')) { return $true }
+    if ([string]$Assessment.status -notin @('pending', 'passed', 'needs-research', 'needs-evidence', 'failed')) { return $true }
     if ([string]$Assessment.status -ne 'pending') {
-        foreach ($required in @('score','trust_class','role_family','eligibility_state','hard_gates','needs_external_research','needs_candidate_evidence')) {
+        foreach ($required in @('score', 'trust_class', 'role_family', 'eligibility_state', 'hard_gates', 'needs_external_research', 'needs_candidate_evidence')) {
             if (-not (Has-Property $Assessment $required)) { return $true }
         }
-        foreach ($gate in @('integrity','eligibility','role_family','mandatory_requirements','truth_feasibility')) {
+        foreach ($gate in @('integrity', 'eligibility', 'role_family', 'mandatory_requirements', 'truth_feasibility')) {
             if (-not (Has-Property $Assessment.hard_gates $gate) -or $Assessment.hard_gates.$gate -isnot [bool]) { return $true }
         }
         if ($Assessment.needs_external_research -isnot [bool] -or $Assessment.needs_candidate_evidence -isnot [bool]) { return $true }
     }
     if ([string]$Assessment.status -eq 'passed') {
         if (-not (Has-Property $Assessment 'hard_gates')) { return $true }
-        foreach ($gate in @('integrity','eligibility','role_family','mandatory_requirements','truth_feasibility')) {
+        foreach ($gate in @('integrity', 'eligibility', 'role_family', 'mandatory_requirements', 'truth_feasibility')) {
             if (-not (Has-Property $Assessment.hard_gates $gate)) { return $true }
             if ($Assessment.hard_gates.$gate -isnot [bool]) { return $true }
             if (-not [bool]$Assessment.hard_gates.$gate) { return $true }
         }
-        if ($null -eq $Fit -or -not (Has-Property $Fit 'status') -or [string]$Fit.status -notin @('complete','passed') -or -not (Has-Property $Fit 'score')) { return $true }
+        if ($null -eq $Fit -or -not (Has-Property $Fit 'status') -or [string]$Fit.status -notin @('complete', 'passed') -or -not (Has-Property $Fit 'score')) { return $true }
     }
     return $false
 }
@@ -81,7 +81,8 @@ function Parse-Utc($Value) {
         $text = [string]$Value
         if ([string]::IsNullOrWhiteSpace($text)) { return $null }
         return [DateTimeOffset]::Parse($text, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
-    } catch { return $null }
+    }
+    catch { return $null }
 }
 
 function Get-ActiveClaim([string]$Directory, [string]$Stage) {
@@ -91,17 +92,17 @@ function Get-ActiveClaim([string]$Directory, [string]$Stage) {
     $expiresAt = Parse-Utc $claim.expires_at
     if ($null -eq $expiresAt -or $expiresAt -le [DateTimeOffset]::UtcNow) { return $null }
     return [ordered]@{
-        stage = [string]$claim.stage
-        owner_id = [string]$claim.owner_id
+        stage       = [string]$claim.stage
+        owner_id    = [string]$claim.owner_id
         acquired_at = $claim.acquired_at
-        expires_at = $claim.expires_at
+        expires_at  = $claim.expires_at
     }
 }
 
 function Test-TerminalProgress($Progress) {
     if ($null -eq $Progress) { return $false }
     if ((Has-Property $Progress 'terminal') -and [bool]$Progress.terminal) { return $true }
-    foreach ($name in @('stage','status')) {
+    foreach ($name in @('stage', 'status')) {
         if (-not (Has-Property $Progress $name)) { continue }
         $value = ([string]$Progress.$name).ToLowerInvariant()
         if ($value -match '^(terminal|complete|completed|blocked|failed|cancelled|abandoned|skipped)(-|$)') { return $true }
@@ -121,7 +122,8 @@ function Get-JobDomain($Job) {
         try {
             $hostName = ([Uri]$url).Host.ToLowerInvariant() -replace '^www\.', ''
             if ($hostName) { return $hostName }
-        } catch {}
+        }
+        catch {}
     }
     $source = if (Has-Property $Job 'source') { ([string]$Job.source).ToLowerInvariant() } else { '' }
     if ($source -match 'indeed') { return 'indeed.com' }
@@ -142,13 +144,14 @@ function Get-LinkedInGovernorStatus {
     $script = Join-Path $PSScriptRoot 'linkedin-governor.ps1'
     try {
         return ((& $script -Action Status -Workspace $Workspace | Select-Object -Last 1) | ConvertFrom-Json)
-    } catch {
+    }
+    catch {
         return [pscustomobject]@{
-            easy_apply_allowed = $false
+            easy_apply_allowed               = $false
             easy_apply_submissions_last_hour = 0
-            easy_apply_submissions_last_24h = 0
-            next_easy_apply_at = $null
-            block_reasons = @('governor-unavailable')
+            easy_apply_submissions_last_24h  = 0
+            next_easy_apply_at               = $null
+            block_reasons                    = @('governor-unavailable')
         }
     }
 }
@@ -161,8 +164,9 @@ try {
     foreach ($circuit in @($circuitStatus.circuits)) {
         if ($circuit.domain) { $activeCircuitByDomain[[string]$circuit.domain] = $circuit }
     }
-} catch {
-    $circuitStatus = [pscustomobject]@{ active=$false; circuits=@() }
+}
+catch {
+    $circuitStatus = [pscustomobject]@{ active = $false; circuits = @() }
 }
 
 $ledgerPath = Join-Path $root 'applications.jsonl'
@@ -190,7 +194,8 @@ if (Test-Path -LiteralPath $ledgerPath) {
                 $ledgerLastStatus[$jid] = [string]$row.status
                 if (Test-LedgerStatusBlocks ([string]$row.status)) { $ledgerIds[$jid] = $true } else { $ledgerIds.Remove($jid) | Out-Null }
             }
-        } catch {}
+        }
+        catch {}
     }
 }
 
@@ -224,31 +229,37 @@ if (Test-Path -LiteralPath $queueRoot) {
         $already = ($submittedIds.ContainsKey($id) -or $ledgerIds.ContainsKey($id))
         $priorLedgerStatus = if ($ledgerLastStatus.ContainsKey($id)) { [string]$ledgerLastStatus[$id] } else { $null }
         $policyVersion = if ($assessment -and ($assessment.PSObject.Properties.Name -contains 'policy_version')) { [string]$assessment.policy_version } else { '' }
-        $technicalPriorSkips = @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family')
+        $technicalPriorSkips = @('skipped-low-fit', 'skipped-mandatory-gate', 'skipped-stack-mismatch', 'skipped-role-family')
         # Do not reopen an old failed skip just because policy changed. But if a reassessment was already
         # Explicitly reopened technical skips may finish after restart.
         $explicitReassessment = ($job -and (Has-Property $job 'allow_after_prior_skip') -and [bool]$job.allow_after_prior_skip)
-        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0','6.1','6.2','6.3','6.4') -and $status -in @('needs-evidence','needs-research','passed'))
+        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10', '5.11', '5.12', '5.13', '5.14', '5.15', '6.0', '6.1', '6.2', '6.3', '6.4') -and $status -in @('needs-evidence', 'needs-research', 'passed'))
         $ledgerBlocks = ($submittedIds.ContainsKey($id) -or ($already -and -not $reassessmentInProgress))
         $shadowedByGenerated = $generatedIds.ContainsKey($id)
-        $terminal = $status -in @('failed','rejected','skipped','submitted','blocked')
+        $terminal = $status -in @('failed', 'rejected', 'skipped', 'submitted', 'blocked')
         $actionable = (-not $shadowedByGenerated -and -not $ledgerBlocks -and -not $terminal -and -not $recoverableDeferred)
         $stage = if ($shadowedByGenerated) { 'promoted_to_generated' } elseif ($recoverableDeferred) { 'recoverable_cooldown' } else { $null }
         $speed = if ($shadowedByGenerated -or $recoverableDeferred) { 'deferred' } else { $null }
         if ($actionable) {
             if (-not $sourceReady) {
                 $stage = 'source_pending'; $speed = 'fast'
-            } elseif ($status -eq 'malformed') {
+            }
+            elseif ($status -eq 'malformed') {
                 $stage = 'assessment_repair'; $speed = 'fast'
-            } elseif ($status -in @('pending','unassessed','captured-awaiting-source-and-assessment')) {
+            }
+            elseif ($status -in @('pending', 'unassessed', 'captured-awaiting-source-and-assessment')) {
                 $stage = 'assessment_pending'; $speed = 'fast'
-            } elseif ($status -eq 'needs-evidence') {
+            }
+            elseif ($status -eq 'needs-evidence') {
                 $stage = 'candidate_evidence_pending'; $speed = 'slow'
-            } elseif ($status -eq 'needs-research') {
+            }
+            elseif ($status -eq 'needs-research') {
                 $stage = 'eligibility_research_pending'; $speed = 'slow'
-            } elseif ($status -eq 'passed') {
+            }
+            elseif ($status -eq 'passed') {
                 $stage = 'coordinator_adjudication_pending'; $speed = 'fast'
-            } else {
+            }
+            else {
                 $stage = 'assessment_pending'; $speed = 'fast'
             }
         }
@@ -256,21 +267,21 @@ if (Test-Path -LiteralPath $queueRoot) {
         $claimed = ($null -ne $claim)
         if ($claimed) { $actionable = $false; $speed = 'deferred' }
         $queue += [ordered]@{
-            job_id = $id
-            company = if ($job) { $job.company } else { $null }
-            title = if ($job) { $job.title } else { $null }
-            score = if ($fit) { $fit.score } elseif ($assessment) { $assessment.score } else { $null }
+            job_id                 = $id
+            company                = if ($job) { $job.company } else { $null }
+            title                  = if ($job) { $job.title } else { $null }
+            score                  = if ($fit) { $fit.score } elseif ($assessment) { $assessment.score } else { $null }
             quality_classification = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.classification } else { $null }
-            reality_signal = [bool]($sourceMetadata -and $sourceMetadata.quality -and $sourceMetadata.quality.reality_signal)
-            reality_evidence = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.evidence } else { $null }
+            reality_signal         = [bool]($sourceMetadata -and $sourceMetadata.quality -and $sourceMetadata.quality.reality_signal)
+            reality_evidence       = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.evidence } else { $null }
             freehire_match_percent = if ($sourceMetadata -and $sourceMetadata.freehire -and $null -ne $sourceMetadata.freehire.match_percent) { [int]$sourceMetadata.freehire.match_percent } else { $null }
-            actionable = $actionable
-            stage = $stage
-            speed = $speed
-            claimed = $claimed
-            claim = $claim
-            path = $dir.FullName
-            retry_after = if ($recoverableDeferred) { $retryAfter.ToString('o') } else { $null }
+            actionable             = $actionable
+            stage                  = $stage
+            speed                  = $speed
+            claimed                = $claimed
+            claim                  = $claim
+            path                   = $dir.FullName
+            retry_after            = if ($recoverableDeferred) { $retryAfter.ToString('o') } else { $null }
         }
     }
 }
@@ -290,7 +301,7 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $recoverableDeferred = ($null -ne $retryAfter -and $retryAfter -gt [DateTimeOffset]::UtcNow)
         $id = if ($job -and $job.job_id) { [string]$job.job_id } else { $dir.Name.Split('-')[0] }
         $priorLedgerStatus = if ($ledgerLastStatus.ContainsKey($id)) { [string]$ledgerLastStatus[$id] } else { $null }
-        $allowAfterPriorSkip = ($job -and ($job.PSObject.Properties.Name -contains 'allow_after_prior_skip') -and [bool]$job.allow_after_prior_skip -and $priorLedgerStatus -in @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family'))
+        $allowAfterPriorSkip = ($job -and ($job.PSObject.Properties.Name -contains 'allow_after_prior_skip') -and [bool]$job.allow_after_prior_skip -and $priorLedgerStatus -in @('skipped-low-fit', 'skipped-mandatory-gate', 'skipped-stack-mismatch', 'skipped-role-family'))
         $already = ($submittedIds.ContainsKey($id) -or ($ledgerIds.ContainsKey($id) -and -not $allowAfterPriorSkip))
         $resultStatus = if ($result -and $result.status) { [string]$result.status } else { $null }
         $linkedinHandoff = ($resultStatus -eq 'handoff-easy-apply')
@@ -298,22 +309,22 @@ if (Test-Path -LiteralPath $generatedRoot) {
         # Legacy protected/unknown statuses remain terminal for compatibility only. V6.4 workers never create them.
         # Legacy protected/unknown results remain readable so upgrades do not mutate
         # historical campaigns, but V6.4 writers can no longer create them.
-        $terminalResult = $resultStatus -in @('submitted','blocked-auth','blocked-security','blocked-automation','blocked-domain-circuit-breaker','blocked-identity-mismatch','blocked-work-auth','blocked-protected-fact','blocked-unknown-fact','blocked-technical','blocked-verification-unresolved','skipped-closed','skipped-ineligible','skipped-duplicate','skipped-job-quality','failed')
+        $terminalResult = $resultStatus -in @('submitted', 'blocked-auth', 'blocked-security', 'blocked-automation', 'blocked-domain-circuit-breaker', 'blocked-identity-mismatch', 'blocked-work-auth', 'blocked-protected-fact', 'blocked-unknown-fact', 'blocked-technical', 'blocked-verification-unresolved', 'skipped-closed', 'skipped-ineligible', 'skipped-duplicate', 'skipped-job-quality', 'failed')
         $resumeReady = ($artifact -and [string]$artifact.status -eq 'ready-for-upload' -and $artifact.path -and (Test-Path -LiteralPath ([string]$artifact.path)))
         $jobDomain = Get-JobDomain $job
         $domainCircuit = Get-ActiveCircuitForDomain $jobDomain
         $circuitBlocked = ($null -ne $domainCircuit)
         $sendStatus = if ($sendState -and $sendState.status) { [string]$sendState.status } else { $null }
-        $needsSendVerification = $sendStatus -in @('reserved','verification-required')
+        $needsSendVerification = $sendStatus -in @('reserved', 'verification-required')
         $verificationQuarantined = ($sendStatus -eq 'verification-quarantined')
         $terminalProgressWithoutResult = ($null -eq $result -and (Test-TerminalProgress $progress))
-        $needsOutcomeRepair = ($null -eq $result -and ($terminalProgressWithoutResult -or $sendStatus -in @('submitted','abandoned-unknown-outcome')))
+        $needsOutcomeRepair = ($null -eq $result -and ($terminalProgressWithoutResult -or $sendStatus -in @('submitted', 'abandoned-unknown-outcome')))
         $verificationRetryAfter = if ($sendState -and $sendState.verification_retry_after) { Parse-Utc $sendState.verification_retry_after } else { $null }
         $verificationGraceDeferred = ($needsSendVerification -and $null -ne $verificationRetryAfter -and $verificationRetryAfter -gt [DateTimeOffset]::UtcNow)
         $routeName = if ($route -and $route.route) { [string]$route.route } elseif ($sendState -and $sendState.channel) { if ([string]$sendState.channel -eq 'external-ats') { 'external' } else { [string]$sendState.channel } } else { '' }
         $emailRoute = ($routeName -eq 'email' -and (($route -and $route.target) -or ($sendState -and $sendState.target)))
         $linkedinRoute = ($routeName -eq 'linkedin-easy-apply')
-        $knownRoute = ($routeName -in @('external','linkedin-easy-apply','email'))
+        $knownRoute = ($routeName -in @('external', 'linkedin-easy-apply', 'email'))
         $actionable = (-not $already -and -not $needsReconcile -and -not $terminalResult -and -not $verificationQuarantined -and -not $recoverableDeferred -and -not $verificationGraceDeferred -and -not $circuitBlocked)
         $stage = if ($verificationQuarantined) { 'application_verification_quarantined' } elseif ($circuitBlocked) { 'domain_circuit_breaker' } elseif ($recoverableDeferred) { 'recoverable_cooldown' } elseif ($verificationGraceDeferred) { 'verification_grace' } else { $null }
         if ($needsReconcile) { $stage = 'reconcile_result' }
@@ -330,26 +341,26 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $claimed = ($null -ne $claim)
         if ($claimed) { $actionable = $false }
         $generated += [ordered]@{
-            job_id = $id
-            company = if ($job) { $job.company } else { $null }
-            title = if ($job) { $job.title } else { $null }
-            source = if ($job) { $job.source } else { $null }
-            domain = $jobDomain
-            route = if ($knownRoute) { $routeName } else { 'pending' }
+            job_id                 = $id
+            company                = if ($job) { $job.company } else { $null }
+            title                  = if ($job) { $job.title } else { $null }
+            source                 = if ($job) { $job.source } else { $null }
+            domain                 = $jobDomain
+            route                  = if ($knownRoute) { $routeName } else { 'pending' }
             quality_classification = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.classification } else { $null }
-            reality_signal = [bool]($sourceMetadata -and $sourceMetadata.quality -and $sourceMetadata.quality.reality_signal)
-            reality_evidence = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.evidence } else { $null }
+            reality_signal         = [bool]($sourceMetadata -and $sourceMetadata.quality -and $sourceMetadata.quality.reality_signal)
+            reality_evidence       = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.evidence } else { $null }
             freehire_match_percent = if ($sourceMetadata -and $sourceMetadata.freehire -and $null -ne $sourceMetadata.freehire.match_percent) { [int]$sourceMetadata.freehire.match_percent } else { $null }
-            actionable = $actionable
-            needs_reconcile = $needsReconcile
-            reconcile_actionable = ($needsReconcile -and -not $claimed)
-            stage = $stage
-            speed = if ($recoverableDeferred -or $verificationGraceDeferred -or $circuitBlocked -or $verificationQuarantined -or $claimed) { 'deferred' } else { 'fast' }
-            claimed = $claimed
-            claim = $claim
-            quarantine_reason = if ($verificationQuarantined) { [string]$sendState.quarantine_reason } else { $null }
-            path = $dir.FullName
-            retry_after = if ($circuitBlocked) { $domainCircuit.expires_at } elseif ($recoverableDeferred) { $retryAfter.ToString('o') } elseif ($verificationGraceDeferred) { $verificationRetryAfter.ToString('o') } else { $null }
+            actionable             = $actionable
+            needs_reconcile        = $needsReconcile
+            reconcile_actionable   = ($needsReconcile -and -not $claimed)
+            stage                  = $stage
+            speed                  = if ($recoverableDeferred -or $verificationGraceDeferred -or $circuitBlocked -or $verificationQuarantined -or $claimed) { 'deferred' } else { 'fast' }
+            claimed                = $claimed
+            claim                  = $claim
+            quarantine_reason      = if ($verificationQuarantined) { [string]$sendState.quarantine_reason } else { $null }
+            path                   = $dir.FullName
+            retry_after            = if ($circuitBlocked) { $domainCircuit.expires_at } elseif ($recoverableDeferred) { $retryAfter.ToString('o') } elseif ($verificationGraceDeferred) { $verificationRetryAfter.ToString('o') } else { $null }
         }
     }
 }
@@ -360,8 +371,9 @@ $queueActionable = @($queue | Where-Object { $_.actionable })
 $discoveryClaimRaw = Read-JsonSafe (Join-Path $root 'discovery-action-claim.json')
 $discoveryClaimExpires = if ($discoveryClaimRaw -and $discoveryClaimRaw.expires_at) { Parse-Utc $discoveryClaimRaw.expires_at } else { $null }
 $discoveryClaim = if ($discoveryClaimRaw -and [string]$discoveryClaimRaw.stage -eq 'discovery' -and $null -ne $discoveryClaimExpires -and $discoveryClaimExpires -gt [DateTimeOffset]::UtcNow) {
-    [ordered]@{ stage='discovery'; owner_id=[string]$discoveryClaimRaw.owner_id; acquired_at=$discoveryClaimRaw.acquired_at; expires_at=$discoveryClaimRaw.expires_at }
-} else { $null }
+    [ordered]@{ stage = 'discovery'; owner_id = [string]$discoveryClaimRaw.owner_id; acquired_at = $discoveryClaimRaw.acquired_at; expires_at = $discoveryClaimRaw.expires_at }
+}
+else { $null }
 $claimedWorkCount = @($queue | Where-Object { $_.claimed }).Count + @($generated | Where-Object { $_.claimed }).Count
 
 # V6 throughput contract: expose the whole runnable pipeline, not only the first
@@ -369,30 +381,30 @@ $claimedWorkCount = @($queue | Where-Object { $_.claimed }).Count + @($generated
 # cannot see, and the former generated > queue > discover selection starved both
 # assessment batches and discovery whenever one generated job existed.
 $stagePriority = @{
-    reconcile_result = 10
-    application_outcome_repair = 15
-    application_verification = 20
-    linkedin_application_ready = 25
-    email_application_ready = 30
-    application_resume = 40
-    application_ready = 40
-    resume_pending = 50
+    reconcile_result                 = 10
+    application_outcome_repair       = 15
+    application_verification         = 20
+    linkedin_application_ready       = 25
+    email_application_ready          = 30
+    application_resume               = 40
+    application_ready                = 40
+    resume_pending                   = 50
     coordinator_adjudication_pending = 60
-    assessment_repair = 60
-    reassessment_pending = 70
-    assessment_pending = 70
-    source_pending = 80
-    route_pending = 35
-    eligibility_research_pending = 90
-    candidate_evidence_pending = 90
+    assessment_repair                = 60
+    reassessment_pending             = 70
+    assessment_pending               = 70
+    source_pending                   = 80
+    route_pending                    = 35
+    eligibility_research_pending     = 90
+    candidate_evidence_pending       = 90
 }
 
 $selected = @($reconcile) + @($generatedActionable) + @($queueActionable)
 $selected = @($selected | Sort-Object `
-    @{Expression={ if ($stagePriority.ContainsKey([string]$_.stage)) { $stagePriority[[string]$_.stage] } else { 999 } }}, `
-    @{Expression={ if ($_.speed -eq 'fast') { 0 } elseif ($_.speed -eq 'slow') { 1 } else { 2 } }}, `
-    @{Expression={ if ($null -ne $_.freehire_match_percent) { -[int]$_.freehire_match_percent } else { 1 } }}, `
-    @{Expression={ $_.job_id }})
+    @{Expression = { if ($stagePriority.ContainsKey([string]$_.stage)) { $stagePriority[[string]$_.stage] } else { 999 } } }, `
+    @{Expression = { if ($_.speed -eq 'fast') { 0 } elseif ($_.speed -eq 'slow') { 1 } else { 2 } } }, `
+    @{Expression = { if ($null -ne $_.freehire_match_percent) { - [int]$_.freehire_match_percent } else { 1 } } }, `
+    @{Expression = { $_.job_id } })
 
 # Continuous campaign discovery is an independent producer, not a refill step.
 # Keep one claimed discovery batch running alongside every downstream wave even
@@ -402,24 +414,27 @@ $pipelineDepth = @($generated | Where-Object { ($_.actionable -or $_.claimed -or
 $discoverySlots = if ($null -eq $discoveryClaim) { $pipelineBufferTarget } else { 0 }
 $nextAction = if ($reconcile.Count -gt 0) {
     'reconcile'
-} elseif ($generatedActionable.Count -gt 0) {
+}
+elseif ($generatedActionable.Count -gt 0) {
     'resume-generated'
-} elseif ($queueActionable.Count -gt 0) {
+}
+elseif ($queueActionable.Count -gt 0) {
     'process-queue'
-} else {
+}
+else {
     $null
 }
 
 function Get-DispatchTarget($Item) {
     $stage = [string]$Item.stage
-    if ($stage -eq 'reconcile_result' -or $stage -in @('coordinator_adjudication_pending','assessment_repair')) { return 'coordinator-local' }
+    if ($stage -eq 'reconcile_result' -or $stage -in @('coordinator_adjudication_pending', 'assessment_repair')) { return 'coordinator-local' }
     if ($stage -eq 'resume_pending') { return 'job-autopilot-resume' }
-    if ($stage -in @('assessment_pending','reassessment_pending')) { return 'job-autopilot-assessor' }
-    if ($stage -in @('eligibility_research_pending','candidate_evidence_pending')) { return 'job-autopilot-research' }
-    if ($stage -in @('source_pending','route_pending')) { return 'coordinator-browser' }
+    if ($stage -in @('assessment_pending', 'reassessment_pending')) { return 'job-autopilot-assessor' }
+    if ($stage -in @('eligibility_research_pending', 'candidate_evidence_pending')) { return 'job-autopilot-research' }
+    if ($stage -in @('source_pending', 'route_pending')) { return 'coordinator-browser' }
     if ($stage -eq 'email_application_ready') { return 'job-autopilot-email-apply' }
     if ($stage -eq 'linkedin_application_ready') { return 'coordinator-linkedin' }
-    if ($stage -in @('application_ready','application_resume','application_verification','application_outcome_repair')) {
+    if ($stage -in @('application_ready', 'application_resume', 'application_verification', 'application_outcome_repair')) {
         if ([string]$Item.route -eq 'email') { return 'job-autopilot-email-apply' }
         if ([string]$Item.route -eq 'linkedin-easy-apply') { return 'coordinator-linkedin' }
         if ([string]$Item.route -eq 'pending') { return 'coordinator-browser' }
@@ -429,49 +444,72 @@ function Get-DispatchTarget($Item) {
 }
 
 $actions = @($selected | ForEach-Object {
-    $dispatch = Get-DispatchTarget $_
-    $action = [ordered]@{
-        action_id = "$($_.stage):$($_.job_id)"
-        job_id = $_.job_id
-        company = $_.company
-        title = $_.title
-        stage = $_.stage
-        speed = $_.speed
-        wave = if ($_.speed -eq 'slow') { 'research' } else { 'fast' }
-        quality_classification = $_.quality_classification
-        reality_signal = [bool]$_.reality_signal
-        reality_evidence = $_.reality_evidence
-        freehire_match_percent = $_.freehire_match_percent
-        dispatch = $dispatch
-        priority = if ($stagePriority.ContainsKey([string]$_.stage)) { $stagePriority[[string]$_.stage] } else { 999 }
-        path = $_.path
-    }
-    if ($dispatch -like 'job-autopilot-*') {
-        $kind = if ([string]$_.path -match '[\\/]generated[\\/]') { 'generated' } else { 'queue' }
-        $action['worker_prompt'] = "Workspace: $Workspace`nJob ID: $($_.job_id)`nKind: $kind`nAction: $($_.stage)"
-    }
-    $action
-})
+        $dispatch = Get-DispatchTarget $_
+        $action = [ordered]@{
+            action_id              = "$($_.stage):$($_.job_id)"
+            job_id                 = $_.job_id
+            company                = $_.company
+            title                  = $_.title
+            stage                  = $_.stage
+            speed                  = $_.speed
+            wave                   = if ($_.speed -eq 'slow') { 'research' } else { 'fast' }
+            quality_classification = $_.quality_classification
+            reality_signal         = [bool]$_.reality_signal
+            reality_evidence       = $_.reality_evidence
+            freehire_match_percent = $_.freehire_match_percent
+            dispatch               = $dispatch
+            priority               = if ($stagePriority.ContainsKey([string]$_.stage)) { $stagePriority[[string]$_.stage] } else { 999 }
+            path                   = $_.path
+        }
+        if ($dispatch -like 'job-autopilot-*') {
+            $kind = if ([string]$_.path -match '[\\/]generated[\\/]') { 'generated' } else { 'queue' }
+            $action['worker_prompt'] = "Workspace: $Workspace`nJob ID: $($_.job_id)`nKind: $kind`nAction: $($_.stage)"
+        }
+        $action
+    })
 if ($discoverySlots -gt 0) {
-    $actions = @([ordered]@{
-        action_id = 'discovery:continuous'
-        job_id = $null
-        company = $null
-        title = 'Continuous FreeHire discovery'
-        stage = 'discovery'
-        speed = 'fast'
-        wave = 'fast'
-        dispatch = 'coordinator-discovery'
-        priority = 5
-        target_new = $discoverySlots
-        command = "pwsh -NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\discover-freehire.ps1`" -Workspace `"$Workspace`" -TargetNew $discoverySlots"
-    }) + @($actions)
+    $discoveryGroup = 'discovery:continuous'
+    $discoveryActions = @(
+        [ordered]@{
+            action_id             = 'discovery:freehire'
+            discovery_group       = $discoveryGroup
+            discovery_source      = 'freehire'
+            job_id                = $null
+            company               = $null
+            title                 = 'Continuous FreeHire discovery'
+            stage                 = 'discovery'
+            speed                 = 'fast'
+            wave                  = 'fast'
+            dispatch              = 'coordinator-discovery'
+            priority              = 5
+            target_new            = $discoverySlots
+            shared_claim_required = $true
+            command               = "pwsh -NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\discover-freehire.ps1`" -Workspace `"$Workspace`" -TargetNew $discoverySlots"
+        },
+        [ordered]@{
+            action_id             = 'discovery:linkedin-browser'
+            discovery_group       = $discoveryGroup
+            discovery_source      = 'linkedin-browser'
+            job_id                = $null
+            company               = $null
+            title                 = 'Continuous LinkedIn/browser discovery'
+            stage                 = 'discovery'
+            speed                 = 'fast'
+            wave                  = 'fast'
+            dispatch              = 'coordinator-browser'
+            priority              = 5
+            target_new            = $discoverySlots
+            shared_claim_required = $true
+            browser_instruction   = "Using BrowserOS neo in a task-owned tab, start LinkedIn Jobs discovery now and create up to $discoverySlots net-new work items. This is an independent per-source target: start it in the same assistant tool-call batch as FreeHire, and never wait for, subtract, or skip it based on FreeHire's result. Use profile-derived lanes, local dedupe, complete public source capture, FreeHire enrichment, and all warning, CAPTCHA, MFA, and rate-limit controls."
+        }
+    )
+    $actions = @($discoveryActions) + @($actions)
 }
 if ($null -eq $nextAction) {
     $nextAction = if ($discoverySlots -gt 0 -and $null -eq $discoveryClaim) { 'discover' } else { 'await-active-claims' }
 }
 $concurrency = [ordered]@{
-    default = 'unbounded'
+    default             = 'unbounded'
     linkedin_easy_apply = 1
 }
 $activeWave = if ($actions.Count -gt 0) { 'all' } else { 'none' }
@@ -486,109 +524,120 @@ if (Test-Path -LiteralPath $circuitPath) {
 }
 $linkedinStatus = Get-LinkedInGovernorStatus
 $claimMetadata = @(
-    @($queue | Where-Object { $_.claimed } | ForEach-Object { [ordered]@{ scope='work-item'; job_id=$_.job_id; stage=$_.stage; path=$_.path; owner_id=$_.claim.owner_id; acquired_at=$_.claim.acquired_at; expires_at=$_.claim.expires_at } }) +
-    @($generated | Where-Object { $_.claimed } | ForEach-Object { [ordered]@{ scope='work-item'; job_id=$_.job_id; stage=$_.stage; path=$_.path; owner_id=$_.claim.owner_id; acquired_at=$_.claim.acquired_at; expires_at=$_.claim.expires_at } })
+    @($queue | Where-Object { $_.claimed } | ForEach-Object { [ordered]@{ scope = 'work-item'; job_id = $_.job_id; stage = $_.stage; path = $_.path; owner_id = $_.claim.owner_id; acquired_at = $_.claim.acquired_at; expires_at = $_.claim.expires_at } }) +
+    @($generated | Where-Object { $_.claimed } | ForEach-Object { [ordered]@{ scope = 'work-item'; job_id = $_.job_id; stage = $_.stage; path = $_.path; owner_id = $_.claim.owner_id; acquired_at = $_.claim.acquired_at; expires_at = $_.claim.expires_at } })
 )
 if ($null -ne $discoveryClaim) {
-    $claimMetadata += [ordered]@{ scope='discovery'; job_id=$null; stage='discovery'; path=$root; owner_id=$discoveryClaim.owner_id; acquired_at=$discoveryClaim.acquired_at; expires_at=$discoveryClaim.expires_at }
+    $claimMetadata += [ordered]@{ scope = 'discovery'; job_id = $null; stage = 'discovery'; path = $root; owner_id = $discoveryClaim.owner_id; acquired_at = $discoveryClaim.acquired_at; expires_at = $discoveryClaim.expires_at }
 }
 $quarantinedApplications = @($generated | Where-Object { $_.stage -eq 'application_verification_quarantined' } | ForEach-Object {
-    [ordered]@{ job_id=$_.job_id; company=$_.company; title=$_.title; route=$_.route; stage=$_.stage; blocker=$_.quarantine_reason; path=$_.path }
-})
+        [ordered]@{ job_id = $_.job_id; company = $_.company; title = $_.title; route = $_.route; stage = $_.stage; blocker = $_.quarantine_reason; path = $_.path }
+    })
 
 $out = [ordered]@{
-    workspace = $Workspace
-    next_action = $nextAction
-    actions = $actions
-    claims = $claimMetadata
+    workspace                = $Workspace
+    next_action              = $nextAction
+    actions                  = $actions
+    claims                   = $claimMetadata
     quarantined_applications = $quarantinedApplications
-    scheduler = [ordered]@{
-        mode = 'parallel-pipeline'
-        continuous_discovery = $true
-        active_wave = $activeWave
+    scheduler                = [ordered]@{
+        mode                   = 'parallel-pipeline'
+        continuous_discovery   = $true
+        active_wave            = $activeWave
         pipeline_buffer_target = $pipelineBufferTarget
-        pipeline_depth = $pipelineDepth
-        discovery_needed = ($discoverySlots -gt 0)
-        discovery_slots = $discoverySlots
-        discovery_claim = $discoveryClaim
-        concurrency = $concurrency
+        pipeline_depth         = $pipelineDepth
+        discovery_needed       = ($discoverySlots -gt 0)
+        discovery_slots        = $discoverySlots
+        discovery_claim        = $discoveryClaim
+        concurrency            = $concurrency
     }
-    summary = [ordered]@{
-        decisions = $ledgerCount
-        submitted = $submittedUnique.Count
-        submitted_unique = $submittedUnique.Count
-        submitted_rows = $submittedCount
-        fast_actions = @($actions | Where-Object { $_.wave -eq 'fast' }).Count
-        research_actions = @($actions | Where-Object { $_.wave -eq 'research' }).Count
-        queue_actionable = $queueActionable.Count
-        queue_fast = @($queueActionable | Where-Object { $_.speed -eq 'fast' }).Count
-        queue_slow = @($queueActionable | Where-Object { $_.speed -eq 'slow' }).Count
-        queue_deferred = @($queue | Where-Object { $_.stage -eq 'recoverable_cooldown' }).Count
-        queue_source_pending = @($queue | Where-Object { $_.stage -eq 'source_pending' }).Count
-        generated_actionable = $generatedActionable.Count
-        generated_deferred = @($generated | Where-Object { $_.stage -eq 'recoverable_cooldown' }).Count
-        generated_verification_deferred = @($generated | Where-Object { $_.stage -eq 'verification_grace' }).Count
+    summary                  = [ordered]@{
+        decisions                            = $ledgerCount
+        submitted                            = $submittedUnique.Count
+        submitted_unique                     = $submittedUnique.Count
+        submitted_rows                       = $submittedCount
+        fast_actions                         = @($actions | Where-Object { $_.wave -eq 'fast' }).Count
+        research_actions                     = @($actions | Where-Object { $_.wave -eq 'research' }).Count
+        queue_actionable                     = $queueActionable.Count
+        queue_fast                           = @($queueActionable | Where-Object { $_.speed -eq 'fast' }).Count
+        queue_slow                           = @($queueActionable | Where-Object { $_.speed -eq 'slow' }).Count
+        queue_deferred                       = @($queue | Where-Object { $_.stage -eq 'recoverable_cooldown' }).Count
+        queue_source_pending                 = @($queue | Where-Object { $_.stage -eq 'source_pending' }).Count
+        generated_actionable                 = $generatedActionable.Count
+        generated_deferred                   = @($generated | Where-Object { $_.stage -eq 'recoverable_cooldown' }).Count
+        generated_verification_deferred      = @($generated | Where-Object { $_.stage -eq 'verification_grace' }).Count
         application_verification_quarantined = @($generated | Where-Object { $_.stage -eq 'application_verification_quarantined' }).Count
-        application_outcome_repair = @($generated | Where-Object { $_.stage -eq 'application_outcome_repair' }).Count
-        claims_active = $claimedWorkCount + $(if ($null -ne $discoveryClaim) { 1 } else { 0 })
-        generated_circuit_blocked = @($generated | Where-Object { $_.stage -eq 'domain_circuit_breaker' }).Count
-        reconcile = $reconcile.Count
-        circuit_breaker_events = $circuitCount
-        circuit_breakers_active = @($circuitStatus.circuits).Count
+        application_outcome_repair           = @($generated | Where-Object { $_.stage -eq 'application_outcome_repair' }).Count
+        claims_active                        = $claimedWorkCount + $(if ($null -ne $discoveryClaim) { 1 } else { 0 })
+        generated_circuit_blocked            = @($generated | Where-Object { $_.stage -eq 'domain_circuit_breaker' }).Count
+        reconcile                            = $reconcile.Count
+        circuit_breaker_events               = $circuitCount
+        circuit_breakers_active              = @($circuitStatus.circuits).Count
     }
-    linkedin = [ordered]@{
+    linkedin                 = [ordered]@{
         easy_apply_allowed = $linkedinStatus.easy_apply_allowed
-        last_hour = $linkedinStatus.easy_apply_submissions_last_hour
-        last_24h = $linkedinStatus.easy_apply_submissions_last_24h
-        next_at = $linkedinStatus.next_easy_apply_at
-        blocked = @($linkedinStatus.block_reasons).Count -gt 0
+        last_hour          = $linkedinStatus.easy_apply_submissions_last_hour
+        last_24h           = $linkedinStatus.easy_apply_submissions_last_24h
+        next_at            = $linkedinStatus.next_easy_apply_at
+        blocked            = @($linkedinStatus.block_reasons).Count -gt 0
     }
-    instruction = if ($nextAction -eq 'await-active-claims') {
+    instruction              = if ($nextAction -eq 'await-active-claims') {
         'No unclaimed action is currently available. Rerun state after active claims finish or expire.'
-    } elseif ($nextAction -eq 'discover') {
-        "Launch continuous discovery immediately, then rerun state."
-    } elseif ($discoverySlots -gt 0) {
-        "In this same turn, launch the discovery command and every independent worker action, including research, together; never wait for one stage before another."
-    } else {
+    }
+    elseif ($nextAction -eq 'discover') {
+        "Acquire one discovery claim, then start both emitted discovery actions together: execute FreeHire and begin LinkedIn/browser discovery without waiting for either result. Each source has an independent target of $discoverySlots; release the claim only after both were attempted, then rerun state."
+    }
+    elseif ($discoverySlots -gt 0) {
+        "Acquire one discovery claim, then in the same assistant tool-call batch execute FreeHire, begin LinkedIn/browser discovery, and launch every independent worker action, including research. Each discovery source has an independent target of $discoverySlots; never use one source's result to reduce or skip the other, and release the claim only after both were attempted."
+    }
+    else {
         'Emit every independent non-LinkedIn worker action together up to runtime capacity, including research. LinkedIn Easy Apply remains serial.'
     }
 }
 if ($Compact) {
     $compactActions = @($actions | ForEach-Object {
-        $item = [ordered]@{
-            job_id = $_.job_id
-            action_id = $_.action_id
-            company = $_.company
-            title = $_.title
-            stage = $_.stage
-            wave = $_.wave
-            dispatch = $_.dispatch
-            priority = $_.priority
-            freehire_match_percent = $_.freehire_match_percent
-        }
-        if ($_.worker_prompt) { $item['worker_prompt'] = $_.worker_prompt }
-        elseif ($_.command) { $item['command'] = $_.command }
-        elseif ($_.path) { $item['path'] = $_.path }
-        $item
-    })
+            $item = [ordered]@{
+                job_id                 = $_.job_id
+                action_id              = $_.action_id
+                company                = $_.company
+                title                  = $_.title
+                stage                  = $_.stage
+                wave                   = $_.wave
+                dispatch               = $_.dispatch
+                priority               = $_.priority
+                freehire_match_percent = $_.freehire_match_percent
+            }
+            if ($_.worker_prompt) { $item['worker_prompt'] = $_.worker_prompt }
+            elseif ($_.command) { $item['command'] = $_.command }
+            elseif ($_.path) { $item['path'] = $_.path }
+            if ([string]$_.stage -eq 'discovery') {
+                $item['discovery_group'] = $_.discovery_group
+                $item['discovery_source'] = $_.discovery_source
+                $item['target_new'] = $_.target_new
+                $item['shared_claim_required'] = $_.shared_claim_required
+                $item['browser_instruction'] = $_.browser_instruction
+            }
+            $item
+        })
     [ordered]@{
-        workspace = $Workspace
-        next_action = $nextAction
-        actions = $compactActions
-        claims = @($claimMetadata | ForEach-Object { [ordered]@{scope=$_.scope;job_id=$_.job_id;stage=$_.stage;owner_id=$_.owner_id;expires_at=$_.expires_at} })
+        workspace                = $Workspace
+        next_action              = $nextAction
+        actions                  = $compactActions
+        claims                   = @($claimMetadata | ForEach-Object { [ordered]@{scope = $_.scope; job_id = $_.job_id; stage = $_.stage; owner_id = $_.owner_id; expires_at = $_.expires_at } })
         quarantined_applications = $quarantinedApplications
-        scheduler = $out.scheduler
-        summary = [ordered]@{
-            submitted_unique = $out.summary.submitted_unique
-            fast_actions = $out.summary.fast_actions
-            research_actions = $out.summary.research_actions
-            claims_active = $out.summary.claims_active
-            reconcile = $out.summary.reconcile
+        scheduler                = $out.scheduler
+        summary                  = [ordered]@{
+            submitted_unique                     = $out.summary.submitted_unique
+            fast_actions                         = $out.summary.fast_actions
+            research_actions                     = $out.summary.research_actions
+            claims_active                        = $out.summary.claims_active
+            reconcile                            = $out.summary.reconcile
             application_verification_quarantined = $out.summary.application_verification_quarantined
         }
-        linkedin = $out.linkedin
-        instruction = $out.instruction
+        linkedin                 = $out.linkedin
+        instruction              = $out.instruction
     } | ConvertTo-Json -Depth 6
-} else {
+}
+else {
     $out | ConvertTo-Json -Depth 6
 }

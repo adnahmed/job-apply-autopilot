@@ -84,7 +84,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.p
 
 ## Parallel pipeline
 
-Issue all independent worker Task calls and the `coordinator-discovery` command in one assistant turn. Discovery is a permanent producer: launch it immediately alongside assess, research, resume, and apply work, even when the pipeline already contains eight or more items. Group workers by `dispatch`, use supplied prompts verbatim, and rerun compact state after the parallel batch. LinkedIn Easy Apply alone is serial at one; every other stage uses all host capacity.
+Issue all independent worker Task calls and both emitted discovery actions in one assistant turn. Acquire their one shared discovery claim first, then execute the FreeHire command and begin the BrowserOS LinkedIn action in the same assistant tool-call batch; do not wait for either result before starting the other. Discovery is a permanent producer: launch it immediately alongside assess, research, resume, and apply work, even when the pipeline already contains eight or more items. Group workers by `dispatch`, use supplied prompts verbatim, and rerun compact state after the parallel batch. LinkedIn Easy Apply alone is serial at one; every other stage uses all host capacity.
 
 Treat `scheduler.discovery_slots` as the next continuous discovery batch size, not as a refill threshold. A discovery claim prevents duplicate producers; once it clears, the next continuation launches another batch. Quarantined jobs do not affect discovery.
 
@@ -101,19 +101,19 @@ Never append policy, evidence opinions, job summaries, or recovery instructions.
 
 ## Discovery and dedupe
 
-Read `references\freehire-api.md` when changing or diagnosing FreeHire integration behavior.
+Read `references\freehire-api.md` when changing or diagnosing FreeHire integration behavior. Read `references\browseros-playbook.md` when LinkedIn or other browser discovery starts.
 
-Run keyless FreeHire discovery immediately and concurrently whenever `scheduler.discovery_needed` is true:
+Run independent FreeHire and LinkedIn/browser discovery immediately and concurrently whenever `scheduler.discovery_needed` is true. `session-state.ps1` emits one action for each source. Each action receives `scheduler.discovery_slots` as an independent per-source batch target; a completed or full FreeHire batch never reduces, satisfies, or skips the LinkedIn/browser action. FreeHire is one discovery source, not the whole discovery pipeline:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\discover-freehire.ps1" -Workspace $workspace -TargetNew $state.scheduler.discovery_slots
 ```
 
-It performs one composite faceted request per fresh Pakistan, global-remote, and sponsorship lane; checks `meta.ignored_params`; stores full source/reality metadata; uses semantic-similar jobs only as a sparse-lane fallback; checks posting copies to recover a missing/aggregator route; ranks direct ATS/employer copies first; captures available application questions; and persists aggregator-only targets as `unresolved` route evidence. FreeHire reality is evidence with its workings, never an automatic employer verdict. Explicit denylist overrides, unnamed clients, and predatory funnels remain hard quality rejections.
+The FreeHire pass performs one composite faceted request per fresh local/home-country, global-remote, and sponsorship/relocation lane; checks `meta.ignored_params`; stores full source/reality metadata; uses semantic-similar jobs only as a sparse-lane fallback; checks posting copies to recover a missing/aggregator route; ranks direct ATS/employer copies first; captures available application questions; and persists aggregator-only targets as `unresolved` route evidence. In the same cycle, start the independent LinkedIn/browser lanes immediately and pursue their full per-source target while respecting the LinkedIn activity governor and any warning, CAPTCHA, MFA, or rate-limit controls. FreeHire reality is evidence with its workings, never an automatic employer verdict. Explicit denylist overrides, unnamed clients, and predatory funnels remain hard quality rejections.
 
 All FreeHire calls go through `freehire-client.ps1`, whose method/path allowlist excludes every AI-credit endpoint. It may read an already-cached match analysis but never create one. It never calls CV tailoring or the generic assistant. Authentication resolves from `FREEHIRE_TOKEN`, then `FREEHIRE_API_KEY`, then the official CLI credential file; no token may enter a prompt, artifact, command result, repository file, or telemetry row.
 
-For every plausible non-FreeHire job with a complete public source URL, run `enrich-freehire-workitem.ps1` immediately after local dedupe and source capture. It first checks `/jobs/find`, may send only a public HTTP(S) vacancy URL to `/jobs/resolve`, and falls back to deterministic `/me/match-text` when no catalogue slug exists. Private, authenticated, local-network, or user-info URLs are never sent. Enrichment failure is non-blocking.
+For every plausible non-FreeHire job, including LinkedIn/browser-discovered jobs, with a complete public source URL, run `enrich-freehire-workitem.ps1` immediately after local dedupe and source capture. It first checks `/jobs/find`, may send only a public HTTP(S) vacancy URL to `/jobs/resolve`, and falls back to deterministic `/me/match-text` when no catalogue slug exists. Private, authenticated, local-network, or user-info URLs are never sent. Enrichment failure is non-blocking.
 
 Deterministic match coverage prioritizes otherwise-equal assessment actions. It is not a gate and cannot independently pass or reject a job. Assessors reuse its matched/adjacent/missing evidence while retaining full responsibility for eligibility, role identity, mandatory requirements, integrity, and truth feasibility. Daily market coverage is lane-allocation evidence only; it never changes canonical skills.
 

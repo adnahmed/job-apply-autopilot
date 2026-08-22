@@ -28,6 +28,7 @@ This document describes the required implementation state. It does not invoke a 
 - `resolve-application-quarantine.ps1` exposes `List`, `Reverify`, `ConfirmSubmitted`, `ConfirmAbsent`, `RetryApplication`, and `Abandon`.
 - Retry refuses any submitted exact or semantic duplicate and accepts only proven pre-submit/cancelled or verified-absent state.
 - Session state reports quarantine count, outcome-repair count, per-item claim metadata, and discovery claim metadata.
+- Session state emits separate FreeHire and LinkedIn/browser discovery actions under one shared claim; both carry the full independent source target, and FreeHire completion cannot suppress LinkedIn startup.
 - Every worker has broad PowerShell access for work-item-local reads and installed scripts, acquires its stage before acting, and returns one canonical status line.
 - Browser workers use granular tools without free-form `run`; connection loss ends browser calls for that worker.
 - When BrowserOS is unavailable, local work continues; if no useful local work remains, the active goal blocks with the concrete BrowserOS reason until restoration and `/goal resume`.

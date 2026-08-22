@@ -75,7 +75,7 @@ Never ask the user to choose among routine application/workflow options and neve
 
 Do not create `blocked-unknown-fact` or `blocked-protected-fact`. Run `preflight-application.ps1` when an answer plan exists, then call `resolve-application-answer.ps1`. It uses configured identity, education, employment, compensation, notice/start timing, and demographic-decline facts. Any unresolved required question returns `needs-semantic-answer` for one generated contextual answer. Repeating the same normalized question more than twice returns `loop-detected`, after which the applicator answers directly without another resolver call.
 
-For numeric expected or current compensation, prefer the posting's lower quartile. If the posting has no band, call `get-market-salary.ps1`: use FreeHire country + category + seniority p25 when at least the configured sample count exists, then broader country/category/seniority and country-wide bands, then global category bands. Convert year/month/day/hour consistently. Use the profile's Pakistan/global numbers only when the market API has no usable band.
+For numeric expected or current compensation, prefer the posting's lower quartile. If the posting has no band, call `get-market-salary.ps1`: use FreeHire country + category + seniority p25 when at least the configured sample count exists, then broader country/category/seniority and country-wide bands, then global category bands. Convert year/month/day/hour consistently. Use the profile's configured local/global numbers only when the market API has no usable band.
 Try configured/profile facts, non-conflicting FreeHire values, saved application values, and legitimate decline options first. If none resolves a mandatory field, generate one context-aware answer and continue.
 
 
