@@ -5,9 +5,10 @@ Use this only for a CAPTCHA/challenge page. The user has an external solver inst
 ## One recovery window
 
 1. Preserve the task-owned tab and its current URL. Do not navigate away or close it.
-2. If an ordinary visible checkbox or challenge-start button such as `I'm not a robot`, `Verify`, or `Start` is available, click it once. This may trigger the installed solver. Do not click image/audio answers yourself.
-3. Wait up to 120 seconds for a targeted signal that the challenge disappeared, the form returned, navigation completed, or the expected next control appeared. Prefer one selector/text wait over repeated sleeps or clicks.
-4. Take a fresh snapshot/read. If the challenge cleared, continue the form from the new state. Recheck the domain circuit immediately before final Submit.
+2. If an ordinary visible checkbox or challenge-start button such as `I'm not a robot`, `Verify`, or `Start` is available, click it once. This may trigger the installed solver.
+3. If an image-grid challenge appears (e.g. reCAPTCHA "select all images with..."), do not solve the images yourself. Instead click the audio challenge control (the headphone/audio icon), then click the audio Play button once the audio challenge loads. Do not click image tiles or transcribe/submit the audio answer yourself — this only hands the challenge to the installed solver in its preferred format.
+4. Wait up to 120 seconds for a targeted signal that the challenge disappeared, the form returned, navigation completed, or the expected next control appeared. Prefer one selector/text wait over repeated sleeps or clicks.
+5. Take a fresh snapshot/read. If the challenge cleared, continue the form from the new state. Recheck the domain circuit immediately before final Submit.
 
 ## If it does not clear
 
