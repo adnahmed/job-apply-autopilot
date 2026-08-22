@@ -4,6 +4,7 @@ candidate:
   location:
     city: "Islamabad"
     country: "Pakistan"
+    country_code: "PK"
   email: "khanadnanahmed01@gmail.com"
   phone: "+923205700547"
   linkedin: "https://www.linkedin.com/in/adnahmed"
@@ -194,9 +195,10 @@ answer_policy:
   current_compensation_strategy: "expected-compensation"
   required_unknown_strategy: "agent-generated"
   posted_range_fraction: 0.25
-  pakistan_local_unlabeled_numeric: 350000
-  pakistan_local_currency: "PKR"
-  pakistan_local_period: "month"
+  local_location_tokens_csv: "Pakistan,Islamabad,Rawalpindi,Lahore,Karachi"
+  local_unlabeled_numeric: 350000
+  local_currency: "PKR"
+  local_period: "month"
   global_remote_yearly_numeric: 60000
   global_remote_monthly_numeric: 5000
   global_remote_hourly_numeric: 30

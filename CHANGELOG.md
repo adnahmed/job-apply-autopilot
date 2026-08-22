@@ -1,3 +1,15 @@
+# V6.6.0 — Asynchronous Parallel Discovery & Page-Level Batch Resolution
+
+- Made FreeHire discovery asynchronous: coordinator launches `start-freehire-discovery.ps1` and immediately continues scheduling; FreeHire runs as detached background process with its own source-specific claim.
+- Parallelized independent FreeHire search lanes (home-country, global-remote, sponsorship) using `ForEach-Object -Parallel -ThrottleLimit 3`; lanes run concurrently, merge after all return.
+- Routed FreeHire persistence through atomic `finalize-discovered-workitem.ps1` only; removed direct `new-workitem.ps1`, `set-application-route.ps1`, `enrich-freehire-workitem.ps1`, and source file writes from discovery script.
+- Added page-level batch application answer resolution: `resolve-application-page.ps1` resolves all visible ATS page fields in one PowerShell call; external applicator uses single page resolution + one semantic pass + one batched fill + one validation per page.
+- Removed candidate-specific geography (Pakistan, Islamabad, PK, etc.) from executable logic in `discover-freehire.ps1`, `resolve-application-answer.ps1`; replaced with profile-derived values (`candidate.location.country_code`, `local_location_tokens_csv`, `local_unlabeled_numeric`, `local_currency`, `local_period`, `local-market-default`).
+- Added `Test-LocalJobLocation` helper using profile-configured location tokens for generic local-market detection.
+- Fixed stale shared-discovery scheduler accounting: `claims_active` now sums source-specific active claims; `next_action` derived from emitted actions (`dispatch`, `await-active-claims`, `idle`).
+- Added active FreeHire and LinkedIn discovery claims to `state.claims` output with `discovery_source` field.
+- FreeHire lanes now use dynamic home-country from `profile.yaml` (`candidate.location.country_code`); no hardcoded `PK` or Pakistan geography.
+
 # V6.5.0 — Continuous Parallel Pipeline
 
 - Enabled coordinator continuation while child workers remain active (`noContinueWhileChildrenActive: false`, `minDelayMs: 5000`).

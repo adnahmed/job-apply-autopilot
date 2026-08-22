@@ -386,7 +386,14 @@ $legacyClaim = if ($legacyClaimRaw -and [string]$legacyClaimRaw.stage -eq 'disco
 }
 else { $null }
 
+# Calculate active discovery claim count from source-specific claims
+$activeDiscoveryClaimCount =
+    $(if (-not $freehireDiscoveryAvailable) { 1 } else { 0 }) +
+    $(if (-not $linkedinDiscoveryAvailable) { 1 } else { 0 }) +
+    $(if ($null -ne $legacyClaim) { 1 } else { 0 })
+
 $claimedWorkCount = @($queue | Where-Object { $_.claimed }).Count + @($generated | Where-Object { $_.claimed }).Count
+$claimsActiveTotal = $claimedWorkCount + $activeDiscoveryClaimCount
 
 # V6 throughput contract: expose the whole runnable pipeline, not only the first
 # non-empty bucket.  The coordinator cannot dispatch concurrent workers for work it
@@ -502,7 +509,7 @@ if ($freehireDiscoveryAvailable) {
         dispatch              = 'coordinator-discovery'
         priority              = 5
         target_new            = $discoverySlots
-        command               = "pwsh -NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\discover-freehire.ps1`" -Workspace `"$Workspace`" -TargetNew $discoverySlots"
+        command               = "pwsh -NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\start-freehire-discovery.ps1`" -Workspace `"$Workspace`" -TargetNew $discoverySlots"
     }
 }
 
@@ -544,7 +551,15 @@ $dispatchManifest = [ordered]@{
 }
 
 if ($null -eq $nextAction) {
-    $nextAction = if ($discoverySlots -gt 0 -and $null -eq $discoveryClaim) { 'discover' } else { 'await-active-claims' }
+    if ($actions.Count -gt 0) {
+        $nextAction = 'dispatch'
+    }
+    elseif ($claimsActiveTotal -gt 0) {
+        $nextAction = 'await-active-claims'
+    }
+    else {
+        $nextAction = 'idle'
+    }
 }
 $concurrency = [ordered]@{
     default             = 'unbounded'
@@ -565,6 +580,24 @@ $claimMetadata = @(
     @($queue | Where-Object { $_.claimed } | ForEach-Object { [ordered]@{ scope = 'work-item'; job_id = $_.job_id; stage = $_.stage; path = $_.path; owner_id = $_.claim.owner_id; acquired_at = $_.claim.acquired_at; expires_at = $_.claim.expires_at } }) +
     @($generated | Where-Object { $_.claimed } | ForEach-Object { [ordered]@{ scope = 'work-item'; job_id = $_.job_id; stage = $_.stage; path = $_.path; owner_id = $_.claim.owner_id; acquired_at = $_.claim.acquired_at; expires_at = $_.claim.expires_at } })
 )
+
+# Add active FreeHire discovery claim
+if (-not $freehireDiscoveryAvailable) {
+    $freehireClaimRaw = Read-JsonSafe (Join-Path $root 'discovery-action-claim.freehire.json')
+    if ($freehireClaimRaw -and $freehireClaimRaw.owner_id) {
+        $claimMetadata += [ordered]@{ scope = 'discovery'; discovery_source = 'freehire'; job_id = $null; stage = 'discovery'; path = $root; owner_id = [string]$freehireClaimRaw.owner_id; acquired_at = $freehireClaimRaw.acquired_at; expires_at = $freehireClaimRaw.expires_at }
+    }
+}
+
+# Add active LinkedIn discovery claim
+if (-not $linkedinDiscoveryAvailable) {
+    $linkedinClaimRaw = Read-JsonSafe (Join-Path $root 'discovery-action-claim.linkedin-browser.json')
+    if ($linkedinClaimRaw -and $linkedinClaimRaw.owner_id) {
+        $claimMetadata += [ordered]@{ scope = 'discovery'; discovery_source = 'linkedin-browser'; job_id = $null; stage = 'discovery'; path = $root; owner_id = [string]$linkedinClaimRaw.owner_id; acquired_at = $linkedinClaimRaw.acquired_at; expires_at = $linkedinClaimRaw.expires_at }
+    }
+}
+
+# Legacy shared claim (migration compatibility only - never created)
 if ($null -ne $legacyClaim) {
     $claimMetadata += [ordered]@{ scope = 'discovery'; job_id = $null; stage = 'discovery'; path = $root; owner_id = $legacyClaim.owner_id; acquired_at = $legacyClaim.acquired_at; expires_at = $legacyClaim.expires_at }
 }
@@ -610,7 +643,7 @@ $out = [ordered]@{
         generated_verification_deferred      = @($generated | Where-Object { $_.stage -eq 'verification_grace' }).Count
         application_verification_quarantined = @($generated | Where-Object { $_.stage -eq 'application_verification_quarantined' }).Count
         application_outcome_repair           = @($generated | Where-Object { $_.stage -eq 'application_outcome_repair' }).Count
-        claims_active                        = $claimedWorkCount + $(if ($null -ne $discoveryClaim) { 1 } else { 0 })
+        claims_active                        = $claimsActiveTotal
         generated_circuit_blocked            = @($generated | Where-Object { $_.stage -eq 'domain_circuit_breaker' }).Count
         reconcile                            = $reconcile.Count
         circuit_breaker_events               = $circuitCount

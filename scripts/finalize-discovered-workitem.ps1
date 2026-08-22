@@ -15,7 +15,8 @@ param(
     [string]$Route = '',
     [string]$RouteTarget = '',
     [string]$RouteEvidence = '',
-    [string]$Workspace = (Get-Location).Path
+    [string]$Workspace = (Get-Location).Path,
+    [string]$ProfilePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'profile.yaml')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -96,7 +97,7 @@ if ($creationStatus -eq 'created' -and -not [string]::IsNullOrWhiteSpace($JobUrl
         $enrichScript = Join-Path $PSScriptRoot 'enrich-freehire-workitem.ps1'
         if (Test-Path -LiteralPath $enrichScript) {
             try {
-                & $enrichScript -WorkItemDir $workItemPath -Workspace $Workspace | Out-Null
+                & $enrichScript -WorkItemDir $workItemPath -Workspace $Workspace -ProfilePath $ProfilePath | Out-Null
                 $enrichmentStatus = 'enriched'
             } catch {
                 $enrichmentStatus = 'enrichment-error'

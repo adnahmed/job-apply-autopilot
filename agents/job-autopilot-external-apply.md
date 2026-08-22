@@ -57,7 +57,32 @@ Use documented granular BrowserOS tools from `$HOME\.config\opencode\skills\job-
 
 Before reservation or browser work, call `preflight-application.ps1 -WorkItemDir "<work-item>"` once. If it returns `needs-semantic-answer`, answer every listed question once: use fit-map/canonical/profile/context evidence first, otherwise generate a concrete context-aware answer and continue. Missing identity, legal, authorization, compensation, or sensitive facts never create a blocker or skip. An unavailable preflight only means the live form must be captured normally. Then reserve through `application-send-guard.ps1` using the explicit route target. Reservation performs the final quality gate. On `route-unresolved`, return the route handoff without opening the browser. On `quality-rejected`, stop with `blocked external skipped-job-quality`. Pass an acquired reservation ID to every later guard transition. On duplicate or existing-reservation results, stop or defer as directed. On `verify-required`, never touch Submit. Only an authenticated ATS tracker proving absence permits retry; otherwise quarantine. Public pages, browser history, missing files, and missing confirmation mail are not absence proof.
 
-On `acquired`, use the reservation once. Verify employer/title/location, active circuit status, and exact PDF filename. For every missing or required form question, call `resolve-application-answer.ps1` first. Enter `answered` values directly. For `needs-semantic-answer`, generate one concrete answer from all available context and enter it; one correction is allowed after an exact form-validation error. On `loop-detected`, stop resolver calls and generate the answer directly instead of deferring. Checkpoint only meaningful stages. Call `MarkSubmitted` only after explicit success. Never infer submission absence.
+On `acquired`, use the reservation once. Verify employer/title/location, active circuit status, and exact PDF filename.
+
+**Page-level batch resolution:**
+
+For every newly loaded ATS page:
+1. Inspect the page once using granular BrowserOS tools.
+2. Capture ALL visible fillable fields/questions into a QuestionsJson array.
+3. Call `resolve-application-page.ps1` exactly once with the QuestionsJson array.
+4. Fill every `status=answered` field together in a single batched `fill` action.
+5. For all `status=needs-semantic-answer` fields, generate concrete answers in ONE reasoning pass.
+6. Fill those semantic answers together in a single batched `fill` action.
+7. Validate the page once.
+8. Continue.
+
+Never invoke `resolve-application-answer.ps1` directly for individual visible fields during normal page processing. Use `resolve-application-page.ps1` exclusively.
+
+The desired page flow is:
+browser snapshot
+    ↓
+ONE PowerShell page resolution
+    ↓
+ONE semantic pass for unresolved fields
+    ↓
+ONE grouped browser fill
+    ↓
+ONE validation
 
 If the authoritative employer/ATS page says the requisition is closed, filled, removed, or no longer accepting applications, write `skipped-closed` through the outcome writer. Do not relabel a closed vacancy as ineligible or technical.
 

@@ -32,6 +32,18 @@ function Scalar([string]$Name, $Default = $null) {
     return $Default
 }
 
+function Test-LocalJobLocation([string]$Location) {
+    $tokensCsv = Scalar 'local_location_tokens_csv' ''
+    if ([string]::IsNullOrWhiteSpace($tokensCsv)) { return $false }
+    $tokens = $tokensCsv.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    foreach ($token in $tokens) {
+        if ($Location -match [regex]::Escape($token)) {
+            return $true
+        }
+    }
+    return $false
+}
+
 function FreeHire-Autofill([string]$Name, $Default = $null) {
     if ($freehireContext -and $freehireContext.autofill -and $freehireContext.autofill.PSObject.Properties.Name -contains $Name -and $null -ne $freehireContext.autofill.$Name -and [string]$freehireContext.autofill.$Name) { return $freehireContext.autofill.$Name }
     return $Default
@@ -257,9 +269,9 @@ if ($label -match '(?i)(expected|desired|salary expectation|compensation expecta
     }
     $location = [string]$job.location
     if ($label -match '(?i)hour') { Emit-Answer ([int](Scalar 'global_remote_hourly_numeric' 30)) 'profile.global-remote-default' 'expected-compensation' }
-    if ($label -match '(?i)month') { Emit-Answer ($(if ($location -match '(?i)pakistan|islamabad|rawalpindi|lahore|karachi') { [int](Scalar 'pakistan_local_unlabeled_numeric' 350000) } else { [int](Scalar 'global_remote_monthly_numeric' 5000) })) 'profile.location-default' 'expected-compensation' }
+    if ($label -match '(?i)month') { Emit-Answer ($(if (Test-LocalJobLocation $location) { [int](Scalar 'local_unlabeled_numeric' 350000) } else { [int](Scalar 'global_remote_monthly_numeric' 5000) })) 'profile.local-market-default' 'expected-compensation' }
     if ($label -match '(?i)year|annual') { Emit-Answer ([int](Scalar 'global_remote_yearly_numeric' 60000)) 'profile.global-remote-default' 'expected-compensation' }
-    if ($location -match '(?i)pakistan|islamabad|rawalpindi|lahore|karachi') { Emit-Answer ([int](Scalar 'pakistan_local_unlabeled_numeric' 350000)) 'profile.pakistan-local-default' 'expected-compensation' }
+    if (Test-LocalJobLocation $location) { Emit-Answer ([int](Scalar 'local_unlabeled_numeric' 350000)) 'profile.local-market-default' 'expected-compensation' }
     Emit-Answer ([int](Scalar 'global_remote_yearly_numeric' 60000)) 'profile.global-remote-default' 'expected-compensation'
 }
 
