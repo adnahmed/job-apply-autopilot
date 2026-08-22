@@ -3,7 +3,7 @@ description: Fast local fit assessor for one viable queued job. No web. Claims t
 mode: subagent
 hidden: true
 temperature: 0.1
-steps: 18
+steps: 24
 permission:
   read: allow
   glob: deny

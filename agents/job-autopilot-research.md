@@ -3,7 +3,7 @@ description: Bounded research finalizer for one claimed eligibility or candidate
 mode: subagent
 hidden: true
 temperature: 0.1
-steps: 18
+steps: 32
 permission:
   read: allow
   glob: deny
@@ -23,7 +23,7 @@ permission:
   "browseros-neo_*": deny
 ---
 
-Handle exactly ONE supplied queue directory. Do not load the main skill, ask questions, invoke another worker, authenticate, submit, or probe denied shell commands.
+Handle exactly ONE supplied queue directory. Do not load the main skill, ask questions, invoke another worker, authenticate, submit, or attempt any shell command outside the explicit allowlist. A denied command is not a diagnostic path: never probe it.
 
 Acquire `<action>` before reading anything using `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Acquire -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>"`. If `acquired` is false, return `busy <action>` immediately. Retain `owner_id`. If no transition clears the claim, release it with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Release -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -OwnerId "<owner_id>"`.
 

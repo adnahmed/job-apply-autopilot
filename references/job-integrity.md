@@ -17,6 +17,10 @@ Agency/recruiter names the end client and the exact role remains coherent throug
 ### AGENCY_UNKNOWN_CLIENT
 Unknown employer/end-client or generic future-client wording. Skip by default.
 
+## Enforced quality gate
+
+Run `check-job-quality.ps1` before queue creation and again before send reservation. The structured denylist in `profile.yaml` excludes micro1/micro1.ai/jobs.micro1.ai and Crossing Hurdles. Also reject unnamed-client agencies, predatory assessment funnels, stale/fake-freshness classifications, and repeated reposts without a stable direct-employer route. Record these as `skipped-job-quality`; never spend assessment, resume, or browser time on them.
+
 ### TALENT_POOL
 `Join our network`, future opportunities, evergreen database, community/talent cloud, no concrete requisition. Skip.
 

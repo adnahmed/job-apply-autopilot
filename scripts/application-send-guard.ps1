@@ -236,6 +236,16 @@ try {
                 exit 0
             }
             $job = Read-JsonSafe $jobPath
+            $metadataPath = Join-Path $WorkItemDir 'source-metadata.json'
+            $qualityArgs = @{ JobJson = ($job | ConvertTo-Json -Compress -Depth 8) }
+            if (Test-Path -LiteralPath $metadataPath) { $qualityArgs.MetadataJson = $metadataPath }
+            $quality = (& (Join-Path $PSScriptRoot 'check-job-quality.ps1') @qualityArgs | Select-Object -Last 1) | ConvertFrom-Json
+            if (-not [bool]$quality.allowed) {
+                & (Join-Path $PSScriptRoot 'write-application-outcome.ps1') -WorkItemDir $WorkItemDir -Status 'skipped-job-quality' -Blocker ([string]$quality.reason_code) -ApplyMethod $Channel -Target $Target | Out-Null
+                Clear-ApplicationClaims
+                Write-Result ([ordered]@{ status='quality-rejected'; safe_to_submit=$false; reason_code=[string]$quality.reason_code; evidence=[string]$quality.evidence })
+                exit 0
+            }
             $semanticConflict = Find-SemanticConflict $job
             if ($semanticConflict) {
                 Clear-ApplicationClaims

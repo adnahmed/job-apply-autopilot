@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$WorkItemDir,
-    [Parameter(Mandatory=$true)][ValidateSet('blocked-auth','blocked-security','blocked-automation','blocked-domain-circuit-breaker','blocked-identity-mismatch','blocked-work-auth','blocked-unknown-fact','blocked-technical','blocked-verification-unresolved','skipped-ineligible','skipped-duplicate','failed')][string]$Status,
+    [Parameter(Mandatory=$true)][ValidateSet('blocked-auth','blocked-security','blocked-automation','blocked-domain-circuit-breaker','blocked-identity-mismatch','blocked-work-auth','blocked-protected-fact','blocked-unknown-fact','blocked-technical','blocked-verification-unresolved','skipped-ineligible','skipped-duplicate','skipped-job-quality','failed')][string]$Status,
     [Parameter(Mandatory=$true)][string]$Blocker,
     [ValidateSet('external-ats','email','linkedin-easy-apply','external')][string]$ApplyMethod = 'external-ats',
     [string]$Target = ''

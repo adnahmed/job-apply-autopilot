@@ -1,4 +1,4 @@
-# Autonomous Application Policy V6.0
+# Autonomous Application Policy V6.1
 
 ## Principle
 Quality and eligibility beat volume. Requested application count is a maximum target, never a quota.
@@ -68,6 +68,8 @@ Default auto-apply threshold: 72 after every true hard blocker/gate passes. A fe
 Never ask the user to choose among routine application/workflow options and never invoke a question tool. For non-factual safe choices, select **Recommended** when present; otherwise select the first available safe option and continue. Factual screening answers must still come from truthful evidence. If none is supportable, use a legitimate decline/N/A when available or skip the job; do not ask the user to resolve it. A standalone CAPTCHA is handled through the installed solver and a bounded wait without closing its tab. Unresolved CAPTCHA/MFA/security/manual-required states are checkpointed and bypassed by moving to other jobs, not turned into an interactive chat prompt.
 
 ## Unknown required facts
+
+Do not create `blocked-unknown-fact`. First call `resolve-application-answer.ps1`. It uses structured profile defaults for education dates, expected salary, notice/start timing, demographic declines, routine yes/no fields, and benign form defaults. Only identity, legal status, work authorization, or sensitive disclosures may terminate as `blocked-protected-fact` when no honest decline is available.
 Try, in order:
 1. profile/canonical facts,
 2. truthful saved LinkedIn/application values,

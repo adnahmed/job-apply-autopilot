@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$JobId,
-    [Parameter(Mandatory=$true)][ValidateSet('skipped-obvious','skipped-duplicate','skipped-closed','skipped-ineligible','skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family','skipped-location-lock','skipped-work-auth-gate','skipped-location-gate','skipped-agency-unknown-client','skipped-agency','skipped-aggregator','skipped-management-only','skipped-license-clearance')][string]$Status,
+    [Parameter(Mandatory=$true)][ValidateSet('skipped-obvious','skipped-duplicate','skipped-closed','skipped-ineligible','skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family','skipped-location-lock','skipped-work-auth-gate','skipped-location-gate','skipped-agency-unknown-client','skipped-agency','skipped-aggregator','skipped-management-only','skipped-license-clearance','skipped-job-quality')][string]$Status,
     [Parameter(Mandatory=$true)][string]$ReasonCode,
     [string]$Company = '',
     [string]$Title = '',

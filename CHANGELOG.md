@@ -1,3 +1,12 @@
+# V6.1.0 — Fast Routes and Deterministic Answers
+
+- Added keyless FreeHire discovery across Pakistan, global-remote, sponsorship, category, and seniority lanes with full source metadata and optional apply-form capture.
+- Added enforceable job-quality gates before queue creation and send reservation, including the micro1 and Crossing Hurdles denylist.
+- Added structured education dates and employer-acceptance salary defaults in profile data plus deterministic form-answer resolution.
+- Stopped creating `blocked-unknown-fact`; retained it only for legacy terminal compatibility and introduced protected-fact blocking.
+- Replaced source/domain route guesses with explicit application route sidecars and a route-pending stage.
+- Added fast/research scheduler waves, ISO timestamp normalization, latency and FreeHire campaign metrics, and larger bounded assessor/research budgets.
+
 # V6.0.0 — Goal-Only Reliability Hardening
 
 - Made the session goal plugin the sole persistence owner and enabled its child-session continuation gate.

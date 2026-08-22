@@ -17,6 +17,10 @@ education:
   - degree: "BS Computer Science"
     institution: "PMAS Arid Agriculture University"
     location: "Rawalpindi, Pakistan"
+    start_month: 4
+    start_year: 2018
+    end_month: 3
+    end_year: 2023
 
 current_employment:
   company: "HackOnTech"
@@ -185,9 +189,35 @@ answer_policy:
   gender_optional: "Prefer not to answer / decline to self-identify."
   race_ethnicity_optional: "Prefer not to answer / decline to self-identify."
   compensation_text: "Negotiable; open to a market-competitive package."
-  compensation_numeric: "Use a posted range when required and appropriate; otherwise do not invent current salary/CTC."
+  compensation_numeric_strategy: "employer-acceptance-lower-quartile"
+  posted_range_fraction: 0.25
+  pakistan_local_unlabeled_numeric: 350000
+  pakistan_local_currency: "PKR"
+  pakistan_local_period: "month"
+  global_remote_yearly_numeric: 60000
+  global_remote_monthly_numeric: 5000
+  global_remote_hourly_numeric: 30
+  global_remote_currency: "USD"
   start_date: "30 days after offer unless negotiable is available."
   notice_period: "30 days when mandatory; otherwise choose negotiable if available."
   years_total_experience: "derive-from-canonical-employment-history"
   work_authorization: "Never infer. Answer only from verified facts or the exact application context."
-  factual_unknown_required: "Use verified data; choose N/A/prefer-not-to-answer when available; otherwise skip."
+  factual_unknown_required: "Resolve routine fields deterministically; choose N/A/prefer-not-to-answer when available; use a dedicated protected-fact blocker only for identity, legal, authorization, or sensitive-disclosure facts."
+
+job_quality:
+  excluded_employers:
+    - "micro1"
+    - "Crossing Hurdles"
+  excluded_domains:
+    - "micro1.ai"
+    - "jobs.micro1.ai"
+  reject_unnamed_client_agencies: true
+  reject_predatory_assessment_funnels: true
+  reject_repeated_reposts_without_direct_employer: true
+
+freehire:
+  enabled: true
+  base_url: "https://freehire.me/api/v1"
+  target_new_per_pass: 8
+  posted_within_days: 7
+  reality: "fresh"

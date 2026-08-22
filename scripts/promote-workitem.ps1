@@ -120,7 +120,7 @@ try {
         }
     }
     $technicalPriorSkips = @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family')
-    if ([string]$assessment.policy_version -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0') -and $lastLedgerStatus -in $technicalPriorSkips -and -not [bool]$generatedJob.allow_after_prior_skip) {
+    if ([string]$assessment.policy_version -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0','6.1') -and $lastLedgerStatus -in $technicalPriorSkips -and -not [bool]$generatedJob.allow_after_prior_skip) {
         $generatedJob | Add-Member -NotePropertyName 'allow_after_prior_skip' -NotePropertyValue $true -Force
         $generatedJob | Add-Member -NotePropertyName 'prior_ledger_status' -NotePropertyValue $lastLedgerStatus -Force
         $metadataChanged = $true
@@ -130,7 +130,7 @@ try {
     Copy-IfGeneratedArtifactInvalid $assessmentPath (Join-Path $generatedDir 'assessment.json') { param($p) $value = Read-JsonSafe $p; $value -and [string]$value.job_id -eq $resolvedJobId -and [string]$value.status -eq 'passed' }
     Copy-IfGeneratedArtifactInvalid $fitPath (Join-Path $generatedDir 'fit-map.json') { param($p) $value = Read-JsonSafe $p; $value -and [string]$value.job_id -eq $resolvedJobId -and [string]$value.status -in @('complete','passed') }
     Copy-IfGeneratedArtifactInvalid $sourcePath (Join-Path $generatedDir 'source.md') { param($p) $text = Get-Content -LiteralPath $p -Raw; $text.Trim().Length -ge 80 -and $text -notmatch 'Coordinator:\s*replace this placeholder' }
-    foreach ($name in @('eligibility-research.json','candidate-evidence-research.json')) {
+    foreach ($name in @('eligibility-research.json','candidate-evidence-research.json','source-metadata.json','application-route.json','application-answer-plan.json')) {
         $source = Join-Path $WorkItemDir $name
         $destination = Join-Path $generatedDir $name
         if ((Test-Path -LiteralPath $source) -and -not (Test-Path -LiteralPath $destination)) { Copy-Item -LiteralPath $source -Destination $destination }

@@ -48,7 +48,10 @@ if (Test-Path -LiteralPath $appLog) {
             } while ($companyKey -ne $priorCompanyKey)
             $titleKey = (($title.ToLowerInvariant() -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
             $identity = if ($companyKey -and $titleKey) { "$companyKey|$titleKey" } else { "job:$([string]$r.job_id)" }
-            $rows += [pscustomobject]@{ job_id=[string]$r.job_id; identity=$identity; status=$status; bucket=$bucket; source=$source; lane=$lane }
+            $createdAt = if ($job -and $job.created_at) { [string]$job.created_at } else { $null }
+            $durationMinutes = $null
+            try { if ($createdAt -and $r.timestamp) { $durationMinutes = [math]::Round(([DateTimeOffset]::Parse([string]$r.timestamp).ToUniversalTime() - [DateTimeOffset]::Parse($createdAt).ToUniversalTime()).TotalMinutes,2) } } catch {}
+            $rows += [pscustomobject]@{ job_id=[string]$r.job_id; identity=$identity; status=$status; bucket=$bucket; source=$source; lane=$lane; duration_minutes=$durationMinutes }
         } catch { }
         }
     }
@@ -76,6 +79,9 @@ function Summarize($items, [string]$property) {
 $total = @($rows).Count
 $submittedRows = @($rows | Where-Object bucket -eq 'submitted')
 $submittedTotal = @($submittedRows | Group-Object identity).Count
+$completedDurations = @($rows | Where-Object { $null -ne $_.duration_minutes -and $_.duration_minutes -ge 0 } | ForEach-Object { [double]$_.duration_minutes } | Sort-Object)
+$submittedDurations = @($submittedRows | Where-Object { $null -ne $_.duration_minutes -and $_.duration_minutes -ge 0 } | ForEach-Object { [double]$_.duration_minutes } | Sort-Object)
+function Median($Values) { $a=@($Values); if($a.Count -eq 0){return $null}; $middle=[math]::Floor($a.Count/2); if($a.Count%2){return [math]::Round([double]$a[$middle],2)}; return [math]::Round(([double]$a[$middle-1]+[double]$a[$middle])/2,2) }
 $stats = [ordered]@{
     generated_at = (Get-Date).ToUniversalTime().ToString('o')
     total_decisions = $total
@@ -86,6 +92,10 @@ $stats = [ordered]@{
     blocked = @($rows | Where-Object bucket -eq 'blocked').Count
     skipped = @($rows | Where-Object bucket -eq 'skipped').Count
     submission_rate = if ($total) { [math]::Round($submittedTotal / $total, 4) } else { 0 }
+    median_decision_minutes = Median $completedDurations
+    median_submission_minutes = Median $submittedDurations
+    freehire = [ordered]@{ decisions=@($rows | Where-Object source -eq 'freehire').Count; submitted=@($submittedRows | Where-Object source -eq 'freehire').Count }
+    quality_rejected = @($rows | Where-Object status -eq 'skipped-job-quality').Count
     statuses = @($rows | Group-Object status | Sort-Object Name | ForEach-Object { [ordered]@{ status=$_.Name; count=$_.Count } })
     by_source = @(Summarize $rows 'source')
     by_discovery_lane = @(Summarize $rows 'lane')

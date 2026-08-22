@@ -65,6 +65,11 @@ foreach ($name in $names) {
             $failed = $true
             continue
         }
+        if ($text -notmatch '(?m)^\s{4}"\*check-job-quality\.ps1\*":\s*allow\s*$') {
+            Write-Error "APPLICATOR QUALITY GATE PERMISSION MISSING in $path"
+            $failed = $true
+            continue
+        }
         if ($text -notmatch '(?m)^\s{4}"\*write-application-outcome\.ps1\*":\s*allow\s*$' -or
             $text -notmatch 'one-strike rule' -or $text -notmatch 'never call (it|`run`) again' -or
             $text -notmatch 'probe denied shell commands|Never probe shell/CDP' -or $text -notmatch 'quarantined' -or

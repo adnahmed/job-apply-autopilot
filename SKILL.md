@@ -3,7 +3,7 @@ name: job-apply-autopilot
 description: "Goal-driven autonomous job discovery, truthful fit triage, tailored resumes, and idempotent verified submission through BrowserOS neo. Uses claimed actions, semantic dedupe, verification quarantine, and deterministic application outcomes."
 ---
 
-# Job Apply Autopilot V6.0.0 — Goal-Only Reliability
+# Job Apply Autopilot V6.1.0 — Fast Routes and Deterministic Answers
 
 Mission: maximize credible net-new interview opportunities per unit time while preserving truth, the candidate's documented geographic eligibility, security controls, and duplicate safety. Tool activity, duplicate work, placeholders, and unverified outcomes are not progress.
 
@@ -30,15 +30,16 @@ Trust `actions`, `scheduler`, claim metadata, and these stages:
 2. `application_outcome_repair`: dispatch the matching applicator only to write/reconstruct the terminal result; never resume the form.
 3. `application_verification`: dispatch the matching applicator to verify the prior side effect; never start a fresh application.
 4. `application_verification_quarantined`: do nothing automatically. It is isolated from the ledger and unrelated work.
-5. `email_application_ready`: dispatch `job-autopilot-email-apply`.
-6. `linkedin_application_ready`: handle LinkedIn Easy Apply serially under its governor.
-7. `application_ready` / `application_resume`: route to the matching applicator immediately.
-8. `resume_pending`: dispatch `job-autopilot-resume`.
-9. `coordinator_adjudication_pending`: claim and run `advance-workitem.ps1`.
-10. `assessment_repair`: claim and repair deterministically, then rerun state.
-11. `assessment_pending` / `reassessment_pending`: dispatch `job-autopilot-assessor`.
-12. `source_pending`: claim, capture the complete source, release the claim, rerun state.
-13. `eligibility_research_pending` / `candidate_evidence_pending`: dispatch `job-autopilot-research` in a separate web-heavy wave.
+5. `route_pending`: resolve and persist `application-route.json`; never infer a route from source/domain.
+6. `email_application_ready`: dispatch `job-autopilot-email-apply`.
+7. `linkedin_application_ready`: handle LinkedIn Easy Apply serially under its governor.
+8. `application_ready` / `application_resume`: route to the matching applicator immediately.
+9. `resume_pending`: dispatch `job-autopilot-resume`.
+10. `coordinator_adjudication_pending`: claim and run `advance-workitem.ps1`.
+11. `assessment_repair`: claim and repair deterministically, then rerun state.
+12. `assessment_pending` / `reassessment_pending`: dispatch `job-autopilot-assessor`.
+13. `source_pending`: claim, capture the complete source, release the claim, rerun state.
+14. `eligibility_research_pending` / `candidate_evidence_pending`: dispatch `job-autopilot-research` in a separate web-heavy wave.
 
 Cooldown, verification grace, domain circuit breaker, and actively claimed items are non-actionable until their timestamps expire. Never wait for them while other work or discovery exists.
 
@@ -77,7 +78,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.p
 
 ## Parallel pipeline
 
-Issue all independent worker Task calls in one assistant turn. Group by `dispatch`, use every supplied `worker_prompt` verbatim, and rerun state after each wave. LinkedIn Easy Apply alone is serial at one; assessor, research, resume, external ATS, and email workers run up to host capacity. Keep web-heavy research out of a fast-worker wave when the harness waits for all calls.
+Issue all independent worker Task calls in one assistant turn. Respect `scheduler.active_wave` and each action's `wave`: exhaust `fast` before dispatching `research`. Group by `dispatch`, use every supplied `worker_prompt` verbatim, and rerun state after each wave. LinkedIn Easy Apply alone is serial at one; assessor, research, resume, external ATS, and email workers run up to host capacity.
 
 Maintain the reported eight-item source-ready/actionable intake floor. Dispatch ready work, then fill `scheduler.discovery_slots`. Quarantined jobs do not consume discovery capacity.
 
@@ -91,6 +92,14 @@ Action: <action>
 Never append policy, evidence opinions, job summaries, or recovery instructions. Workers return only their documented canonical status line.
 
 ## Discovery and dedupe
+
+Prefer keyless FreeHire discovery before browser search when `scheduler.discovery_slots` is positive:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\discover-freehire.ps1" -Workspace $workspace -TargetNew $state.scheduler.discovery_slots
+```
+
+It searches fresh Pakistan, global-remote, and sponsorship lanes, stores full source metadata, captures available application questions, persists explicit routes, and quality-rejects excluded employers and low-reality jobs before queue creation.
 
 Derive local and regional lanes from `profile.yaml` (`candidate.location` and `search_defaults.locations`). Rotate lanes: home-country/local direct; explicitly compatible regional remote; worldwide/international contractor; sponsorship/relocation; direct employer/ATS; broader backend/platform/AI/software synonyms.
 
@@ -110,7 +119,7 @@ $workItem = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\ne
   -SearchQuery '<query>' -Workspace $workspace
 ```
 
-Discovery/assessment skips use only an allowed value through `log-decision.ps1`: `skipped-obvious`, `skipped-duplicate`, `skipped-closed`, `skipped-ineligible`, `skipped-low-fit`, `skipped-mandatory-gate`, `skipped-stack-mismatch`, `skipped-role-family`, `skipped-location-lock`, `skipped-work-auth-gate`, `skipped-location-gate`, `skipped-agency-unknown-client`, `skipped-agency`, `skipped-aggregator`, `skipped-management-only`, or `skipped-license-clearance`. The command rejects application-route statuses and promoted jobs; application blockers use the application outcome writer.
+Discovery/assessment skips use only an allowed value through `log-decision.ps1`: `skipped-job-quality`, `skipped-obvious`, `skipped-duplicate`, `skipped-closed`, `skipped-ineligible`, `skipped-low-fit`, `skipped-mandatory-gate`, `skipped-stack-mismatch`, `skipped-role-family`, `skipped-location-lock`, `skipped-work-auth-gate`, `skipped-location-gate`, `skipped-agency-unknown-client`, `skipped-agency`, `skipped-aggregator`, `skipped-management-only`, or `skipped-license-clearance`. The command rejects application-route statuses and promoted jobs; application blockers use the application outcome writer.
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\log-decision.ps1" `
@@ -133,7 +142,9 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\advance-workit
 
 Promotion and resume compilation reuse valid existing generated directories/artifacts under work-item locks.
 
-Route ready work immediately. Direct employer-email applications go only to `job-autopilot-email-apply`; external ATS/company forms go only to `job-autopilot-external-apply`. Both remain uncapped by skill policy. LinkedIn Easy Apply remains coordinator-owned and serial: check `linkedin-governor.ps1` before opening the modal and record an explicitly confirmed submission with `-Action RecordEasyApply -JobId '<id>' -Workspace $workspace`.
+Route ready work immediately using only `application-route.json`. Persist routes through `set-application-route.ps1`; never infer them from the discovery source. Direct employer-email applications go only to `job-autopilot-email-apply`; external ATS/company forms go only to `job-autopilot-external-apply`. Every applicator reservation re-runs the quality gate. LinkedIn Easy Apply remains coordinator-owned and serial under its governor.
+
+For required questions, call `resolve-application-answer.ps1`. It resolves profile-backed education dates, expected compensation, routine yes/no fields, optional demographic declines, and benign required defaults. Never create a new `blocked-unknown-fact`; that value remains accepted only as legacy terminal history. Use `blocked-protected-fact` only for genuinely protected identity, legal, authorization, or sensitive-disclosure facts.
 
 ## Submission and quarantine
 
@@ -178,7 +189,7 @@ The checkpoint stage may differ from the scheduler claim stage; the defer transi
 
 ## Truth and autonomy
 
-Never ask the user to choose, approve, or clarify routine campaign decisions. Choose `Recommended` when present, otherwise the first safe benign option. Factual fields must come from canonical/profile evidence or verified per-job evidence; otherwise use an honest decline/N/A or a terminal job-local blocker.
+Never ask the user to choose, approve, or clarify routine campaign decisions. Choose `Recommended` when present, otherwise the first safe benign option. Resolve routine fields through the deterministic answer script. Factual fields must come from canonical/profile evidence or verified per-job evidence; use an honest decline/N/A for optional sensitive fields and reserve a protected-fact blocker for identity, legal, authorization, or sensitive disclosure only.
 
 Never fabricate employer history, degree/licence/clearance, work authorization, people management, production metrics, specialist identity, or precise technology-specific duration. Overall software tenure supports a requirement only when the capability itself is supported or reasonably plausible. Ordinary form validation gets one correction. Confirm explicit success before recording `submitted`.
 

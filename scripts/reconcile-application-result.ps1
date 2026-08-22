@@ -56,7 +56,12 @@ try {
     $reasonCode = if ($submitted) { "$method-submitted" } elseif ($result.blocker) { [string]$result.blocker } else { $ledgerStatus }
     $notes = if ($result.confirmation) { [string]$result.confirmation } elseif ($result.blocker) { [string]$result.blocker } else { '' }
     if ($notes.Length -gt 300) { $notes = $notes.Substring(0,300) }
-    $timestamp = if ($result.submitted_at) { [string]$result.submitted_at } else { [DateTimeOffset]::UtcNow.ToString('o') }
+    $timestamp = [DateTimeOffset]::UtcNow.ToString('o')
+    if ($result.submitted_at) {
+        try { $timestamp = [DateTimeOffset]::Parse([string]$result.submitted_at, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AllowWhiteSpaces).ToUniversalTime().ToString('o') } catch {}
+    } elseif ($result.completed_at) {
+        try { $timestamp = [DateTimeOffset]::Parse([string]$result.completed_at, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AllowWhiteSpaces).ToUniversalTime().ToString('o') } catch {}
+    }
     $row = [ordered]@{
         timestamp = $timestamp
         status = $ledgerStatus

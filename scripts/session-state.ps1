@@ -223,7 +223,7 @@ if (Test-Path -LiteralPath $queueRoot) {
         # Do not reopen an old failed skip just because policy changed. But if a reassessment was already
         # Explicitly reopened technical skips may finish after restart.
         $explicitReassessment = ($job -and (Has-Property $job 'allow_after_prior_skip') -and [bool]$job.allow_after_prior_skip)
-        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0') -and $status -in @('needs-evidence','needs-research','passed'))
+        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0','6.1') -and $status -in @('needs-evidence','needs-research','passed'))
         $ledgerBlocks = ($submittedIds.ContainsKey($id) -or ($already -and -not $reassessmentInProgress))
         $shadowedByGenerated = $generatedIds.ContainsKey($id)
         $terminal = $status -in @('failed','rejected','skipped','submitted','blocked')
@@ -285,7 +285,8 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $resultStatus = if ($result -and $result.status) { [string]$result.status } else { $null }
         $linkedinHandoff = ($resultStatus -eq 'handoff-easy-apply')
         $needsReconcile = (($null -ne $result) -and -not $linkedinHandoff -and -not $already)
-        $terminalResult = $resultStatus -in @('submitted','blocked-auth','blocked-security','blocked-automation','blocked-domain-circuit-breaker','blocked-identity-mismatch','blocked-work-auth','blocked-unknown-fact','blocked-technical','blocked-verification-unresolved','skipped-ineligible','skipped-duplicate','failed')
+        # blocked-unknown-fact remains terminal for legacy rows only. V6.1 workers never create it.
+        $terminalResult = $resultStatus -in @('submitted','blocked-auth','blocked-security','blocked-automation','blocked-domain-circuit-breaker','blocked-identity-mismatch','blocked-work-auth','blocked-protected-fact','blocked-unknown-fact','blocked-technical','blocked-verification-unresolved','skipped-ineligible','skipped-duplicate','skipped-job-quality','failed')
         $resumeReady = ($artifact -and [string]$artifact.status -eq 'ready-for-upload' -and $artifact.path -and (Test-Path -LiteralPath ([string]$artifact.path)))
         $jobDomain = Get-JobDomain $job
         $domainCircuit = Get-ActiveCircuitForDomain $jobDomain
@@ -297,15 +298,19 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $needsOutcomeRepair = ($null -eq $result -and ($terminalProgressWithoutResult -or $sendStatus -in @('submitted','abandoned-unknown-outcome')))
         $verificationRetryAfter = if ($sendState -and $sendState.verification_retry_after) { Parse-Utc $sendState.verification_retry_after } else { $null }
         $verificationGraceDeferred = ($needsSendVerification -and $null -ne $verificationRetryAfter -and $verificationRetryAfter -gt [DateTimeOffset]::UtcNow)
-        $emailRoute = ($route -and [string]$route.route -eq 'email' -and $route.target)
+        $routeName = if ($route -and $route.route) { [string]$route.route } elseif ($sendState -and $sendState.channel) { if ([string]$sendState.channel -eq 'external-ats') { 'external' } else { [string]$sendState.channel } } else { '' }
+        $emailRoute = ($routeName -eq 'email' -and (($route -and $route.target) -or ($sendState -and $sendState.target)))
+        $linkedinRoute = ($routeName -eq 'linkedin-easy-apply')
+        $knownRoute = ($routeName -in @('external','linkedin-easy-apply','email'))
         $actionable = (-not $already -and -not $needsReconcile -and -not $terminalResult -and -not $verificationQuarantined -and -not $recoverableDeferred -and -not $verificationGraceDeferred -and -not $circuitBlocked)
         $stage = if ($verificationQuarantined) { 'application_verification_quarantined' } elseif ($circuitBlocked) { 'domain_circuit_breaker' } elseif ($recoverableDeferred) { 'recoverable_cooldown' } elseif ($verificationGraceDeferred) { 'verification_grace' } else { $null }
         if ($needsReconcile) { $stage = 'reconcile_result' }
         elseif ($verificationQuarantined) { $stage = 'application_verification_quarantined' }
         elseif ($actionable -and $needsOutcomeRepair) { $stage = 'application_outcome_repair' }
+        elseif ($actionable -and -not $knownRoute) { $stage = 'route_pending' }
         elseif ($actionable -and -not $resumeReady) { $stage = 'resume_pending' }
         elseif ($actionable -and $needsSendVerification) { $stage = 'application_verification' }
-        elseif ($actionable -and $linkedinHandoff) { $stage = 'linkedin_application_ready' }
+        elseif ($actionable -and ($linkedinHandoff -or $linkedinRoute)) { $stage = 'linkedin_application_ready' }
         elseif ($actionable -and $emailRoute) { $stage = 'email_application_ready' }
         elseif ($actionable -and $null -ne $progress) { $stage = 'application_resume' }
         elseif ($actionable -and $resumeReady) { $stage = 'application_ready' }
@@ -318,7 +323,7 @@ if (Test-Path -LiteralPath $generatedRoot) {
             title = if ($job) { $job.title } else { $null }
             source = if ($job) { $job.source } else { $null }
             domain = $jobDomain
-            route = if ($emailRoute -or ($sendState -and [string]$sendState.channel -eq 'email')) { 'email' } elseif (($job -and [string]$job.source -match 'linkedin') -or $jobDomain -match '(^|\.)linkedin\.com$') { 'linkedin' } else { 'external' }
+            route = if ($knownRoute) { $routeName } else { 'pending' }
             actionable = $actionable
             needs_reconcile = $needsReconcile
             reconcile_actionable = ($needsReconcile -and -not $claimed)
@@ -361,6 +366,7 @@ $stagePriority = @{
     reassessment_pending = 70
     assessment_pending = 70
     source_pending = 80
+    route_pending = 35
     eligibility_research_pending = 90
     candidate_evidence_pending = 90
 }
@@ -386,12 +392,13 @@ function Get-DispatchTarget($Item) {
     if ($stage -eq 'resume_pending') { return 'job-autopilot-resume' }
     if ($stage -in @('assessment_pending','reassessment_pending')) { return 'job-autopilot-assessor' }
     if ($stage -in @('eligibility_research_pending','candidate_evidence_pending')) { return 'job-autopilot-research' }
-    if ($stage -eq 'source_pending') { return 'coordinator-browser' }
+    if ($stage -in @('source_pending','route_pending')) { return 'coordinator-browser' }
     if ($stage -eq 'email_application_ready') { return 'job-autopilot-email-apply' }
     if ($stage -eq 'linkedin_application_ready') { return 'coordinator-linkedin' }
     if ($stage -in @('application_ready','application_resume','application_verification','application_outcome_repair')) {
         if ([string]$Item.route -eq 'email') { return 'job-autopilot-email-apply' }
-        if ([string]$Item.route -eq 'linkedin' -or [string]$Item.source -match 'linkedin' -or [string]$Item.domain -match '(^|\.)linkedin\.com$') { return 'coordinator-linkedin' }
+        if ([string]$Item.route -eq 'linkedin-easy-apply') { return 'coordinator-linkedin' }
+        if ([string]$Item.route -eq 'pending') { return 'coordinator-browser' }
         return 'job-autopilot-external-apply'
     }
     return 'coordinator'
@@ -405,6 +412,7 @@ $actions = @($selected | ForEach-Object {
         title = $_.title
         stage = $_.stage
         speed = $_.speed
+        wave = if ($_.speed -eq 'slow') { 'research' } else { 'fast' }
         dispatch = $dispatch
         priority = if ($stagePriority.ContainsKey([string]$_.stage)) { $stagePriority[[string]$_.stage] } else { 999 }
         path = $_.path
@@ -425,6 +433,7 @@ $concurrency = [ordered]@{
     default = 'unbounded'
     linkedin_easy_apply = 1
 }
+$activeWave = if (@($actions | Where-Object { $_.wave -eq 'fast' }).Count -gt 0) { 'fast' } elseif (@($actions | Where-Object { $_.wave -eq 'research' }).Count -gt 0) { 'research' } else { 'none' }
 
 $circuitPath = Join-Path $root 'domain-circuit-breakers.jsonl'
 $circuitCount = 0
@@ -454,6 +463,7 @@ $out = [ordered]@{
     quarantined_applications = $quarantinedApplications
     scheduler = [ordered]@{
         mode = 'parallel-pipeline'
+        active_wave = $activeWave
         pipeline_buffer_target = $pipelineBufferTarget
         pipeline_depth = $pipelineDepth
         discovery_needed = ($discoverySlots -gt 0 -and $null -eq $discoveryClaim)
@@ -466,6 +476,8 @@ $out = [ordered]@{
         submitted = $submittedUnique.Count
         submitted_unique = $submittedUnique.Count
         submitted_rows = $submittedCount
+        fast_actions = @($actions | Where-Object { $_.wave -eq 'fast' }).Count
+        research_actions = @($actions | Where-Object { $_.wave -eq 'research' }).Count
         queue_actionable = $queueActionable.Count
         queue_fast = @($queueActionable | Where-Object { $_.speed -eq 'fast' }).Count
         queue_slow = @($queueActionable | Where-Object { $_.speed -eq 'slow' }).Count

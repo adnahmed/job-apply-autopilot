@@ -1,4 +1,4 @@
-# Parallel Orchestration V6.0 — Claimed Uncapped Pipeline
+# Parallel Orchestration V6.1 — Claimed Fast/Research Pipeline
 
 Optimize verified net-new submissions per hour. Keeping one independent job in flight is a scheduler failure.
 
@@ -9,6 +9,8 @@ LinkedIn Easy Apply is coordinator-owned and serial at 1 under its governor. Eve
 Group `session-state.ps1` actions by `dispatch` and emit all Task calls for a group in one assistant turn. Never call one worker, wait, and then call the next independent worker. The state snapshot carries each path once; do not reconstruct or duplicate path batches. Every worker and coordinator-local action must acquire its stage claim before reading or acting; a losing owner exits immediately.
 
 ## Fast and research waves
+
+Trust `scheduler.active_wave` and action `wave`. The state exposes every action once, ordered by priority; dispatch all `fast` actions before any `research` action. Do not let slow browser/research work hold up assessment, resume, route, reconciliation, or application workers.
 
 Fast/local work includes assessment, deterministic transitions, resume generation, reconciliation, and routing. Dispatch and process it first.
 

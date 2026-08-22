@@ -1,0 +1,74 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory=$true)][string]$JobJson,
+    [string]$MetadataJson = '',
+    [string]$ProfilePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'profile.yaml')
+)
+
+$ErrorActionPreference = 'Stop'
+
+function Read-JsonInput([string]$Value) {
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+    if (Test-Path -LiteralPath $Value) { return Get-Content -LiteralPath $Value -Raw | ConvertFrom-Json }
+    return $Value | ConvertFrom-Json
+}
+function Read-YamlList([string[]]$Lines, [string]$Key) {
+    $values = @(); $inside = $false; $indent = 0
+    foreach ($line in $Lines) {
+        if ($line -match "^(\s*)$([regex]::Escape($Key)):\s*$") { $inside = $true; $indent = $Matches[1].Length; continue }
+        if ($inside -and $line -match '^(\s*)[A-Za-z0-9_]+:' -and $Matches[1].Length -le $indent) { break }
+        if ($inside -and $line -match '^\s*-\s*["'']?(.+?)["'']?\s*$') { $values += $Matches[1] }
+    }
+    return $values
+}
+function Normalize([string]$Value) { return (($Value.ToLowerInvariant() -replace '[^a-z0-9]+',' ').Trim() -replace '\s+',' ') }
+
+$job = Read-JsonInput $JobJson
+$metadata = Read-JsonInput $MetadataJson
+$profileLines = Get-Content -LiteralPath $ProfilePath
+$excludedEmployers = @(Read-YamlList $profileLines 'excluded_employers')
+$excludedDomains = @(Read-YamlList $profileLines 'excluded_domains')
+$company = [string]$job.company
+$companyKey = Normalize $company
+$url = if ($job.job_url) { [string]$job.job_url } elseif ($metadata -and $metadata.url) { [string]$metadata.url } else { '' }
+$domain = ''
+try { if ($url) { $domain = ([Uri]$url).Host.ToLowerInvariant() -replace '^www\.','' } } catch {}
+$description = @([string]$job.description, if ($metadata) { [string]$metadata.description } else { '' }) -join "`n"
+
+foreach ($name in $excludedEmployers) {
+    $key = Normalize $name
+    if ($companyKey -eq $key -or $companyKey.StartsWith("$key ")) {
+        [ordered]@{ allowed=$false; classification='predatory-or-ghost'; reason_code='excluded-employer'; evidence=$company } | ConvertTo-Json -Compress
+        exit 0
+    }
+}
+foreach ($blockedDomain in $excludedDomains) {
+    $blocked = $blockedDomain.ToLowerInvariant()
+    if ($domain -eq $blocked -or $domain.EndsWith(".$blocked")) {
+        [ordered]@{ allowed=$false; classification='predatory-or-ghost'; reason_code='excluded-domain'; evidence=$domain } | ConvertTo-Json -Compress
+        exit 0
+    }
+}
+
+if ($description -match '(?i)our\s+(confidential\s+)?client|undisclosed\s+client|on\s+behalf\s+of\s+our\s+client') {
+    [ordered]@{ allowed=$false; classification='agency-unknown-client'; reason_code='unnamed-client'; evidence='Description conceals the hiring employer.' } | ConvertTo-Json -Compress
+    exit 0
+}
+if ($description -match '(?i)unpaid\s+(trial|assessment|project)|pay\s+(a|the)\s+fee|purchase\s+.*(assessment|training)|mandatory\s+video\s+interview\s+before') {
+    [ordered]@{ allowed=$false; classification='predatory-assessment-funnel'; reason_code='predatory-assessment'; evidence='Job requests an exploitative pre-application funnel.' } | ConvertTo-Json -Compress
+    exit 0
+}
+
+$reality = if ($metadata -and $metadata.reality) { $metadata.reality } else { $null }
+$realityClass = if ($reality -and $reality.class) { [string]$reality.class } else { '' }
+$fakeFreshness = if ($reality -and $reality.fake_freshness) { [bool]$reality.fake_freshness } else { $false }
+$reposts = if ($reality -and $null -ne $reality.repost_count) { [int]$reality.repost_count } else { 0 }
+$directDomains = @('greenhouse.io','lever.co','ashbyhq.com','workable.com','smartrecruiters.com','myworkdayjobs.com')
+$direct = $false
+foreach ($known in $directDomains) { if ($domain -eq $known -or $domain.EndsWith(".$known")) { $direct = $true } }
+if ($fakeFreshness -or $realityClass -in @('stale','ghost','mass-posting') -or ($reposts -ge 3 -and -not $direct)) {
+    [ordered]@{ allowed=$false; classification='low-reality'; reason_code='reposted-or-stale'; evidence="class=$realityClass repost_count=$reposts fake_freshness=$fakeFreshness" } | ConvertTo-Json -Compress
+    exit 0
+}
+
+[ordered]@{ allowed=$true; classification=if ($realityClass) { $realityClass } else { 'not-flagged' }; reason_code='quality-pass'; evidence=if ($domain) { $domain } else { $company } } | ConvertTo-Json -Compress

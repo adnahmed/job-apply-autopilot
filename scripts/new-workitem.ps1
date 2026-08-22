@@ -37,6 +37,15 @@ if (-not (Test-Path -LiteralPath $runtimeRoot)) {
 }
 New-Item -ItemType Directory -Force -Path $queueRoot | Out-Null
 
+$qualityCandidate = [ordered]@{ job_id=$JobId; company=$Company; title=$Title; location=$Location; job_url=$JobUrl; source=$Source; discovery_lane=$DiscoveryLane }
+$quality = (& (Join-Path $PSScriptRoot 'check-job-quality.ps1') -JobJson ($qualityCandidate | ConvertTo-Json -Compress -Depth 6) | Select-Object -Last 1) | ConvertFrom-Json
+if (-not [bool]$quality.allowed) {
+    & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $JobId -Status 'skipped-job-quality' -ReasonCode ([string]$quality.reason_code) `
+        -Company $Company -Title $Title -Location $Location -JobUrl $JobUrl -Source $Source -Notes ([string]$quality.evidence) -Workspace $Workspace | Out-Null
+    Write-Output "REJECTED:${JobId}:$($quality.reason_code)"
+    exit 0
+}
+
 # Exact-ID creation is idempotent. Never overwrite an assessment or source captured by an earlier slice.
 foreach ($base in @($queueRoot, $generatedRoot)) {
     if (-not (Test-Path -LiteralPath $base)) { continue }
@@ -87,7 +96,7 @@ $job = [ordered]@{
 $job | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $workDir 'job.json') -Encoding UTF8
 
 $assessment = [ordered]@{
-    policy_version = '6.0'
+    policy_version = '6.1'
     job_id = $JobId
     status = 'pending'
     score = $null

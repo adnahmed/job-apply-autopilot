@@ -1,8 +1,9 @@
-# V6.0.0 Release Contract
+# V6.1.0 Release Contract
 
 This document describes the required implementation state. It does not invoke a test suite.
 
-- `VERSION.txt` and the main skill heading are `6.0.0`.
+- `VERSION.txt` and the main skill heading are `6.1.0`.
+- FreeHire discovery, explicit route sidecars, deterministic answer resolution, quality rejection, and fast/research wave state are present.
 - Persistence is owned only by `opencode-goal-plugin@0.8.1`, with `noContinueWhileChildrenActive: true` and durable state enabled.
 - Every goal continuation reruns `session-state.ps1`; restart recovery remains paused until `/goal resume`.
 - No packaged command launches, monitors, stops, health-gates, or keeps awake an OS background coordinator.
