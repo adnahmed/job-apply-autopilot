@@ -496,10 +496,11 @@ if ($discoverySlots -gt 0) {
             stage                 = 'discovery'
             speed                 = 'fast'
             wave                  = 'fast'
-            dispatch              = 'coordinator-browser'
+            dispatch              = 'job-autopilot-linkedin-discovery'
             priority              = 5
             target_new            = $discoverySlots
             shared_claim_required = $true
+            worker_prompt         = "Workspace: $Workspace`nJob ID: discovery:continuous`nKind: campaign`nAction: discovery`nTarget New: $discoverySlots"
             browser_instruction   = "Using BrowserOS neo in a task-owned tab, start LinkedIn Jobs discovery now and create up to $discoverySlots net-new work items. This is an independent per-source target: start it in the same assistant tool-call batch as FreeHire, and never wait for, subtract, or skip it based on FreeHire's result. Use profile-derived lanes, local dedupe, complete public source capture, FreeHire enrichment, and all warning, CAPTCHA, MFA, and rate-limit controls."
         }
     )
@@ -585,10 +586,10 @@ $out = [ordered]@{
         'No unclaimed action is currently available. Rerun state after active claims finish or expire.'
     }
     elseif ($nextAction -eq 'discover') {
-        "Acquire one discovery claim, then start both emitted discovery actions together: execute FreeHire and begin LinkedIn/browser discovery without waiting for either result. Each source has an independent target of $discoverySlots; release the claim only after both were attempted, then rerun state."
+        "Acquire one discovery claim, then in the same assistant tool-call batch execute the FreeHire command and dispatch the supplied job-autopilot-linkedin-discovery worker prompt. Each source has an independent target of $discoverySlots; release the claim only after both return, then rerun state."
     }
     elseif ($discoverySlots -gt 0) {
-        "Acquire one discovery claim, then in the same assistant tool-call batch execute FreeHire, begin LinkedIn/browser discovery, and launch every independent worker action, including research. Each discovery source has an independent target of $discoverySlots; never use one source's result to reduce or skip the other, and release the claim only after both were attempted."
+        "Acquire one discovery claim, then in the same assistant tool-call batch execute FreeHire, dispatch the supplied job-autopilot-linkedin-discovery prompt, and launch every other independent worker action, including research. Each discovery source has an independent target of $discoverySlots; never use one source's result to reduce or skip the other, and release the claim only after both discovery operations return."
     }
     else {
         'Emit every independent non-LinkedIn worker action together up to runtime capacity, including research. LinkedIn Easy Apply remains serial.'

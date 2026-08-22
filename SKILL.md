@@ -84,11 +84,11 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.p
 
 ## Parallel pipeline
 
-Issue all independent worker Task calls and both emitted discovery actions in one assistant turn. Acquire their one shared discovery claim first, then execute the FreeHire command and begin the BrowserOS LinkedIn action in the same assistant tool-call batch; do not wait for either result before starting the other. Discovery is a permanent producer: launch it immediately alongside assess, research, resume, and apply work, even when the pipeline already contains eight or more items. Group workers by `dispatch`, use supplied prompts verbatim, and rerun compact state after the parallel batch. LinkedIn Easy Apply alone is serial at one; every other stage uses all host capacity.
+Issue all independent worker Task calls and both emitted discovery actions in one assistant turn. Acquire their one shared discovery claim first, then execute the FreeHire command and dispatch `job-autopilot-linkedin-discovery` with its supplied prompt in the same assistant tool-call batch; do not wait for either result before starting the other. The coordinator owns and releases the shared discovery claim; the LinkedIn discovery worker must not touch it. Discovery is a permanent producer: launch it immediately alongside assess, research, resume, and apply work, even when the pipeline already contains eight or more items. Group workers by `dispatch`, use supplied prompts verbatim, and rerun compact state after the parallel batch. LinkedIn Easy Apply alone is serial at one; every other stage uses all host capacity.
 
 Treat `scheduler.discovery_slots` as the next continuous discovery batch size, not as a refill threshold. A discovery claim prevents duplicate producers; once it clears, the next continuation launches another batch. Quarantined jobs do not affect discovery.
 
-Each worker prompt is exactly four identity lines; the worker resolves the authoritative directory through the manifest script:
+Each work-item worker prompt is exactly four identity lines; the worker resolves the authoritative directory through the manifest script:
 
 ```text
 Workspace: <absolute-path>
@@ -99,11 +99,13 @@ Action: <action>
 
 Never append policy, evidence opinions, job summaries, or recovery instructions. Workers return only their documented canonical status line.
 
+LinkedIn discovery is the sole campaign-worker exception and uses the exact supplied five-line prompt: `Workspace`, `Job ID: discovery:continuous`, `Kind: campaign`, `Action: discovery`, and `Target New`. Dispatch it verbatim; do not add policy or source results.
+
 ## Discovery and dedupe
 
 Read `references\freehire-api.md` when changing or diagnosing FreeHire integration behavior. Read `references\browseros-playbook.md` when LinkedIn or other browser discovery starts.
 
-Run independent FreeHire and LinkedIn/browser discovery immediately and concurrently whenever `scheduler.discovery_needed` is true. `session-state.ps1` emits one action for each source. Each action receives `scheduler.discovery_slots` as an independent per-source batch target; a completed or full FreeHire batch never reduces, satisfies, or skips the LinkedIn/browser action. FreeHire is one discovery source, not the whole discovery pipeline:
+Run independent FreeHire and LinkedIn/browser discovery immediately and concurrently whenever `scheduler.discovery_needed` is true. `session-state.ps1` emits the FreeHire command and a `job-autopilot-linkedin-discovery` worker prompt as separate actions. Each receives `scheduler.discovery_slots` as an independent per-source batch target; a completed or full FreeHire batch never reduces, satisfies, or skips the LinkedIn worker. FreeHire is one discovery source, not the whole discovery pipeline:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\discover-freehire.ps1" -Workspace $workspace -TargetNew $state.scheduler.discovery_slots

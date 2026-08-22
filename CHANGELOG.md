@@ -1,6 +1,6 @@
 # V6.4.0 — Continuous Discovery and Completion-First Answers
 
-- Split continuous discovery into explicit sibling FreeHire and LinkedIn/browser actions with independent per-source targets, so a full FreeHire result can no longer satisfy or suppress LinkedIn discovery.
+- Split continuous discovery into an executable FreeHire action and a dedicated BrowserOS LinkedIn discovery subagent with independent per-source targets, so both launch with the worker wave and a full FreeHire result cannot suppress LinkedIn.
 - Added the configured candidate phone and routed mandatory current compensation through the expected-compensation resolver.
 - Removed all new `blocked-protected-fact` production paths. Unknown identity, legal, authorization, compensation, and sensitive questions now require one context-aware generated answer and continue; legacy results remain readable only.
 - Made discovery a permanent claimed fast-wave action that launches immediately alongside assessment, resume, and application work regardless of pipeline depth.

@@ -28,7 +28,7 @@ This document describes the required implementation state. It does not invoke a 
 - `resolve-application-quarantine.ps1` exposes `List`, `Reverify`, `ConfirmSubmitted`, `ConfirmAbsent`, `RetryApplication`, and `Abandon`.
 - Retry refuses any submitted exact or semantic duplicate and accepts only proven pre-submit/cancelled or verified-absent state.
 - Session state reports quarantine count, outcome-repair count, per-item claim metadata, and discovery claim metadata.
-- Session state emits separate FreeHire and LinkedIn/browser discovery actions under one shared claim; both carry the full independent source target, and FreeHire completion cannot suppress LinkedIn startup.
+- Session state emits a FreeHire command and an exact `job-autopilot-linkedin-discovery` campaign-worker prompt under one coordinator-owned claim; both carry the full independent source target, and FreeHire completion cannot suppress LinkedIn startup.
 - Every worker has broad PowerShell access for work-item-local reads and installed scripts, acquires its stage before acting, and returns one canonical status line.
 - Browser workers use granular tools without free-form `run`; connection loss ends browser calls for that worker.
 - When BrowserOS is unavailable, local work continues; if no useful local work remains, the active goal blocks with the concrete BrowserOS reason until restoration and `/goal resume`.
@@ -42,7 +42,7 @@ This document describes the required implementation state. It does not invoke a 
 - The assessor remains local/web-free and can request only one bounded research kind; the research finalizer commits the decision without a third reassessment worker.
 - Passed fit maps contain at most eight central requirements. Positive eligibility for the candidate's documented home jurisdiction remains mandatory before submission.
 - Canonical `.tex` files remain immutable; generated scaffolds record their canonical SHA-256, compilation checks it, and upload uses only the unique manifest PDF.
-- All packaged subagents keep `question: deny` and `task: deny`. Non-browser workers deny BrowserOS; applicators alone receive browser permission.
+- All packaged subagents keep `question: deny` and `task: deny`. Non-browser workers deny BrowserOS; applicators and the dedicated LinkedIn discovery worker alone receive browser permission.
 - A placeholder or missing JD routes to `source_pending`. Promoted queue copies are shadowed by their generated work item.
 - `repair-workitem.ps1` backs up malformed artifacts and resets them without inventing truth or hard-gate values.
 - `advance-workitem.ps1` remains the coordinator promotion boundary and converts promotion exceptions into recoverable job-local state.

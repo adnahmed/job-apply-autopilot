@@ -161,7 +161,7 @@ try {
     }
     $discoveryActions = @($snapshot.actions | Where-Object { $_.stage -eq 'discovery' })
     $freehireDiscovery = @($discoveryActions | Where-Object { $_.action_id -eq 'discovery:freehire' -and $_.dispatch -eq 'coordinator-discovery' })
-    $linkedinDiscovery = @($discoveryActions | Where-Object { $_.action_id -eq 'discovery:linkedin-browser' -and $_.dispatch -eq 'coordinator-browser' })
+    $linkedinDiscovery = @($discoveryActions | Where-Object { $_.action_id -eq 'discovery:linkedin-browser' -and $_.dispatch -eq 'job-autopilot-linkedin-discovery' })
     if ($discoveryActions.Count -ne 2 -or $freehireDiscovery.Count -ne 1 -or $linkedinDiscovery.Count -ne 1) {
         throw 'Independent FreeHire and LinkedIn/browser discovery actions were not both emitted alongside worker actions.'
     }
@@ -170,6 +170,10 @@ try {
     }
     if ([string]$linkedinDiscovery[0].browser_instruction -notmatch 'independent per-source target' -or [string]$linkedinDiscovery[0].browser_instruction -notmatch 'never wait for, subtract, or skip' -or [int]$linkedinDiscovery[0].target_new -ne 8) {
         throw 'LinkedIn/browser discovery action can still be skipped after FreeHire fills its target.'
+    }
+    $expectedLinkedinPrompt = "Workspace: $workspace`nJob ID: discovery:continuous`nKind: campaign`nAction: discovery`nTarget New: 8"
+    if ([string]$linkedinDiscovery[0].worker_prompt -ne $expectedLinkedinPrompt) {
+        throw "LinkedIn discovery was not emitted as an exact campaign worker prompt: $($linkedinDiscovery[0].worker_prompt)"
     }
     if ([string]$freehireDiscovery[0].discovery_group -ne [string]$linkedinDiscovery[0].discovery_group -or -not [bool]$freehireDiscovery[0].shared_claim_required -or -not [bool]$linkedinDiscovery[0].shared_claim_required) {
         throw 'Parallel discovery actions do not share the coordinator discovery claim contract.'

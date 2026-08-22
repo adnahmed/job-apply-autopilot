@@ -8,7 +8,8 @@ $names = @(
     'job-autopilot-research.md',
     'job-autopilot-resume.md',
     'job-autopilot-external-apply.md',
-    'job-autopilot-email-apply.md'
+    'job-autopilot-email-apply.md',
+    'job-autopilot-linkedin-discovery.md'
 )
 
 $failed = $false
@@ -30,15 +31,20 @@ foreach ($name in $names) {
         $failed = $true
         continue
     }
-    if ($text -notmatch '(?m)^\s{4}"\*":\s*allow\s*$' -or
-        $text -notmatch '\-Action Acquire' -or $text -notmatch '\-LeaseMinutes\s+(20|30|45)') {
-        Write-Error "BROAD POWERSHELL/ACTION CLAIM CONTRACT MISSING in $path"
+    if ($text -notmatch '(?m)^\s{4}"\*":\s*allow\s*$') {
+        Write-Error "BROAD POWERSHELL CONTRACT MISSING in $path"
         $failed = $true
         continue
     }
-    if ($text -notmatch [regex]::Escape('$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1') -or
-        $text -notmatch '(?s)-Action Release.*?-Scope WorkItem.*?-Stage.*?-WorkItemDir.*?-OwnerId' -or
-        $text -notmatch 'Return exactly one') {
+    if ($name -ne 'job-autopilot-linkedin-discovery.md' -and
+        ($text -notmatch '\-Action Acquire' -or $text -notmatch '\-LeaseMinutes\s+(20|30|45)' -or
+         $text -notmatch [regex]::Escape('$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1') -or
+         $text -notmatch '(?s)-Action Release.*?-Scope WorkItem.*?-Stage.*?-WorkItemDir.*?-OwnerId')) {
+        Write-Error "WORK-ITEM ACTION CLAIM CONTRACT MISSING in $path"
+        $failed = $true
+        continue
+    }
+    if ($text -notmatch 'Return exactly one') {
         Write-Error "WORKER PATH/RELEASE/RETURN CONTRACT INVALID in $path"
         $failed = $true
         continue
@@ -60,13 +66,13 @@ foreach ($name in $names) {
         $failed = $true
         continue
     }
-    if ($name -in @('job-autopilot-external-apply.md','job-autopilot-email-apply.md')) {
+    if ($name -in @('job-autopilot-external-apply.md','job-autopilot-email-apply.md','job-autopilot-linkedin-discovery.md')) {
         if ($text -notmatch '(?m)^\s{2}"browseros-neo_\*":\s*allow\s*$') {
-            Write-Error "APPLICATOR BROWSEROS ALLOW MISSING in $path"
+            Write-Error "BROWSER WORKER BROWSEROS ALLOW MISSING in $path"
             $failed = $true
             continue
         }
-        if ($text -notmatch 'reservation performs the final quality gate') {
+        if ($name -ne 'job-autopilot-linkedin-discovery.md' -and $text -notmatch 'reservation performs the final quality gate') {
             Write-Error "APPLICATOR QUALITY GATE CONTRACT MISSING in $path"
             $failed = $true
             continue
@@ -76,10 +82,10 @@ foreach ($name in $names) {
             $failed = $true
             continue
         }
-        if ($text -notmatch 'write-application-outcome\.ps1' -or
+        if ($name -ne 'job-autopilot-linkedin-discovery.md' -and ($text -notmatch 'write-application-outcome\.ps1' -or
             $text -notmatch 'do not call the free-form `run` tool' -or $text -notmatch 'quarantined' -or
             $text -notmatch [regex]::Escape('$HOME\.config\opencode\skills\job-apply-autopilot\scripts\write-application-outcome.ps1') -or
-            $text -notmatch [regex]::Escape('$HOME\.config\opencode\skills\job-apply-autopilot\references\browseros-playbook.md')) {
+            $text -notmatch [regex]::Escape('$HOME\.config\opencode\skills\job-apply-autopilot\references\browseros-playbook.md'))) {
             Write-Error "APPLICATOR V6 OUTCOME/QUARANTINE CONTRACT MISSING in $path"
             $failed = $true
             continue
@@ -97,6 +103,14 @@ foreach ($name in $names) {
             $failed = $true
             continue
         }
+    }
+    if ($name -eq 'job-autopilot-linkedin-discovery.md' -and
+        ($text -notmatch 'Job ID: discovery:continuous' -or $text -notmatch 'Kind: campaign' -or
+         $text -notmatch 'Target New' -or $text -notmatch 'dedupe-jobs\.ps1' -or
+         $text -notmatch 'new-workitem\.ps1' -or $text -notmatch 'never wait for or inspect FreeHire output')) {
+        Write-Error "LINKEDIN DISCOVERY WORKER CONTRACT MISSING in $path"
+        $failed = $true
+        continue
     }
     Write-Output "OK trusted-worker $path"
 }
