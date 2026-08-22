@@ -6,7 +6,8 @@ param(
     [string]$WorkItemDir = '',
     [string]$Workspace = '',
     [string]$OwnerId = '',
-    [ValidateRange(1,1440)][int]$LeaseMinutes = 90
+    [ValidateRange(1,1440)][int]$LeaseMinutes = 90,
+    [ValidateSet('freehire','linkedin-browser')][string]$DiscoverySource = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -60,12 +61,21 @@ if ($Scope -eq 'WorkItem') {
     $claimPath = Join-Path $WorkItemDir 'action-claim.json'
     $lockPath = Join-Path $WorkItemDir '.action-claim.lock'
 } else {
+    if (-not $DiscoverySource) { throw 'Discovery scope requires -DiscoverySource (freehire or linkedin-browser).' }
     if ([string]::IsNullOrWhiteSpace($Workspace)) { $Workspace = (Get-Location).Path }
     $Workspace = (Resolve-Path -LiteralPath $Workspace).Path
     $runtimeRoot = Join-Path $Workspace '.job-apply-autopilot'
     if (-not (Test-Path -LiteralPath $runtimeRoot)) { throw "No job-apply-autopilot runtime at $runtimeRoot" }
-    $claimPath = Join-Path $runtimeRoot 'discovery-action-claim.json'
-    $lockPath = Join-Path $runtimeRoot 'discovery-action-claim.lock'
+    $claimFileName = if ($DiscoverySource -eq 'freehire') {
+        'discovery-action-claim.freehire.json'
+    } elseif ($DiscoverySource -eq 'linkedin-browser') {
+        'discovery-action-claim.linkedin-browser.json'
+    } else {
+        'discovery-action-claim.json'
+    }
+    $lockFileName = $claimFileName -replace '\.json$', '.lock'
+    $claimPath = Join-Path $runtimeRoot $claimFileName
+    $lockPath = Join-Path $runtimeRoot $lockFileName
 }
 
 $lock = $null

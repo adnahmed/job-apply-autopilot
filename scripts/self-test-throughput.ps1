@@ -409,10 +409,10 @@ Test-Equal $state.summary.resume_pending 4 "resume_pending = 4"
 Test-Equal $state.summary.application_ready 6 "application_ready = 6"
 Test-Equal $state.summary.research_pending 2 "research_pending = 2"
 
-# Test 16: Verify LinkedIn target_new <= 3
+# Test 16: Verify LinkedIn target_new = 8 (same as FreeHire, independent sources)
 $linkedinAction = $state.actions | Where-Object { $_.dispatch -eq 'job-autopilot-linkedin-discovery' } | Select-Object -First 1
 if ($linkedinAction) {
-    Test-True ($linkedinAction.target_new -le 3) "LinkedIn target_new <= 3 (got $($linkedinAction.target_new))"
+    Test-Equal $linkedinAction.target_new 8 "LinkedIn target_new = 8 (got $($linkedinAction.target_new))"
 } else {
     Write-Host "  SKIP: No LinkedIn discovery action in current state" -ForegroundColor Yellow
 }
@@ -420,7 +420,15 @@ if ($linkedinAction) {
 # Verify FreeHire target = discoverySlots (8)
 $freehireAction = $state.actions | Where-Object { $_.dispatch -eq 'coordinator-discovery' } | Select-Object -First 1
 if ($freehireAction) {
-    Test-Equal $freehireAction.target_new $state.scheduler.discovery_slots "FreeHire target = discoverySlots"
+    Test-Equal $freehireAction.target_new $state.scheduler.discovery_sources.freehire.target_new "FreeHire target matches scheduler discovery_sources.freehire.target_new"
+}
+
+# Verify discovery_sources in scheduler
+if ($state.scheduler.discovery_sources) {
+    Test-Equal $state.scheduler.discovery_sources.freehire.target_new 8 "discovery_sources.freehire.target_new = 8"
+    Test-Equal $state.scheduler.discovery_sources.linkedin_browser.target_new 8 "discovery_sources.linkedin_browser.target_new = 8"
+    Test-True $state.scheduler.discovery_sources.freehire.available "discovery_sources.freehire.available = true"
+    Test-True $state.scheduler.discovery_sources.linkedin_browser.available "discovery_sources.linkedin_browser.available = true"
 }
 
 Write-Host "`n=== ALL TESTS PASSED ===" -ForegroundColor Green

@@ -23,7 +23,32 @@ permission:
 
 Handle exactly ONE supplied LinkedIn discovery batch. Do not load the main skill, ask questions, invoke another worker, inspect unrelated work items, apply to any job, or click any application Submit/Send control. PowerShell is broadly available for the discovery scripts; keep every command scoped to the supplied workspace and installed skill.
 
-Accept exactly these five identity lines: `Workspace`, `Job ID: discovery:continuous`, `Kind: campaign`, `Action: discovery`, and `Target New`. Reject any other job ID, kind, or action. The coordinator acquires and owns the shared discovery claim before launching this worker alongside the FreeHire command. Never acquire, renew, release, or clear that claim; the coordinator releases it only after both source operations return.
+Accept exactly these five identity lines: `Workspace`, `Job ID: discovery:continuous`, `Kind: campaign`, `Action: discovery`, and `Target New`. Reject any other job ID, kind, or action.
+
+**At worker startup, acquire the LinkedIn discovery claim:**
+
+```powershell
+$claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" `
+    -Action Acquire -Scope Discovery -Stage discovery -DiscoverySource linkedin-browser -Workspace "<workspace>" -LeaseMinutes 60 | ConvertFrom-Json
+```
+
+If the claim is not acquired (`acquired: false`), terminate immediately with `blocked linkedin-discovery claim-busy`. Store the returned `owner_id`.
+
+**Renew the LinkedIn claim using the same owner during long runs.** Renew after each successfully persisted job or after completing a search lane:
+
+```powershell
+$claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" `
+    -Action Acquire -Scope Discovery -Stage discovery -DiscoverySource linkedin-browser -OwnerId '<existing-owner-id>' -Workspace "<workspace>" -LeaseMinutes 60 | ConvertFrom-Json
+```
+
+**Before normal completion, release the claim:**
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" `
+    -Action Release -Scope Discovery -Stage discovery -DiscoverySource linkedin-browser -OwnerId '<owner-id>' -Workspace "<workspace>"
+```
+
+LinkedIn discovery must run as a background worker. It must not wait for or coordinate with FreeHire.
 
 Confirm `<workspace>\.job-apply-autopilot` exists. Read only `$HOME\.config\opencode\skills\job-apply-autopilot\profile.yaml`, `references\search-strategy.md`, and `references\browseros-playbook.md` before browsing. Use the profile's configured locations, role families, exclusions, and search defaults. Treat `<target-new>` as this LinkedIn source's independent target; never wait for or inspect FreeHire output and never reduce the target because another source created jobs.
 
@@ -62,4 +87,4 @@ After a candidate is deterministically rejected or persisted, immediately move t
 
 Stop after `<target-new>` new work items or after the documented lane rotation is exhausted for this batch. A dry page is not campaign completion. If LinkedIn presents an automation/unusual-activity warning, attributable 429, persistent/repeated CAPTCHA, MFA, or account restriction, call `linkedin-governor.ps1 -Action RecordSignal` with the matching signal type, stop LinkedIn browsing without bypass attempts, and return `blocked linkedin-discovery <signal>`.
 
-Return exactly one line from: `discovered linkedin <created>/<target>`, `deferred linkedin-discovery browseros-unavailable`, `blocked linkedin-discovery <signal>`, or `failed linkedin-discovery <reason>`.
+Return exactly one line from: `discovered linkedin <created>/<target>`, `deferred linkedin-discovery browseros-unavailable`, `blocked linkedin-discovery <signal>`, `blocked linkedin-discovery claim-busy`, or `failed linkedin-discovery <reason>`.

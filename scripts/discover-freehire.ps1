@@ -14,6 +14,17 @@ if (-not $BaseUrl) {
 $Workspace = (Resolve-Path -LiteralPath $Workspace).Path
 if (-not (Test-Path -LiteralPath (Join-Path $Workspace '.job-apply-autopilot'))) { throw "No job-apply-autopilot runtime in $Workspace" }
 
+# Acquire FreeHire discovery claim
+$claimScript = Join-Path $PSScriptRoot 'claim-action.ps1'
+$claim = (& $claimScript -Action Acquire -Scope Discovery -Stage discovery -DiscoverySource freehire -Workspace $Workspace -LeaseMinutes 15 | Select-Object -Last 1) | ConvertFrom-Json
+if (-not $claim -or [string]$claim.status -ne 'acquired') {
+    Write-Output ([ordered]@{ status='busy'; source='freehire'; message='FreeHire discovery claim not acquired' } | ConvertTo-Json -Compress -Depth 5)
+    exit 0
+}
+$ownerId = $claim.owner_id
+
+try {
+
 function Pick($Object, [string[]]$Names, $Default = '') {
     foreach ($name in $Names) {
         if ($Object -and $Object.PSObject.Properties.Name -contains $name -and $null -ne $Object.$name -and [string]$Object.$name) { return $Object.$name }
@@ -113,79 +124,85 @@ if ($candidatePool.Count -lt [Math]::Max($TargetNew * 2, 16)) {
 }
 
 $created = 0; $existing = 0; $examined = 0; $rejected = 0; $duplicates = 0; $routePending = 0
-foreach ($item in $candidatePool) {
-    if ($created -ge $TargetNew) { break }
-    $examined++
-    $publicSlug = [string](Pick $item @('public_slug', 'slug', 'id'))
-    $company = [string](Pick $item @('company_name', 'company', 'employer_name') 'Unknown employer')
-    if ($item.company -and -not ($item.company -is [string])) { $company = [string](Pick $item.company @('name', 'company_name') $company) }
-    $title = [string](Pick $item @('title', 'job_title', 'position') 'Software Engineer')
-    $jobUrl = [string](Pick $item @('apply_url', 'url', 'job_url', 'application_url'))
-    $location = [string](Pick $item @('location', 'location_name', 'country'))
-    if ($item.location -and -not ($item.location -is [string])) { $parts = @((Pick $item.location @('city')), (Pick $item.location @('country', 'country_name'))) | Where-Object { $_ }; $location = $parts -join ', ' }
-    $description = [string](Pick $item @('description', 'description_text', 'full_description'))
+try {
+    foreach ($item in $candidatePool) {
+        if ($created -ge $TargetNew) { break }
+        $examined++
+        $publicSlug = [string](Pick $item @('public_slug', 'slug', 'id'))
+        $company = [string](Pick $item @('company_name', 'company', 'employer_name') 'Unknown employer')
+        if ($item.company -and -not ($item.company -is [string])) { $company = [string](Pick $item.company @('name', 'company_name') $company) }
+        $title = [string](Pick $item @('title', 'job_title', 'position') 'Software Engineer')
+        $jobUrl = [string](Pick $item @('apply_url', 'url', 'job_url', 'application_url'))
+        $location = [string](Pick $item @('location', 'location_name', 'country'))
+        if ($item.location -and -not ($item.location -is [string])) { $parts = @((Pick $item.location @('city')), (Pick $item.location @('country', 'country_name'))) | Where-Object { $_ }; $location = $parts -join ', ' }
+        $description = [string](Pick $item @('description', 'description_text', 'full_description'))
 
-    # Similar results may omit a full description; hydrate only those candidates.
-    if (-not $description -or $description.Length -lt 80) {
-        try { $detail = Invoke-FreeHireGet "jobs/$([Uri]::EscapeDataString($publicSlug))"; if ($detail.data) { $item = $detail.data; $description = [string](Pick $item @('description', 'description_text', 'full_description')); $jobUrl = [string](Pick $item @('apply_url', 'url', 'job_url', 'application_url') $jobUrl) } } catch {}
-    }
-
-    $copies = @()
-    if (-not $jobUrl -or $jobUrl -match '(?i)linkedin\.com' -or (Test-AggregatorUrl $jobUrl)) {
-        try {
-            $copyResponse = Invoke-FreeHireGet "jobs/$([Uri]::EscapeDataString($publicSlug))/copies" @{limit = 50 }
-            $copies = @($copyResponse.data)
-            $routeCandidates = @(
-                if ($jobUrl) { [pscustomobject]@{url = $jobUrl; location = $location; rank = (Get-RouteRank $jobUrl) } }
-                foreach ($copy in $copies) { $copyUrl = Get-CopyUrl $copy; if ($copyUrl) { [pscustomobject]@{url = $copyUrl; location = [string]$copy.location; rank = (Get-RouteRank $copyUrl) } } }
-            )
-            $bestRoute = $routeCandidates | Sort-Object rank | Select-Object -First 1
-            if ($bestRoute) { $jobUrl = [string]$bestRoute.url; if ($bestRoute.location) { $location = [string]$bestRoute.location } }
+        # Similar results may omit a full description; hydrate only those candidates.
+        if (-not $description -or $description.Length -lt 80) {
+            try { $detail = Invoke-FreeHireGet "jobs/$([Uri]::EscapeDataString($publicSlug))"; if ($detail.data) { $item = $detail.data; $description = [string](Pick $item @('description', 'description_text', 'full_description')); $jobUrl = [string](Pick $item @('apply_url', 'url', 'job_url', 'application_url') $jobUrl) } } catch {}
         }
-        catch {}
-    }
 
-    $lane = [string](Pick $item @('_discovery_lane') 'freehire')
-    $metadata = [ordered]@{
-        provider = 'freehire'; fetched_at = [DateTimeOffset]::UtcNow.ToString('o'); public_slug = $publicSlug
-        lane = $lane; reality = $item.reality; apply_url = $jobUrl; description = $description; copies = $copies; raw = $item
-    }
-    $jobCandidate = [ordered]@{job_id = "fh-$(Slug $publicSlug)"; company = $company; title = $title; location = $location; job_url = $jobUrl; source = 'freehire'; discovery_lane = $lane; description = $description }
-    $quality = (& (Join-Path $PSScriptRoot 'check-job-quality.ps1') -JobJson ($jobCandidate | ConvertTo-Json -Compress -Depth 8) -MetadataJson ($metadata | ConvertTo-Json -Compress -Depth 30) | Select-Object -Last 1) | ConvertFrom-Json
-    if (-not [bool]$quality.allowed) {
-        $rejected++
-        try {
-            & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $jobCandidate.job_id -Status 'skipped-job-quality' -ReasonCode ([string]$quality.reason_code) -Company $company -Title $title -Location $location -JobUrl $jobUrl -Source 'freehire' -Notes ([string]$quality.evidence) -Workspace $Workspace | Out-Null
+        $copies = @()
+        if (-not $jobUrl -or $jobUrl -match '(?i)linkedin\.com' -or (Test-AggregatorUrl $jobUrl)) {
+            try {
+                $copyResponse = Invoke-FreeHireGet "jobs/$([Uri]::EscapeDataString($publicSlug))/copies" @{limit = 50 }
+                $copies = @($copyResponse.data)
+                $routeCandidates = @(
+                    if ($jobUrl) { [pscustomobject]@{url = $jobUrl; location = $location; rank = (Get-RouteRank $jobUrl) } }
+                    foreach ($copy in $copies) { $copyUrl = Get-CopyUrl $copy; if ($copyUrl) { [pscustomobject]@{url = $copyUrl; location = [string]$copy.location; rank = (Get-RouteRank $copyUrl) } } }
+                )
+                $bestRoute = $routeCandidates | Sort-Object rank | Select-Object -First 1
+                if ($bestRoute) { $jobUrl = [string]$bestRoute.url; if ($bestRoute.location) { $location = [string]$bestRoute.location } }
+            }
+            catch {}
         }
-        catch { }
-        continue
+
+        $lane = [string](Pick $item @('_discovery_lane') 'freehire')
+        $metadata = [ordered]@{
+            provider = 'freehire'; fetched_at = [DateTimeOffset]::UtcNow.ToString('o'); public_slug = $publicSlug
+            lane = $lane; reality = $item.reality; apply_url = $jobUrl; description = $description; copies = $copies; raw = $item
+        }
+        $jobCandidate = [ordered]@{job_id = "fh-$(Slug $publicSlug)"; company = $company; title = $title; location = $location; job_url = $jobUrl; source = 'freehire'; discovery_lane = $lane; description = $description }
+        $quality = (& (Join-Path $PSScriptRoot 'check-job-quality.ps1') -JobJson ($jobCandidate | ConvertTo-Json -Compress -Depth 8) -MetadataJson ($metadata | ConvertTo-Json -Compress -Depth 30) | Select-Object -Last 1) | ConvertFrom-Json
+        if (-not [bool]$quality.allowed) {
+            $rejected++
+            try {
+                & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $jobCandidate.job_id -Status 'skipped-job-quality' -ReasonCode ([string]$quality.reason_code) -Company $company -Title $title -Location $location -JobUrl $jobUrl -Source 'freehire' -Notes ([string]$quality.evidence) -Workspace $Workspace | Out-Null
+            }
+            catch { }
+            continue
+        }
+        $postedAt = [string](Pick $item @('posted_at', 'published_at', 'created_at'))
+        $externalId = [string](Pick $item @('external_id', 'id'))
+        $creationRaw = & (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId $jobCandidate.job_id -Company $company -Title $title -JobUrl $jobUrl -Location $location -Source 'freehire' -DiscoveryLane $lane -SearchQuery 'fresh engineering composite lane' -Description $description -PostedAt $postedAt -ExternalId $externalId -MetadataJson ($metadata | ConvertTo-Json -Compress -Depth 30) -Workspace $Workspace -Structured
+        $creation = ([string]($creationRaw | Select-Object -Last 1)) | ConvertFrom-Json
+        if ([string]$creation.status -eq 'existing') { $existing++; continue }
+        if ([string]$creation.status -eq 'duplicate') { $duplicates++; continue }
+        if ([string]$creation.status -eq 'rejected') { $rejected++; continue }
+        if ([string]$creation.status -ne 'created' -or [string]::IsNullOrWhiteSpace([string]$creation.path)) { $apiWarnings.Add([ordered]@{lane = $lane; error = "unexpected-new-workitem-status:$($creation.status)" }); continue }
+        $workItem = [string]$creation.path
+        $metadata.quality = $quality
+        Write-AtomicJson (Join-Path $workItem 'source-metadata.json') $metadata
+        "# $title`n`nEmployer: $company`nLocation: $location`nSource: FreeHire ($publicSlug)`nApply URL: $jobUrl`n`n$description`n" | Set-Content -LiteralPath (Join-Path $workItem 'source.md') -Encoding UTF8
+        if ($jobUrl -and $jobUrl -notmatch '(?i)linkedin\.com' -and -not (Test-AggregatorUrl $jobUrl)) {
+            & (Join-Path $PSScriptRoot 'set-application-route.ps1') -WorkItemDir $workItem -Route 'external' -Target $jobUrl -Evidence 'FreeHire direct job/copy apply URL' | Out-Null
+        }
+        elseif ($jobUrl -and (Test-AggregatorUrl $jobUrl)) {
+            & (Join-Path $PSScriptRoot 'set-application-route.ps1') -WorkItemDir $workItem -Route 'unresolved' -Target $jobUrl -Evidence 'Aggregator-only route requires direct employer or ATS resolution before application' | Out-Null
+            $routePending++
+        }
+        try {
+            $enrichment = (& (Join-Path $PSScriptRoot 'enrich-freehire-workitem.ps1') -WorkItemDir $workItem -Workspace $Workspace -ProfilePath $ProfilePath | Select-Object -Last 1) | ConvertFrom-Json
+            if ([string]$enrichment.status -notin @('enriched', 'unchanged')) { $apiWarnings.Add([ordered]@{lane = $lane; job_id = $jobCandidate.job_id; enrichment_status = [string]$enrichment.status }) }
+        }
+        catch { $apiWarnings.Add([ordered]@{lane = $lane; job_id = $jobCandidate.job_id; enrichment_error = $_.Exception.Message }) }
+        $created++
+        Write-Output "DISCOVERED:$($jobCandidate.job_id):${company}:$title"
     }
-    $postedAt = [string](Pick $item @('posted_at', 'published_at', 'created_at'))
-    $externalId = [string](Pick $item @('external_id', 'id'))
-    $creationRaw = & (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId $jobCandidate.job_id -Company $company -Title $title -JobUrl $jobUrl -Location $location -Source 'freehire' -DiscoveryLane $lane -SearchQuery 'fresh engineering composite lane' -Description $description -PostedAt $postedAt -ExternalId $externalId -MetadataJson ($metadata | ConvertTo-Json -Compress -Depth 30) -Workspace $Workspace -Structured
-    $creation = ([string]($creationRaw | Select-Object -Last 1)) | ConvertFrom-Json
-    if ([string]$creation.status -eq 'existing') { $existing++; continue }
-    if ([string]$creation.status -eq 'duplicate') { $duplicates++; continue }
-    if ([string]$creation.status -eq 'rejected') { $rejected++; continue }
-    if ([string]$creation.status -ne 'created' -or [string]::IsNullOrWhiteSpace([string]$creation.path)) { $apiWarnings.Add([ordered]@{lane = $lane; error = "unexpected-new-workitem-status:$($creation.status)" }); continue }
-    $workItem = [string]$creation.path
-    $metadata.quality = $quality
-    Write-AtomicJson (Join-Path $workItem 'source-metadata.json') $metadata
-    "# $title`n`nEmployer: $company`nLocation: $location`nSource: FreeHire ($publicSlug)`nApply URL: $jobUrl`n`n$description`n" | Set-Content -LiteralPath (Join-Path $workItem 'source.md') -Encoding UTF8
-    if ($jobUrl -and $jobUrl -notmatch '(?i)linkedin\.com' -and -not (Test-AggregatorUrl $jobUrl)) {
-        & (Join-Path $PSScriptRoot 'set-application-route.ps1') -WorkItemDir $workItem -Route 'external' -Target $jobUrl -Evidence 'FreeHire direct job/copy apply URL' | Out-Null
-    }
-    elseif ($jobUrl -and (Test-AggregatorUrl $jobUrl)) {
-        & (Join-Path $PSScriptRoot 'set-application-route.ps1') -WorkItemDir $workItem -Route 'unresolved' -Target $jobUrl -Evidence 'Aggregator-only route requires direct employer or ATS resolution before application' | Out-Null
-        $routePending++
-    }
-    try {
-        $enrichment = (& (Join-Path $PSScriptRoot 'enrich-freehire-workitem.ps1') -WorkItemDir $workItem -Workspace $Workspace -ProfilePath $ProfilePath | Select-Object -Last 1) | ConvertFrom-Json
-        if ([string]$enrichment.status -notin @('enriched', 'unchanged')) { $apiWarnings.Add([ordered]@{lane = $lane; job_id = $jobCandidate.job_id; enrichment_status = [string]$enrichment.status }) }
-    }
-    catch { $apiWarnings.Add([ordered]@{lane = $lane; job_id = $jobCandidate.job_id; enrichment_error = $_.Exception.Message }) }
-    $created++
-    Write-Output "DISCOVERED:$($jobCandidate.job_id):${company}:$title"
+}
+finally {
+    # Release FreeHire discovery claim
+    & $claimScript -Action Release -Scope Discovery -Stage discovery -DiscoverySource freehire -Workspace $Workspace -OwnerId $ownerId | Out-Null
 }
 
 Write-Progress -Activity 'FreeHire discovery' -Completed

@@ -1,3 +1,15 @@
+# V6.5.0 — Continuous Parallel Pipeline
+
+- Enabled coordinator continuation while child workers remain active (`noContinueWhileChildrenActive: false`, `minDelayMs: 5000`).
+- Enabled background `job-autopilot-*` Task workers with `background=true`; coordinator schedules new work immediately without waiting for child completion.
+- Separated FreeHire and LinkedIn discovery claims (`discovery-action-claim.freehire.json`, `discovery-action-claim.linkedin-browser.json`); sources never share a claim and never block each other.
+- Made FreeHire and LinkedIn independently restartable; each source acquires/renews/releases its own claim.
+- Removed LinkedIn batch-size workaround (`linkedinDiscoveryBatchTarget=3` → `8`); small batch no longer needed for coordinator unblocking.
+- Enabled continuous discovery alongside assessment, resume, and application work; active discovery workers never suppress downstream consumers.
+- FreeHire discovery acquires its own claim at startup and releases on completion.
+- LinkedIn discovery acquires claim at startup, renews after each persisted job/lane, releases on completion.
+- Added `discovery_sources` to scheduler state with independent availability and targets per source.
+
 # V6.4.0 — Continuous Discovery and Completion-First Answers
 
 - Split continuous discovery into an executable FreeHire action and a dedicated BrowserOS LinkedIn discovery subagent with independent per-source targets, so both launch with the worker wave and a full FreeHire result cannot suppress LinkedIn.

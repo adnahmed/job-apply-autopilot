@@ -56,11 +56,22 @@ The npm command downloads the plugin but does not activate it. Merge the `plugin
   "noProgressTurnsBeforePause": 9007199254740991,
   "noToolCallTurnsBeforePause": 0,
   "noInterruptOnUserMessage": true,
-  "noContinueWhileChildrenActive": true,
+  "noContinueWhileChildrenActive": false,
+  "minDelayMs": 1500,
   "budgetWrapupRatio": 0.9999999999999999,
   "maxPromptFailures": 9007199254740991,
   "persistState": true
 }
+```
+
+Persistent background workers require the environment variable `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`. Set it permanently before starting OpenCode:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+    'OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS',
+    'true',
+    'User'
+)
 ```
 
 Confirm OpenCode can see the merged configuration:
@@ -109,7 +120,7 @@ No runtime data or legacy ledger row is automatically migrated by installation.
 
 ## Expected V6 behavior
 
-- One goal owns continuation; workers never create goals and a coordinator continuation is withheld while child workers remain active.
+- One goal owns continuation; workers run in the background with `background=true` and the coordinator schedules new work immediately without waiting for child completion.
 - Every continuation reruns `session-state.ps1`; runnable generated and queue work remains visible together and is dispatched in parallel waves.
 - Assessor, research, resume, external ATS, and email work is limited only by host capacity; LinkedIn Easy Apply remains serial under its persistent governor.
 - Continuous discovery launches immediately alongside every downstream wave, independent of queue depth, and complete JDs route through `source_pending` before assessment.

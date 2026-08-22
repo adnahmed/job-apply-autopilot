@@ -368,12 +368,24 @@ if (Test-Path -LiteralPath $generatedRoot) {
 $reconcile = @($generated | Where-Object { $_.reconcile_actionable })
 $generatedActionable = @($generated | Where-Object { $_.actionable })
 $queueActionable = @($queue | Where-Object { $_.actionable })
-$discoveryClaimRaw = Read-JsonSafe (Join-Path $root 'discovery-action-claim.json')
-$discoveryClaimExpires = if ($discoveryClaimRaw -and $discoveryClaimRaw.expires_at) { Parse-Utc $discoveryClaimRaw.expires_at } else { $null }
-$discoveryClaim = if ($discoveryClaimRaw -and [string]$discoveryClaimRaw.stage -eq 'discovery' -and $null -ne $discoveryClaimExpires -and $discoveryClaimExpires -gt [DateTimeOffset]::UtcNow) {
-    [ordered]@{ stage = 'discovery'; owner_id = [string]$discoveryClaimRaw.owner_id; acquired_at = $discoveryClaimRaw.acquired_at; expires_at = $discoveryClaimRaw.expires_at }
+
+# Independent discovery claims per source
+$freehireClaimRaw = Read-JsonSafe (Join-Path $root 'discovery-action-claim.freehire.json')
+$freehireClaimExpires = if ($freehireClaimRaw -and $freehireClaimRaw.expires_at) { Parse-Utc $freehireClaimRaw.expires_at } else { $null }
+$freehireDiscoveryAvailable = if ($freehireClaimRaw -and [string]$freehireClaimRaw.stage -eq 'discovery' -and $null -ne $freehireClaimExpires -and $freehireClaimExpires -gt [DateTimeOffset]::UtcNow) { $false } else { $true }
+
+$linkedinClaimRaw = Read-JsonSafe (Join-Path $root 'discovery-action-claim.linkedin-browser.json')
+$linkedinClaimExpires = if ($linkedinClaimRaw -and $linkedinClaimRaw.expires_at) { Parse-Utc $linkedinClaimRaw.expires_at } else { $null }
+$linkedinDiscoveryAvailable = if ($linkedinClaimRaw -and [string]$linkedinClaimRaw.stage -eq 'discovery' -and $null -ne $linkedinClaimExpires -and $linkedinClaimExpires -gt [DateTimeOffset]::UtcNow) { $false } else { $true }
+
+# Legacy shared claim (migration compatibility only - never created)
+$legacyClaimRaw = Read-JsonSafe (Join-Path $root 'discovery-action-claim.json')
+$legacyClaimExpires = if ($legacyClaimRaw -and $legacyClaimRaw.expires_at) { Parse-Utc $legacyClaimRaw.expires_at } else { $null }
+$legacyClaim = if ($legacyClaimRaw -and [string]$legacyClaimRaw.stage -eq 'discovery' -and $null -ne $legacyClaimExpires -and $legacyClaimExpires -gt [DateTimeOffset]::UtcNow) {
+    [ordered]@{ stage = 'discovery'; owner_id = [string]$legacyClaimRaw.owner_id; acquired_at = $legacyClaimRaw.acquired_at; expires_at = $legacyClaimRaw.expires_at }
 }
 else { $null }
+
 $claimedWorkCount = @($queue | Where-Object { $_.claimed }).Count + @($generated | Where-Object { $_.claimed }).Count
 
 # V6 throughput contract: expose the whole runnable pipeline, not only the first
@@ -410,10 +422,10 @@ $selected = @($selected | Sort-Object `
 # Keep one claimed discovery batch running alongside every downstream wave even
 # when the current pipeline is already above the historical eight-item floor.
 $pipelineBufferTarget = 8
-$linkedinDiscoveryBatchTarget = 3
 $pipelineDepth = @($generated | Where-Object { ($_.actionable -or $_.claimed -or $_.needs_reconcile) -and $_.stage -ne 'application_verification_quarantined' }).Count + @($queue | Where-Object { ($_.actionable -or $_.claimed) -and $_.stage -ne 'source_pending' }).Count
-$discoverySlots = if ($null -eq $discoveryClaim) { $pipelineBufferTarget } else { 0 }
-$linkedinTarget = [Math]::Min($discoverySlots, $linkedinDiscoveryBatchTarget)
+
+# Discovery slots per source (both sources run independently)
+$discoverySlots = $pipelineBufferTarget
 $nextAction = if ($reconcile.Count -gt 0) {
     'reconcile'
 }
@@ -469,45 +481,53 @@ $actions = @($selected | ForEach-Object {
         }
         $action
     })
-if ($discoverySlots -gt 0) {
-    $discoveryGroup = 'discovery:continuous'
-    $discoveryActions = @(
-        [ordered]@{
-            action_id             = 'discovery:freehire'
-            discovery_group       = $discoveryGroup
-            discovery_source      = 'freehire'
-            job_id                = $null
-            company               = $null
-            title                 = 'Continuous FreeHire discovery'
-            stage                 = 'discovery'
-            speed                 = 'fast'
-            wave                  = 'fast'
-            dispatch              = 'coordinator-discovery'
-            priority              = 5
-            target_new            = $discoverySlots
-            shared_claim_required = $true
-            command               = "pwsh -NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\discover-freehire.ps1`" -Workspace `"$Workspace`" -TargetNew $discoverySlots"
-        },
-        [ordered]@{
-            action_id             = 'discovery:linkedin-browser'
-            discovery_group       = $discoveryGroup
-            discovery_source      = 'linkedin-browser'
-            job_id                = $null
-            company               = $null
-            title                 = 'Continuous LinkedIn/browser discovery'
-            stage                 = 'discovery'
-            speed                 = 'fast'
-            wave                  = 'fast'
-            dispatch              = 'job-autopilot-linkedin-discovery'
-            priority              = 5
-            target_new            = $linkedinTarget
-            shared_claim_required = $true
-            worker_prompt         = "Workspace: $Workspace`nJob ID: discovery:continuous`nKind: campaign`nAction: discovery`nTarget New: $linkedinTarget"
-            browser_instruction   = "Using BrowserOS neo in a task-owned tab, start LinkedIn Jobs discovery now and create up to $linkedinTarget net-new work items. This is an independent per-source target: start it in the same assistant tool-call batch as FreeHire, and never wait for, subtract, or skip it based on FreeHire's result. Use profile-derived lanes, local dedupe, complete public source capture, FreeHire enrichment, and all warning, CAPTCHA, MFA, and rate-limit controls."
-        }
-    )
-    $actions = @($discoveryActions) + @($actions)
+
+# Discovery actions - independent per source
+$discoveryGroup = 'discovery:continuous'
+$discoveryActions = @()
+
+# FreeHire discovery
+if ($freehireDiscoveryAvailable) {
+    $discoveryActions += [ordered]@{
+        action_id             = 'discovery:freehire'
+        discovery_group       = $discoveryGroup
+        discovery_source      = 'freehire'
+        claim_source          = 'freehire'
+        job_id                = $null
+        company               = $null
+        title                 = 'Continuous FreeHire discovery'
+        stage                 = 'discovery'
+        speed                 = 'fast'
+        wave                  = 'fast'
+        dispatch              = 'coordinator-discovery'
+        priority              = 5
+        target_new            = $discoverySlots
+        command               = "pwsh -NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\discover-freehire.ps1`" -Workspace `"$Workspace`" -TargetNew $discoverySlots"
+    }
 }
+
+# LinkedIn discovery
+if ($linkedinDiscoveryAvailable) {
+    $discoveryActions += [ordered]@{
+        action_id             = 'discovery:linkedin-browser'
+        discovery_group       = $discoveryGroup
+        discovery_source      = 'linkedin-browser'
+        claim_source          = 'linkedin-browser'
+        job_id                = $null
+        company               = $null
+        title                 = 'Continuous LinkedIn/browser discovery'
+        stage                 = 'discovery'
+        speed                 = 'fast'
+        wave                  = 'fast'
+        dispatch              = 'job-autopilot-linkedin-discovery'
+        priority              = 5
+        target_new            = $discoverySlots
+        worker_prompt         = "Workspace: $Workspace`nJob ID: discovery:continuous`nKind: campaign`nAction: discovery`nTarget New: $discoverySlots"
+        browser_instruction   = "Using BrowserOS neo in a task-owned tab, start LinkedIn Jobs discovery now and create up to $discoverySlots net-new work items. This is an independent per-source target: start it in the same assistant tool-call batch as FreeHire, and never wait for, subtract, or skip it based on FreeHire's result. Use profile-derived lanes, local dedupe, complete public source capture, FreeHire enrichment, and all warning, CAPTCHA, MFA, and rate-limit controls."
+    }
+}
+
+$actions = @($discoveryActions) + @($actions)
 
 # Dispatch accounting: the coordinator must emit exactly this many action calls
 # in one assistant turn, so expose the manifest explicitly in scheduler output.
@@ -545,8 +565,8 @@ $claimMetadata = @(
     @($queue | Where-Object { $_.claimed } | ForEach-Object { [ordered]@{ scope = 'work-item'; job_id = $_.job_id; stage = $_.stage; path = $_.path; owner_id = $_.claim.owner_id; acquired_at = $_.claim.acquired_at; expires_at = $_.claim.expires_at } }) +
     @($generated | Where-Object { $_.claimed } | ForEach-Object { [ordered]@{ scope = 'work-item'; job_id = $_.job_id; stage = $_.stage; path = $_.path; owner_id = $_.claim.owner_id; acquired_at = $_.claim.acquired_at; expires_at = $_.claim.expires_at } })
 )
-if ($null -ne $discoveryClaim) {
-    $claimMetadata += [ordered]@{ scope = 'discovery'; job_id = $null; stage = 'discovery'; path = $root; owner_id = $discoveryClaim.owner_id; acquired_at = $discoveryClaim.acquired_at; expires_at = $discoveryClaim.expires_at }
+if ($null -ne $legacyClaim) {
+    $claimMetadata += [ordered]@{ scope = 'discovery'; job_id = $null; stage = 'discovery'; path = $root; owner_id = $legacyClaim.owner_id; acquired_at = $legacyClaim.acquired_at; expires_at = $legacyClaim.expires_at }
 }
 $quarantinedApplications = @($generated | Where-Object { $_.stage -eq 'application_verification_quarantined' } | ForEach-Object {
         [ordered]@{ job_id = $_.job_id; company = $_.company; title = $_.title; route = $_.route; stage = $_.stage; blocker = $_.quarantine_reason; path = $_.path }
@@ -564,9 +584,12 @@ $out = [ordered]@{
         active_wave            = $activeWave
         pipeline_buffer_target = $pipelineBufferTarget
         pipeline_depth         = $pipelineDepth
-        discovery_needed       = ($discoverySlots -gt 0)
+        discovery_needed       = ($freehireDiscoveryAvailable -or $linkedinDiscoveryAvailable)
         discovery_slots        = $discoverySlots
-        discovery_claim        = $discoveryClaim
+        discovery_sources      = [ordered]@{
+            freehire        = [ordered]@{ available = $freehireDiscoveryAvailable; target_new = $discoverySlots }
+            linkedin_browser = [ordered]@{ available = $linkedinDiscoveryAvailable; target_new = $discoverySlots }
+        }
         concurrency            = $concurrency
         dispatch_manifest      = $dispatchManifest
     }
@@ -600,14 +623,21 @@ $out = [ordered]@{
         next_at            = $linkedinStatus.next_easy_apply_at
         blocked            = @($linkedinStatus.block_reasons).Count -gt 0
     }
-    instruction              = if ($nextAction -eq 'await-active-claims') {
+instruction              = if ($nextAction -eq 'await-active-claims') {
         'No unclaimed action is currently available. Rerun state after active claims finish or expire.'
     }
     elseif ($nextAction -eq 'discover') {
-        "Acquire one discovery claim, then in the same assistant tool-call batch execute the FreeHire command and dispatch the supplied job-autopilot-linkedin-discovery worker prompt. FreeHire targets $discoverySlots new items; LinkedIn uses its bounded emitted target_new; release the claim only after both return, then rerun state."
+        $lines = @()
+        if ($freehireDiscoveryAvailable) { $lines += "FreeHire discovery available (target $discoverySlots)." }
+        if ($linkedinDiscoveryAvailable) { $lines += "LinkedIn discovery available (target $discoverySlots)." }
+        if ($lines.Count -eq 0) { $lines += 'Both discovery sources busy.' }
+        ($lines -join ' ') + ' Dispatch available discovery sources as background workers; do not wait for completion before scheduling other work. Rerun state after any worker finishes.'
     }
-    elseif ($discoverySlots -gt 0) {
-        "Acquire one discovery claim, then in the same assistant tool-call batch execute FreeHire, dispatch the supplied job-autopilot-linkedin-discovery prompt, and launch every other independent worker action, including research. FreeHire targets $discoverySlots new items; LinkedIn uses its bounded emitted target_new; never use one source's result to reduce or skip the other, and release the claim only after both discovery operations return."
+    elseif ($freehireDiscoveryAvailable -or $linkedinDiscoveryAvailable) {
+        $lines = @()
+        if ($freehireDiscoveryAvailable) { $lines += "FreeHire discovery available (target $discoverySlots)." }
+        if ($linkedinDiscoveryAvailable) { $lines += "LinkedIn discovery available (target $discoverySlots)." }
+        ($lines -join ' ') + ' Dispatch available discovery sources as background workers alongside assessment, research, resume, and application actions. Never use one source status to block the other or downstream work. Rerun state after any worker finishes.'
     }
     else {
         'Emit every independent non-LinkedIn worker action together up to runtime capacity, including research. LinkedIn Easy Apply remains serial.'

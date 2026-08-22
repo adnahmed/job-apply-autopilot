@@ -26,7 +26,7 @@ if ($freehireSync.submission_proofs -gt 0) {
 
 The FreeHire context sync is deterministic, cached, and fail-open. Missing credentials, a provider outage, or a rate-limit response never blocks local or browser work. It may resolve an ambiguous send only from an exact slug-linked employer message satisfying the send guard; otherwise it only refreshes candidate, market, mail, and credit telemetry.
 
-Never set goals in workers. The configured child-session gate prevents continuation coordinator turns while workers are active.
+Never set goals in workers. All `job-autopilot-*` Task workers MUST be launched with `background=true`. Do not wait for worker completion before scheduling unrelated work.
 
 ## State routing
 
@@ -68,19 +68,29 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.p
 
 Claims expire automatically after the lease.
 
-Discovery is also claimed:
+Discovery claims are now source-specific. FreeHire and LinkedIn/browser each own their own claim file and never share a discovery claim.
 
+FreeHire discovery claim:
 ```powershell
 $claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.ps1" `
-  -Action Acquire -Scope Discovery -Stage discovery -Workspace $workspace -LeaseMinutes 15 | ConvertFrom-Json
+  -Action Acquire -Scope Discovery -Stage discovery -DiscoverySource freehire -Workspace $workspace -LeaseMinutes 15 | ConvertFrom-Json
 ```
 
-Only the acquired discovery owner browses or creates items. Release after the pass with:
+LinkedIn/browser discovery claim:
+```powershell
+$claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.ps1" `
+  -Action Acquire -Scope Discovery -Stage discovery -DiscoverySource linkedin-browser -Workspace $workspace -LeaseMinutes 60 | ConvertFrom-Json
+```
 
+Release with the matching `-DiscoverySource`:
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.ps1" `
-  -Action Release -Scope Discovery -Stage discovery -Workspace $workspace -OwnerId '<owner_id>'
+  -Action Release -Scope Discovery -Stage discovery -DiscoverySource freehire -Workspace $workspace -OwnerId '<owner_id>'
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.ps1" `
+  -Action Release -Scope Discovery -Stage discovery -DiscoverySource linkedin-browser -Workspace $workspace -OwnerId '<owner_id>'
 ```
+
+FreeHire claim uses `.job-apply-autopilot/discovery-action-claim.freehire.json`. LinkedIn claim uses `.job-apply-autopilot/discovery-action-claim.linkedin-browser.json`. Neither claim blocks the other source. The legacy `discovery-action-claim.json` is read only for migration compatibility and is never created.
 
 ## Parallel pipeline
 
@@ -96,9 +106,29 @@ After calling `session-state.ps1 -Compact`:
 6. If fewer actions were emitted, immediately emit the missing `action_ids`.
 7. Do not continue with prose while a dispatchable state action was omitted.
 
-For the shared discovery claim: acquire it first, then execute the FreeHire command and dispatch `job-autopilot-linkedin-discovery` with its supplied prompt in the same assistant tool-call batch; do not wait for either result before starting the other. The coordinator owns and releases the shared discovery claim; the LinkedIn discovery worker must not touch it. Discovery is a permanent producer: launch it immediately alongside assess, research, resume, and apply work, even when the pipeline already contains eight or more items. Group workers by `dispatch`, use supplied prompts verbatim, and rerun compact state after the parallel batch. LinkedIn Easy Apply alone is serial at one; every other stage uses all host capacity.
+**All independent `job-autopilot-*` Task workers MUST be launched with `background=true`.**
 
-FreeHire receives `scheduler.discovery_slots`. LinkedIn/browser discovery receives the bounded target already emitted in its `action.target_new`; do not replace it with `scheduler.discovery_slots`. A discovery claim prevents duplicate producers; once it clears, the next continuation launches another batch. Quarantined jobs do not affect discovery.
+**Do not wait for worker completion before scheduling unrelated work.**
+
+**After every coordinator continuation:**
+1. run `session-state.ps1 -Compact`
+2. dispatch every action returned
+3. launch worker actions with `background=true`
+4. do not poll workers
+5. do not summarize worker results before scheduling the next available work
+
+**When a background worker completion notification arrives:**
+immediately rerun `session-state.ps1 -Compact` and dispatch newly unlocked work.
+
+**A running LinkedIn discovery worker must not block:**
+- FreeHire discovery
+- assessments
+- research
+- resumes
+- external applications
+- email applications
+
+FreeHire receives `scheduler.discovery_sources.freehire.target_new`. LinkedIn/browser discovery receives the bounded target already emitted in its `action.target_new`. A discovery claim prevents duplicate producers; once it clears, the next continuation launches another batch. Quarantined jobs do not affect discovery.
 
 Each work-item worker prompt is exactly four identity lines; the worker resolves the authoritative directory through the manifest script:
 
@@ -220,6 +250,20 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\defer-workitem
 ```
 
 The checkpoint stage may differ from the scheduler claim stage; the defer transition clears the active claim that actually exists. Backoff remains 1 minute, 5 minutes, then 30 minutes.
+
+## Discovery ownership
+
+FreeHire owns:
+`discovery-action-claim.freehire.json`
+
+LinkedIn owns:
+`discovery-action-claim.linkedin-browser.json`
+
+They never share a discovery claim.
+
+Discovery is a producer.
+Assessment, resume generation and application processing are consumers.
+Producer execution must not form a synchronization barrier with consumers.
 
 ## Truth and autonomy
 
