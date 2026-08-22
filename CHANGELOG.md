@@ -1,3 +1,18 @@
+# V6.8.0 — Bounded Dispatch, Parallel Route Resolution, and Continuous Discovery
+
+- Fixed resume workers exhausting the 10-step ceiling before compilation by increasing steps to 40 and adding one-call resume context loading via `get-resume-context.ps1`
+- Shortened stale resume claim lease from 30 to 10 minutes; shortened LinkedIn discovery lease from 60 to 15 minutes (matching FreeHire)
+- Changed LinkedIn discovery to smaller continuous batches (target 4 instead of 8) with immediate claim release after each batch
+- Moved FreeHire discovery into a normal background worker (`job-autopilot-freehire-discovery`) instead of a detached PowerShell process
+- Bounded scheduler dispatch waves to 8 actions per turn via `$maxDispatchActionsPerSnapshot` with `dispatch_manifest` metadata; coordinator reruns state after each wave
+- Removed coordinator canonical-resume adjudication: assessor writes `canonical_resume` (ai|backend) to `assessment.json`; `advance-workitem.ps1` reads it automatically
+- Moved route resolution into parallel background workers (`job-autopilot-route-resolver`) instead of coordinator-browser serial work
+- Prevented confirmed aggregator-only routes from looping forever as `route_pending`: route resolver writes terminal `skipped-job-quality` outcome with `route-unresolvable-aggregator-only` blocker
+- Added `canonical_resumes` to `assessment-schema.json` with allowed values `ai` and `backend`
+- Changed passed assessment next_stage from `coordinator_adjudication_pending` to `promotion_pending`; assessor immediately calls `advance-workitem.ps1`
+- Added `route_pending` to stages cleared by `write-application-outcome.ps1`
+- Removed `scripts/start-freehire-discovery.ps1` (no longer needed; background Task provides async boundary)
+
 # V6.7.0 — Dedupe & Enrichment Pipeline Optimization
 
 - Removed duplicate FreeHire quality evaluation: discovery now relies on single authoritative check inside `finalize-discovered-workitem.ps1` → `new-workitem.ps1` → `check-job-quality.ps1`.
@@ -156,7 +171,7 @@
 
 - Added an unattended OpenCode supervisor (`start-autopilot.ps1` / `run-campaign.ps1` / `stop-autopilot.ps1`) with bounded fresh slices, a single-instance lock, keep-awake support, clean stop markers, and persistent logs/state.
 - Added dual BrowserOS health gating: MCP port 9010 and browser CDP port 9110 must both be live. A half-alive MCP server no longer burns agent sessions while the browser process is dead.
-- Restored the BrowserOS operational playbook accidentally truncated in V5.11.4, including tab ownership, `_run` one-strike fallback, unavailable CDP methods, hidden-input upload, connection-loss routing, covered controls, and success proof.
+- Restored the BrowserOS operational playbook accidentally truncated in V5.11.4, including tab ownership, `_run` one-strike fallback, unavailable CDP methods, hidden-input resume upload, exact filename verification, covered-button fallbacks, Lever native setter workaround, and known unavailable CDP DOM methods.
 - Added explicit handling for the upstream transient/no-ref upload limitation tracked by BrowserOS issue #2156.
 - `session-state.ps1` now routes placeholder/missing JDs to `source_pending`; it no longer advertises them as fast assessment work.
 - Added semantic company/title dedupe for recent submissions and active work items. `new-workitem.ps1` now blocks repost/new-ID duplicates and is idempotent for exact IDs.
@@ -223,7 +238,7 @@
 - Added `compact-candidate-evidence.ps1`; workspace upgrade removes giant source-check histories and keeps positive reusable claims only.
 - Eligibility research now follows first-decisive-evidence semantics and normally stops after at most 2 authoritative sources.
 - Resume/external workers lazy-load only files needed for the current stage and return terse status lines.
-- Preserves V5.10 global-tenure + capability matching, live public evidence, LinkedIn Easy Apply governor, truth boundaries, and completely uncapped external ATS throughput.
+- Preserves V5.10 global-tenure + capability matching, live public evidence, LinkedIn Easy Apply governor, truth boundaries, and completely uncapped external ATS/company-site throughput.
 
 # V5.10 — Live Evidence + Interview-Likelihood Edition
 
@@ -349,6 +364,7 @@
 - `tailoring-audit.json`, canonical SHA-256 checks, one-page compilation, ghost/identity gates, relocation policy, and domain circuit breakers remain in force.
 
 ## V5.2 — Eligibility calibration fix
+
 - Fixed V5 overcorrection that treated nearly all non-literal Pakistan wording as `UNCLEAR`.
 - Added `REGION_INCLUDES_PAKISTAN` for explicit Asia/APAC/APJ regional roles unless employer-specific restrictions conflict.
 - A direct employer Pakistan job location is positive evidence; Pakistan search placement alone remains weak.

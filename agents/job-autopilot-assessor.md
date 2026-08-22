@@ -57,6 +57,7 @@ The assessment payload must have exactly this field shape; do not rename or omit
 - `reason_codes`: array of distinct non-empty strings (at most eight)
 - `candidate_evidence_requirements`: array (at most four; required non-empty for `needs-evidence`)
 - `needs_external_research` / `needs_candidate_evidence`: booleans
+- `canonical_resume`: one of `ai` or `backend` (required when status is `passed`)
 
 `status` is exactly one of `passed`, `needs-research`, `needs-evidence`, or `failed`. `trust_class` uses the job-integrity enum. The eight score components must remain within their documented maxima and sum exactly to `score`; do not target a favorite total. For `passed`, score must be at least 72. Scores 68-71 pass only for a genuinely strong role/eligibility case and must include reason code `strong-role-identity-and-eligibility`; scores below 68 cannot pass. Use at most eight distinct reason codes. The passed fit-map payload must be `{"requirements":[...]}` with 1-8 objects, each containing exactly `requirement`, `requirement_kind` (`defining|mandatory|preferred`), `evidence_class` (`EXACT|DIRECT|ADJACENT|WEAK|NONE`), `evidence_scope`, `support`, and boolean `ats_keyword_allowed`. Only EXACT or DIRECT evidence permits the ATS keyword; WEAK or NONE cannot support a defining/mandatory requirement.
 
@@ -92,9 +93,21 @@ Construct the final assessment immediately and call commit-assessment.ps1.
 
 If commit-assessment returns rejected-payload, fix ALL returned errors in ONE retry.
 
-After successful commit, output only the canonical status line.
+After successful commit, **immediately call**:
 
-Do not add another schema lookup tool call to the normal assessor workflow.
+```powershell
+advance-workitem.ps1 `
+    -WorkItemDir "<work-item>" `
+    -Workspace "<workspace>"
+```
+
+Do not wait for a coordinator adjudication turn.
+
+If promotion succeeds, return:
+
+`assessed <job_id> passed <score> resume_pending`
+
+For failed/research/evidence results keep the existing behavior.
 
 Commit through this exact path and include the observed prior state:
 

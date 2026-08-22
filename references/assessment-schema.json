@@ -20,5 +20,9 @@
   ],
   "pass_score": 72,
   "conditional_pass_min": 68,
-  "conditional_pass_reason": "strong-role-identity-and-eligibility"
+  "conditional_pass_reason": "strong-role-identity-and-eligibility",
+  "canonical_resumes": [
+    "ai",
+    "backend"
+  ]
 }

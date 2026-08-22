@@ -3,7 +3,7 @@ name: job-apply-autopilot
 description: "Goal-driven autonomous job discovery, truthful fit triage, tailored resumes, and idempotent verified submission through BrowserOS neo. Uses claimed actions, semantic dedupe, verification quarantine, and deterministic application outcomes."
 ---
 
-# Job Apply Autopilot V6.4.0 — Continuous Discovery and Completion-First Answers
+# Job Apply Autopilot V6.8.0 — Bounded Dispatch, Parallel Route Resolution, and Continuous Discovery
 
 Mission: maximize credible net-new interview opportunities per unit time while preserving truth, the candidate's documented geographic eligibility, security controls, and duplicate safety. Tool activity, duplicate work, placeholders, and unverified outcomes are not progress.
 
@@ -36,12 +36,12 @@ Trust `actions`, `scheduler`, claim metadata, and these stages:
 2. `application_outcome_repair`: dispatch the matching applicator only to write/reconstruct the terminal result; never resume the form.
 3. `application_verification`: dispatch the matching applicator to verify the prior side effect; never start a fresh application.
 4. `application_verification_quarantined`: do nothing automatically. It is isolated from the ledger and unrelated work.
-5. `route_pending`: resolve and persist `application-route.json`; never infer a route from source/domain.
+5. `route_pending`: dispatch `job-autopilot-route-resolver` background worker.
 6. `email_application_ready`: dispatch `job-autopilot-email-apply`.
 7. `linkedin_application_ready`: handle LinkedIn Easy Apply serially under its governor.
 8. `application_ready` / `application_resume`: route to the matching applicator immediately.
 9. `resume_pending`: dispatch `job-autopilot-resume`.
-10. `coordinator_adjudication_pending`: claim and run `advance-workitem.ps1`.
+10. `promotion_pending`: assessor immediately calls `advance-workitem.ps1` after passed commit; coordinator fallback only.
 11. `assessment_repair`: claim and repair deterministically, then rerun state.
 12. `assessment_pending` / `reassessment_pending`: dispatch `job-autopilot-assessor`.
 13. `source_pending`: claim, capture the complete source, release the claim, rerun state.
@@ -79,7 +79,7 @@ $claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim
 LinkedIn/browser discovery claim:
 ```powershell
 $claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.ps1" `
-  -Action Acquire -Scope Discovery -Stage discovery -DiscoverySource linkedin-browser -Workspace $workspace -LeaseMinutes 60 | ConvertFrom-Json
+  -Action Acquire -Scope Discovery -Stage discovery -DiscoverySource linkedin-browser -Workspace $workspace -LeaseMinutes 15 | ConvertFrom-Json
 ```
 
 Release with the matching `-DiscoverySource`:
@@ -99,12 +99,12 @@ FreeHire claim uses `.job-apply-autopilot/discovery-action-claim.freehire.json`.
 After calling `session-state.ps1 -Compact`:
 
 1. Read `state.actions`.
-2. Emit every independent action in `state.actions` in the SAME assistant tool-call turn, subject only to explicit concurrency limits.
-3. Never build a separate mental/planned action list.
-4. Never postpone an action that is already present in `state.actions`.
-5. Before ending the dispatch turn, compare the number of emitted action calls against `state.scheduler.dispatch_manifest.expected_count`.
-6. If fewer actions were emitted, immediately emit the missing `action_ids`.
-7. Do not continue with prose while a dispatchable state action was omitted.
+2. **Dispatch every action returned in `state.actions`.** Do not attempt to reconstruct or dispatch actions not present in the current bounded wave.
+3. `session-state.ps1` returns a bounded dispatch wave (default 8 actions). Launch all worker actions with `background=true`.
+4. After the background launches return, rerun `session-state.ps1 -Compact`.
+5. Continue bounded waves until the currently runnable backlog is claimed or empty.
+
+**Do not** compare emitted calls against the total campaign backlog. Compare only against `state.scheduler.dispatch_manifest.emitted_count`.
 
 **All independent `job-autopilot-*` Task workers MUST be launched with `background=true`.**
 
@@ -147,12 +147,18 @@ LinkedIn discovery is the sole campaign-worker exception and uses the exact supp
 
 Read `references\freehire-api.md` when changing or diagnosing FreeHire integration behavior. Read `references\browseros-playbook.md` when LinkedIn or other browser discovery starts.
 
-Run independent FreeHire and LinkedIn/browser discovery immediately and concurrently whenever `scheduler.discovery_needed` is true. `session-state.ps1` emits the FreeHire command and a `job-autopilot-linkedin-discovery` worker prompt as separate actions. FreeHire receives `scheduler.discovery_sources.freehire.target_new`. LinkedIn/browser discovery receives the bounded target already emitted in its `action.target_new`. A completed or full FreeHire batch never reduces, satisfies, or skips the LinkedIn worker. FreeHire is one discovery source, not the whole discovery pipeline.
+Run independent FreeHire and LinkedIn/browser discovery immediately and concurrently whenever `scheduler.discovery_needed` is true. `session-state.ps1` emits a `job-autopilot-freehire-discovery` worker prompt and a `job-autopilot-linkedin-discovery` worker prompt as separate actions. FreeHire receives `scheduler.discovery_sources.freehire.target_new`. LinkedIn/browser discovery receives the bounded target already emitted in its `action.target_new`. A completed or full FreeHire batch never reduces, satisfies, or skips the LinkedIn worker. FreeHire is one discovery source, not the whole discovery pipeline.
 
-**FreeHire discovery is an asynchronous deterministic producer.** The coordinator launches `start-freehire-discovery.ps1` and immediately continues scheduling. Do not wait for the spawned FreeHire process. Its source-specific claim prevents duplicate producers.
+**FreeHire discovery is an asynchronous deterministic producer.** The coordinator launches a `job-autopilot-freehire-discovery` background worker and immediately continues scheduling. Do not wait for the worker. Its source-specific claim prevents duplicate producers.
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\start-freehire-discovery.ps1" -Workspace $workspace -TargetNew $state.scheduler.discovery_sources.freehire.target_new
+# FreeHire worker launched via Task with background=true
+# Worker prompt:
+Workspace: <workspace>
+Job ID: discovery:freehire
+Kind: campaign
+Action: discovery
+Target New: <target>
 ```
 
 The FreeHire pass performs one composite faceted request per fresh home-country, global-remote, and sponsorship/relocation lane; checks `meta.ignored_params`; stores full source/reality metadata; uses semantic-similar jobs only as a sparse-lane fallback; checks posting copies to recover a missing/aggregator route; ranks direct ATS/employer copies first; captures available application questions; and persists aggregator-only targets as `unresolved` route evidence. In the same cycle, start the independent LinkedIn/browser lanes immediately and pursue the bounded target emitted in their action while respecting the LinkedIn activity governor and any warning, CAPTCHA, MFA, or rate-limit controls. FreeHire reality is evidence with its workings, never an automatic employer verdict. Explicit denylist overrides, unnamed clients, and predatory funnels remain hard quality rejections.
@@ -192,12 +198,15 @@ Queue roles plausibly worth applying to. Default score threshold is 72; 68–71 
 
 Assessment writes go only through `commit-assessment.ps1` with `-ExpectedPriorStatus`. It validates the complete payload and returns every schema error in one rejection, enforces the score threshold, and is first-writer-safe: `already-committed` means stale or duplicate work must stop. Research finalizes pass/fail in the same worker call. `advance-workitem.ps1` independently refuses legacy passed assessments below the same threshold.
 
-Passed work advances only through:
+**Passed work advances only through the assessor's immediate call:**
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\advance-workitem.ps1" `
-  -WorkItemDir '<path>' -Canonical <ai|backend> -Workspace $workspace
+advance-workitem.ps1 `
+  -WorkItemDir '<path>' `
+  -Workspace $workspace
 ```
+
+The `-Canonical` parameter is now optional; the assessor stores `canonical_resume` (`ai` or `backend`) in `assessment.json`, and `advance-workitem.ps1` reads it automatically. Explicit `-Canonical` remains supported for manual/recovery calls.
 
 Promotion and resume compilation reuse valid existing generated directories/artifacts under work-item locks.
 

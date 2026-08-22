@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory=$true,ParameterSetName='ByPath')][string]$WorkItemDir,
     [Parameter(Mandatory=$true,ParameterSetName='ById')][string]$JobId,
-    [ValidateSet('ai','backend')][string]$Canonical = 'backend',
+    [ValidateSet('ai','backend')][string]$Canonical = '',
     [string]$Workspace = (Get-Location).Path
 )
 
@@ -24,7 +24,7 @@ function Invoke-Defer([string]$Dir, [string]$Stage, [string]$Code, [string]$Mess
 
 function Clear-AdvanceClaims {
     if ([string]::IsNullOrWhiteSpace([string]$WorkItemDir) -or -not (Test-Path -LiteralPath $WorkItemDir) -or [string]::IsNullOrWhiteSpace([string]$Workspace)) { return }
-    foreach ($stage in @('coordinator_adjudication_pending','assessment_repair')) {
+    foreach ($stage in @('promotion_pending','assessment_repair')) {
         try { & (Join-Path $PSScriptRoot 'claim-action.ps1') -Action ClearStage -Scope WorkItem -Stage $stage -WorkItemDir $WorkItemDir -Workspace $Workspace | Out-Null } catch {}
     }
 }
@@ -113,6 +113,16 @@ try {
             Emit @{ status='recoverable-error'; job_id=[string]$assessment.job_id; code='evidence-merge-exception'; next_stage='process_other_work' }
             exit 0
         }
+    }
+
+    # Resolve canonical resume: explicit parameter takes precedence, otherwise read from assessment
+    if ([string]::IsNullOrWhiteSpace($Canonical)) {
+        $Canonical = if ($assessment -and (Has-Property $assessment 'canonical_resume')) { [string]$assessment.canonical_resume } else { '' }
+    }
+    $allowedCanonicals = @('ai','backend')
+    if (-not ($Canonical -in $allowedCanonicals)) {
+        Emit @{ status='recoverable-error'; job_id=[string]$assessment.job_id; code='missing-or-invalid-canonical-resume'; message="Assessment does not contain a valid canonical_resume (ai|backend)."; next_stage='process_other_work' }
+        exit 0
     }
 
     $promote = Join-Path $PSScriptRoot 'promote-workitem.ps1'

@@ -3,7 +3,7 @@ description: Claimed campaign worker for independent LinkedIn job discovery thro
 mode: subagent
 hidden: true
 temperature: 0.1
-steps: 50
+steps: 100
 permission:
   read: allow
   glob: deny
@@ -29,7 +29,7 @@ Accept exactly these five identity lines: `Workspace`, `Job ID: discovery:contin
 
 ```powershell
 $claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" `
-    -Action Acquire -Scope Discovery -Stage discovery -DiscoverySource linkedin-browser -Workspace "<workspace>" -LeaseMinutes 60 | ConvertFrom-Json
+    -Action Acquire -Scope Discovery -Stage discovery -DiscoverySource linkedin-browser -Workspace "<workspace>" -LeaseMinutes 15 | ConvertFrom-Json
 ```
 
 If the claim is not acquired (`acquired: false`), terminate immediately with `blocked linkedin-discovery claim-busy`. Store the returned `owner_id`.
@@ -38,7 +38,7 @@ If the claim is not acquired (`acquired: false`), terminate immediately with `bl
 
 ```powershell
 $claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" `
-    -Action Acquire -Scope Discovery -Stage discovery -DiscoverySource linkedin-browser -OwnerId '<existing-owner-id>' -Workspace "<workspace>" -LeaseMinutes 60 | ConvertFrom-Json
+    -Action Acquire -Scope Discovery -Stage discovery -DiscoverySource linkedin-browser -OwnerId '<existing-owner-id>' -Workspace "<workspace>" -LeaseMinutes 15 | ConvertFrom-Json
 ```
 
 **Before normal completion, release the claim:**

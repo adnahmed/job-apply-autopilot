@@ -77,6 +77,7 @@ $allowedTrustClasses = @($schema.trust_classes | ForEach-Object { [string]$_ })
 $passScore = [int]$schema.pass_score
 $conditionalPassMin = [int]$schema.conditional_pass_min
 $conditionalPassReason = [string]$schema.conditional_pass_reason
+$allowedCanonicalResumes = @($schema.canonical_resumes | ForEach-Object { [string]$_ })
 
 try {
     $WorkItemDir = (Resolve-Path -LiteralPath $WorkItemDir).Path
@@ -163,6 +164,13 @@ try {
         if ($identityCheckValid -and -not [bool]$draft.identity_check.consistent) { Add-ValidationError 'passed-with-identity-mismatch' }
         if ([string]$draft.trust_class -in @('AGENCY_UNKNOWN_CLIENT','JOB_AGGREGATOR_ONLY','IDENTITY_MISMATCH','UNVERIFIABLE')) { Add-ValidationError 'passed-with-rejected-trust-class' }
         if ([string]$job.title -match '(?i)react\s*native|\bmobile\b|\bios\b|\bandroid\b|wordpress|\bfrontend\b') { Add-ValidationError 'passed-role-family-outside-campaign-lanes' }
+
+        # Validate canonical_resume for passed assessments
+        if (-not (Has-Property $draft 'canonical_resume')) {
+            Add-ValidationError 'assessment-canonical_resume-missing'
+        } elseif ([string]$draft.canonical_resume -notin $allowedCanonicalResumes) {
+            Add-ValidationError 'assessment-canonical_resume-invalid'
+        }
     }
     if ($statusValid -and $externalFlagValid -and $evidenceFlagValid -and $draftStatus -eq 'needs-research' -and (-not [bool]$draft.needs_external_research -or [bool]$draft.needs_candidate_evidence)) {
         Add-ValidationError 'needs-research-flags-invalid'
@@ -270,6 +278,10 @@ try {
         needs_candidate_evidence = [bool]$draft.needs_candidate_evidence
         committed_at = (Get-Date).ToUniversalTime().ToString('o')
     }
+    # Add canonical_resume for passed assessments
+    if ($draftStatus -eq 'passed' -and (Has-Property $draft 'canonical_resume')) {
+        $assessment.canonical_resume = [string]$draft.canonical_resume
+    }
 
     $assessmentPath = Join-Path $WorkItemDir 'assessment.json'
     $fitPath = Join-Path $WorkItemDir 'fit-map.json'
@@ -302,7 +314,7 @@ try {
     }
 
     $nextStage = switch ($draftStatus) {
-        'passed' { 'coordinator_adjudication_pending' }
+        'passed' { 'promotion_pending' }
         'needs-research' { 'eligibility_research_pending' }
         'needs-evidence' { 'candidate_evidence_pending' }
         'failed' { 'terminal' }

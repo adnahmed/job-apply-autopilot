@@ -73,7 +73,7 @@ try {
 
 $runtimeRoot = Split-Path -Parent (Split-Path -Parent $WorkItemDir)
 $workspace = Split-Path -Parent $runtimeRoot
-foreach ($stage in @('application_ready','application_resume','application_verification','email_application_ready','application_outcome_repair')) {
+foreach ($stage in @('application_ready','application_resume','application_verification','email_application_ready','application_outcome_repair','route_pending')) {
     & (Join-Path $PSScriptRoot 'claim-action.ps1') -Action ClearStage -Scope WorkItem -Stage $stage -WorkItemDir $WorkItemDir -Workspace $workspace | Out-Null
 }
 Emit ([ordered]@{ status='written'; job_id=[string]$job.job_id; outcome_status=$Status; submitted=$false; result=$resultPath; written=$true })

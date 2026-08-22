@@ -209,7 +209,7 @@ if (Test-Path -LiteralPath $generatedRoot) {
     }
 }
 
-$queue = @()
+$queue = @{}
 $queueRoot = Join-Path $root 'queue'
 if (Test-Path -LiteralPath $queueRoot) {
     foreach ($dir in Get-ChildItem -LiteralPath $queueRoot -Directory) {
@@ -257,7 +257,7 @@ if (Test-Path -LiteralPath $queueRoot) {
                 $stage = 'eligibility_research_pending'; $speed = 'slow'
             }
             elseif ($status -eq 'passed') {
-                $stage = 'coordinator_adjudication_pending'; $speed = 'fast'
+                $stage = 'promotion_pending'; $speed = 'fast'
             }
             else {
                 $stage = 'assessment_pending'; $speed = 'fast'
@@ -286,7 +286,7 @@ if (Test-Path -LiteralPath $queueRoot) {
     }
 }
 
-$generated = @()
+$generated = @{}
 if (Test-Path -LiteralPath $generatedRoot) {
     foreach ($dir in Get-ChildItem -LiteralPath $generatedRoot -Directory) {
         $job = Read-JsonSafe (Join-Path $dir.FullName 'job.json')
@@ -408,7 +408,7 @@ $stagePriority = @{
     application_resume               = 40
     application_ready                = 40
     resume_pending                   = 50
-    coordinator_adjudication_pending = 60
+    promotion_pending                = 60
     assessment_repair                = 60
     reassessment_pending             = 70
     assessment_pending               = 70
@@ -432,27 +432,18 @@ $pipelineBufferTarget = 8
 $pipelineDepth = @($generated | Where-Object { ($_.actionable -or $_.claimed -or $_.needs_reconcile) -and $_.stage -ne 'application_verification_quarantined' }).Count + @($queue | Where-Object { ($_.actionable -or $_.claimed) -and $_.stage -ne 'source_pending' }).Count
 
 # Discovery slots per source (both sources run independently)
+$linkedinDiscoveryTarget = 4
+$freehireDiscoveryTarget = 8
 $discoverySlots = $pipelineBufferTarget
-$nextAction = if ($reconcile.Count -gt 0) {
-    'reconcile'
-}
-elseif ($generatedActionable.Count -gt 0) {
-    'resume-generated'
-}
-elseif ($queueActionable.Count -gt 0) {
-    'process-queue'
-}
-else {
-    $null
-}
 
 function Get-DispatchTarget($Item) {
     $stage = [string]$Item.stage
-    if ($stage -eq 'reconcile_result' -or $stage -in @('coordinator_adjudication_pending', 'assessment_repair')) { return 'coordinator-local' }
+    if ($stage -eq 'reconcile_result' -or $stage -in @('promotion_pending', 'assessment_repair')) { return 'coordinator-local' }
     if ($stage -eq 'resume_pending') { return 'job-autopilot-resume' }
     if ($stage -in @('assessment_pending', 'reassessment_pending')) { return 'job-autopilot-assessor' }
     if ($stage -in @('eligibility_research_pending', 'candidate_evidence_pending')) { return 'job-autopilot-research' }
-    if ($stage -in @('source_pending', 'route_pending')) { return 'coordinator-browser' }
+    if ($stage -eq 'source_pending') { return 'coordinator-browser' }
+    if ($stage -eq 'route_pending') { return 'job-autopilot-route-resolver' }
     if ($stage -eq 'email_application_ready') { return 'job-autopilot-email-apply' }
     if ($stage -eq 'linkedin_application_ready') { return 'coordinator-linkedin' }
     if ($stage -in @('application_ready', 'application_resume', 'application_verification', 'application_outcome_repair')) {
@@ -493,7 +484,7 @@ $actions = @($selected | ForEach-Object {
 $discoveryGroup = 'discovery:continuous'
 $discoveryActions = @()
 
-# FreeHire discovery
+# FreeHire discovery - now a background worker
 if ($freehireDiscoveryAvailable) {
     $discoveryActions += [ordered]@{
         action_id             = 'discovery:freehire'
@@ -506,10 +497,10 @@ if ($freehireDiscoveryAvailable) {
         stage                 = 'discovery'
         speed                 = 'fast'
         wave                  = 'fast'
-        dispatch              = 'coordinator-discovery'
+        dispatch              = 'job-autopilot-freehire-discovery'
         priority              = 5
-        target_new            = $discoverySlots
-        command               = "pwsh -NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\start-freehire-discovery.ps1`" -Workspace `"$Workspace`" -TargetNew $discoverySlots"
+        target_new            = $freehireDiscoveryTarget
+        worker_prompt         = "Workspace: $Workspace`nJob ID: discovery:freehire`nKind: campaign`nAction: discovery`nTarget New: $freehireDiscoveryTarget"
     }
 }
 
@@ -528,26 +519,30 @@ if ($linkedinDiscoveryAvailable) {
         wave                  = 'fast'
         dispatch              = 'job-autopilot-linkedin-discovery'
         priority              = 5
-        target_new            = $discoverySlots
-        worker_prompt         = "Workspace: $Workspace`nJob ID: discovery:continuous`nKind: campaign`nAction: discovery`nTarget New: $discoverySlots"
-        browser_instruction   = "Using BrowserOS neo in a task-owned tab, start LinkedIn Jobs discovery now and create up to $discoverySlots net-new work items. This is an independent per-source target: start it in the same assistant tool-call batch as FreeHire, and never wait for, subtract, or skip it based on FreeHire's result. Use profile-derived lanes, local dedupe, complete public source capture, FreeHire enrichment, and all warning, CAPTCHA, MFA, and rate-limit controls."
+        target_new            = $linkedinDiscoveryTarget
+        worker_prompt         = "Workspace: $Workspace`nJob ID: discovery:continuous`nKind: campaign`nAction: discovery`nTarget New: $linkedinDiscoveryTarget"
+        browser_instruction   = "Using BrowserOS neo in a task-owned tab, start LinkedIn Jobs discovery now and create up to $linkedinDiscoveryTarget net-new work items. This is an independent per-source target: start it in the same assistant tool-call batch as FreeHire, and never wait for, subtract, or skip it based on FreeHire's result. Use profile-derived lanes, local dedupe, complete public source capture, FreeHire enrichment, and all warning, CAPTCHA, MFA, and rate-limit controls."
     }
 }
 
-$actions = @($discoveryActions) + @($actions)
+$allActions = @($discoveryActions) + @($actions)
 
-# Dispatch accounting: the coordinator must emit exactly this many action calls
-# in one assistant turn, so expose the manifest explicitly in scheduler output.
+# Bounded dispatch wave: emit at most $maxDispatchActionsPerSnapshot actions per turn
+$maxDispatchActionsPerSnapshot = 8
+$actions = @($allActions | Select-Object -First $maxDispatchActionsPerSnapshot)
+
+# Dispatch accounting: expose the bounded wave manifest explicitly in scheduler output
 $dispatchCount = @($actions).Count
 $workerDispatchCount = @($actions | Where-Object {
     $_.dispatch -like 'job-autopilot-*'
 }).Count
 $coordinatorDispatchCount = $dispatchCount - $workerDispatchCount
 $dispatchManifest = [ordered]@{
-    expected_count     = $dispatchCount
-    worker_count       = $workerDispatchCount
-    coordinator_count  = $coordinatorDispatchCount
-    action_ids         = @($actions | ForEach-Object { $_.action_id })
+    available_count  = @($allActions).Count
+    emitted_count    = $dispatchCount
+    remaining_count  = @($allActions).Count - $dispatchCount
+    has_more         = (@($allActions).Count -gt $dispatchCount)
+    action_ids       = @($actions | ForEach-Object { $_.action_id })
 }
 
 if ($null -eq $nextAction) {
@@ -620,8 +615,8 @@ $out = [ordered]@{
         discovery_needed       = ($freehireDiscoveryAvailable -or $linkedinDiscoveryAvailable)
         discovery_slots        = $discoverySlots
         discovery_sources      = [ordered]@{
-            freehire        = [ordered]@{ available = $freehireDiscoveryAvailable; target_new = $discoverySlots }
-            linkedin_browser = [ordered]@{ available = $linkedinDiscoveryAvailable; target_new = $discoverySlots }
+            freehire        = [ordered]@{ available = $freehireDiscoveryAvailable; target_new = $freehireDiscoveryTarget }
+            linkedin_browser = [ordered]@{ available = $linkedinDiscoveryAvailable; target_new = $linkedinDiscoveryTarget }
         }
         concurrency            = $concurrency
         dispatch_manifest      = $dispatchManifest
@@ -656,24 +651,24 @@ $out = [ordered]@{
         next_at            = $linkedinStatus.next_easy_apply_at
         blocked            = @($linkedinStatus.block_reasons).Count -gt 0
     }
-instruction              = if ($nextAction -eq 'await-active-claims') {
+    instruction              = if ($nextAction -eq 'await-active-claims') {
         'No unclaimed action is currently available. Rerun state after active claims finish or expire.'
     }
     elseif ($nextAction -eq 'discover') {
         $lines = @()
-        if ($freehireDiscoveryAvailable) { $lines += "FreeHire discovery available (target $discoverySlots)." }
-        if ($linkedinDiscoveryAvailable) { $lines += "LinkedIn discovery available (target $discoverySlots)." }
+        if ($freehireDiscoveryAvailable) { $lines += "FreeHire discovery available (target $freehireDiscoveryTarget)." }
+        if ($linkedinDiscoveryAvailable) { $lines += "LinkedIn discovery available (target $linkedinDiscoveryTarget)." }
         if ($lines.Count -eq 0) { $lines += 'Both discovery sources busy.' }
         ($lines -join ' ') + ' Dispatch available discovery sources as background workers; do not wait for completion before scheduling other work. Rerun state after any worker finishes.'
     }
     elseif ($freehireDiscoveryAvailable -or $linkedinDiscoveryAvailable) {
         $lines = @()
-        if ($freehireDiscoveryAvailable) { $lines += "FreeHire discovery available (target $discoverySlots)." }
-        if ($linkedinDiscoveryAvailable) { $lines += "LinkedIn discovery available (target $discoverySlots)." }
+        if ($freehireDiscoveryAvailable) { $lines += "FreeHire discovery available (target $freehireDiscoveryTarget)." }
+        if ($linkedinDiscoveryAvailable) { $lines += "LinkedIn discovery available (target $linkedinDiscoveryTarget)." }
         ($lines -join ' ') + ' Dispatch available discovery sources as background workers alongside assessment, research, resume, and application actions. Never use one source status to block the other or downstream work. Rerun state after any worker finishes.'
     }
     else {
-        'Emit every independent non-LinkedIn worker action together up to runtime capacity, including research. LinkedIn Easy Apply remains serial.'
+        'Dispatch every action returned in state.actions. Do not attempt to reconstruct or dispatch actions not present in the current bounded wave. After the background launches return, rerun session-state.ps1 -Compact. Continue bounded waves until the currently runnable backlog is claimed or empty.'
     }
 }
 if ($Compact) {
