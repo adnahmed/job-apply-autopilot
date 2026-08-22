@@ -30,6 +30,22 @@ function Write-AtomicJson([string]$Path,$Value) {
     try { $Value | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $temp -Encoding UTF8; [IO.File]::Move($temp,$Path,$true) }
     finally { if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue} }
 }
+function Get-CopyUrl($Copy) {
+    return [string](Pick $Copy @('apply_url','application_url','job_url','url'))
+}
+function Test-AggregatorUrl([string]$Url) {
+    if ([string]::IsNullOrWhiteSpace($Url)) { return $false }
+    try { $hostName = ([Uri]$Url).Host.ToLowerInvariant() -replace '^www\.','' } catch { return $false }
+    return $hostName -match '(^|\.)(whatjobs\.com|jobleads\.[a-z.]+|jooble\.[a-z.]+|adzuna\.[a-z.]+|talent\.com|bebee\.[a-z.]+|jobrapido\.com|freehire\.me)$'
+}
+function Get-RouteRank([string]$Url) {
+    if ([string]::IsNullOrWhiteSpace($Url)) { return 100 }
+    try { $hostName = ([Uri]$Url).Host.ToLowerInvariant() -replace '^www\.','' } catch { return 90 }
+    if ($hostName -match '(^|\.)(greenhouse\.io|lever\.co|ashbyhq\.com|workable\.com|smartrecruiters\.com|myworkdayjobs\.com|bamboohr\.com|recruitee\.com)$') { return 0 }
+    if (Test-AggregatorUrl $Url) { return 80 }
+    if ($hostName -match '(^|\.)linkedin\.com$') { return 70 }
+    return 10
+}
 function Invoke-FreeHireGet([string]$Path,[hashtable]$Query=@{}) {
     $pairs=@()
     foreach($key in $Query.Keys){$pairs += "$([Uri]::EscapeDataString($key))=$([Uri]::EscapeDataString([string]$Query[$key]))"}
@@ -96,7 +112,7 @@ if($candidatePool.Count -lt [Math]::Max($TargetNew * 2,16)) {
     }
 }
 
-$created=0; $examined=0; $rejected=0; $duplicates=0
+$created=0; $existing=0; $examined=0; $rejected=0; $duplicates=0; $routePending=0
 foreach($item in $candidatePool) {
     if($created -ge $TargetNew){break}
     $examined++
@@ -115,12 +131,16 @@ foreach($item in $candidatePool) {
     }
 
     $copies=@()
-    if(-not $jobUrl -or $jobUrl -match '(?i)linkedin\.com'){
+    if(-not $jobUrl -or $jobUrl -match '(?i)linkedin\.com' -or (Test-AggregatorUrl $jobUrl)){
         try {
             $copyResponse=Invoke-FreeHireGet "jobs/$([Uri]::EscapeDataString($publicSlug))/copies" @{limit=50}
             $copies=@($copyResponse.data)
-            $directCopy=$copies | Where-Object {$_.apply_url -and [string]$_.apply_url -notmatch '(?i)linkedin\.com'} | Select-Object -First 1
-            if($directCopy){$jobUrl=[string]$directCopy.apply_url;if($directCopy.location){$location=[string]$directCopy.location}}
+            $routeCandidates = @(
+                if($jobUrl){[pscustomobject]@{url=$jobUrl;location=$location;rank=(Get-RouteRank $jobUrl)}}
+                foreach($copy in $copies){$copyUrl=Get-CopyUrl $copy;if($copyUrl){[pscustomobject]@{url=$copyUrl;location=[string]$copy.location;rank=(Get-RouteRank $copyUrl)}}}
+            )
+            $bestRoute=$routeCandidates | Sort-Object rank | Select-Object -First 1
+            if($bestRoute){$jobUrl=[string]$bestRoute.url;if($bestRoute.location){$location=[string]$bestRoute.location}}
         } catch {}
     }
 
@@ -136,14 +156,21 @@ foreach($item in $candidatePool) {
         & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $jobCandidate.job_id -Status 'skipped-job-quality' -ReasonCode ([string]$quality.reason_code) -Company $company -Title $title -Location $location -JobUrl $jobUrl -Source 'freehire' -Notes ([string]$quality.evidence) -Workspace $Workspace | Out-Null
         continue
     }
-    $workItem=& (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId $jobCandidate.job_id -Company $company -Title $title -JobUrl $jobUrl -Location $location -Source 'freehire' -DiscoveryLane $lane -SearchQuery 'fresh engineering composite lane' -Workspace $Workspace
-    $workItem=[string]($workItem|Select-Object -Last 1)
-    if($workItem.StartsWith('DUPLICATE:') -or $workItem.StartsWith('REJECTED:')){$duplicates++;continue}
+    $creationRaw=& (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId $jobCandidate.job_id -Company $company -Title $title -JobUrl $jobUrl -Location $location -Source 'freehire' -DiscoveryLane $lane -SearchQuery 'fresh engineering composite lane' -Workspace $Workspace -Structured
+    $creation=([string]($creationRaw|Select-Object -Last 1))|ConvertFrom-Json
+    if([string]$creation.status -eq 'existing'){$existing++;continue}
+    if([string]$creation.status -eq 'duplicate'){$duplicates++;continue}
+    if([string]$creation.status -eq 'rejected'){$rejected++;continue}
+    if([string]$creation.status -ne 'created' -or [string]::IsNullOrWhiteSpace([string]$creation.path){$apiWarnings.Add([ordered]@{lane=$lane;error="unexpected-new-workitem-status:$($creation.status)"});continue}
+    $workItem=[string]$creation.path
     $metadata.quality=$quality
     Write-AtomicJson (Join-Path $workItem 'source-metadata.json') $metadata
     "# $title`n`nEmployer: $company`nLocation: $location`nSource: FreeHire ($publicSlug)`nApply URL: $jobUrl`n`n$description`n" | Set-Content -LiteralPath (Join-Path $workItem 'source.md') -Encoding UTF8
-    if($jobUrl -and $jobUrl -notmatch '(?i)linkedin\.com'){
+    if($jobUrl -and $jobUrl -notmatch '(?i)linkedin\.com' -and -not (Test-AggregatorUrl $jobUrl)){
         & (Join-Path $PSScriptRoot 'set-application-route.ps1') -WorkItemDir $workItem -Route 'external' -Target $jobUrl -Evidence 'FreeHire direct job/copy apply URL' | Out-Null
+    } elseif($jobUrl -and (Test-AggregatorUrl $jobUrl)) {
+        & (Join-Path $PSScriptRoot 'set-application-route.ps1') -WorkItemDir $workItem -Route 'unresolved' -Target $jobUrl -Evidence 'Aggregator-only route requires direct employer or ATS resolution before application' | Out-Null
+        $routePending++
     }
     try {
         $formResponse=Invoke-FreeHireGet "jobs/$([Uri]::EscapeDataString($publicSlug))/apply-form"
@@ -158,6 +185,6 @@ foreach($item in $candidatePool) {
 Write-Progress -Activity 'FreeHire discovery' -Completed
 [ordered]@{
     status='complete';source='freehire';created=$created;target=$TargetNew;examined=$examined
-    candidates=$candidatePool.Count;quality_rejected=$rejected;duplicates=$duplicates
+    candidates=$candidatePool.Count;quality_rejected=$rejected;duplicates=$duplicates;existing=$existing;route_pending=$routePending
     lanes=$laneStats;api_warnings=$apiWarnings
 } | ConvertTo-Json -Compress -Depth 12

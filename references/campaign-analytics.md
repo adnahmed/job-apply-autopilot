@@ -1,4 +1,4 @@
-# Campaign Analytics V5.7
+# Campaign Analytics V6.2
 
 ## Purpose
 Use accumulated application outcomes to spend discovery effort where credible eligible jobs are actually found. Analytics may change search allocation, never truth/eligibility/fit standards.
@@ -20,6 +20,9 @@ At minimum:
 - discovery-lane distribution when available,
 - per-lane submitted / skipped / blocked counts,
 - ATS-domain successes/blockers when `application-result.json` supplies them.
+- assessment, route, and application-preflight state distributions,
+- recoverable item/retry totals and maximum retries,
+- normalized answer-resolution calls, repeated questions, and loop-guard triggers.
 
 ## Adaptive search allocation
 Do not overreact to tiny samples.

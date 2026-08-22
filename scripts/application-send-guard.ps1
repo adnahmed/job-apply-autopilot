@@ -81,7 +81,8 @@ function Get-SubmissionIdentity([string]$Company, [string]$Title, [string]$JobId
         $priorCompanyKey = $companyKey
         $companyKey = ($companyKey -replace '\s+(private limited|pvt ltd|pvt limited|limited|ltd|llc|incorporated|inc|corporation|corp|gmbh|plc|company|co)$', '').Trim()
     } while ($companyKey -ne $priorCompanyKey)
-    $titleKey = (($Title.ToLowerInvariant() -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
+    $titleNormalized = (($Title.ToLowerInvariant() -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
+    $titleKey = (($titleNormalized.Split(' ', [StringSplitOptions]::RemoveEmptyEntries) | Sort-Object) -join ' ')
     if ($companyKey -and $titleKey) { return "$companyKey|$titleKey" }
     return "job:$JobId"
 }

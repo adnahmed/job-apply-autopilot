@@ -8,7 +8,8 @@ param(
     [string]$Source = '',
     [string]$DiscoveryLane = '',
     [string]$SearchQuery = '',
-    [string]$Workspace = (Get-Location).Path
+    [string]$Workspace = (Get-Location).Path,
+    [switch]$Structured
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,6 +29,25 @@ function Convert-ToSlug([string]$Text) {
     return $slug
 }
 
+function Emit-Result([string]$Status, [string]$Path = '', [string]$Reason = '', [string]$MatchedJobId = '') {
+    if ($Structured) {
+        [ordered]@{
+            status = $Status
+            job_id = $JobId
+            path = if ([string]::IsNullOrWhiteSpace($Path)) { $null } else { $Path }
+            reason = if ([string]::IsNullOrWhiteSpace($Reason)) { $null } else { $Reason }
+            matched_job_id = if ([string]::IsNullOrWhiteSpace($MatchedJobId)) { $null } else { $MatchedJobId }
+        } | ConvertTo-Json -Compress
+        return
+    }
+    switch ($Status) {
+        'created' { Write-Output $Path }
+        'existing' { Write-Output $Path }
+        'duplicate' { Write-Output "DUPLICATE:${JobId}:${Reason}:${MatchedJobId}" }
+        'rejected' { Write-Output "REJECTED:${JobId}:${Reason}" }
+    }
+}
+
 $slug = Convert-ToSlug "$Company-$Title"
 $queueRoot = Join-Path $Workspace '.job-apply-autopilot\queue'
 $generatedRoot = Join-Path $Workspace '.job-apply-autopilot\generated'
@@ -42,7 +62,7 @@ $quality = (& (Join-Path $PSScriptRoot 'check-job-quality.ps1') -JobJson ($quali
 if (-not [bool]$quality.allowed) {
     & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $JobId -Status 'skipped-job-quality' -ReasonCode ([string]$quality.reason_code) `
         -Company $Company -Title $Title -Location $Location -JobUrl $JobUrl -Source $Source -Notes ([string]$quality.evidence) -Workspace $Workspace | Out-Null
-    Write-Output "REJECTED:${JobId}:$($quality.reason_code)"
+    Emit-Result 'rejected' -Reason ([string]$quality.reason_code)
     exit 0
 }
 
@@ -55,7 +75,7 @@ foreach ($base in @($queueRoot, $generatedRoot)) {
         try {
             $existingJob = Get-Content -LiteralPath $existingJobPath -Raw | ConvertFrom-Json
             if ([string]$existingJob.job_id -eq $JobId) {
-                Write-Output $existing.FullName
+                Emit-Result 'existing' -Path $existing.FullName -Reason 'exact-job-id' -MatchedJobId $JobId
                 exit 0
             }
         } catch {}
@@ -74,7 +94,7 @@ if ($duplicate) {
             -ReasonCode ([string]$duplicate.reason) -Company $Company -Title $Title -Location $Location `
             -JobUrl $JobUrl -Source $Source -Notes "Matches $($duplicate.matched_job_id)." -Workspace $Workspace | Out-Null
     }
-    Write-Output "DUPLICATE:${JobId}:$($duplicate.reason):$($duplicate.matched_job_id)"
+    Emit-Result 'duplicate' -Reason ([string]$duplicate.reason) -MatchedJobId ([string]$duplicate.matched_job_id)
     exit 0
 }
 
@@ -96,7 +116,7 @@ $job = [ordered]@{
 $job | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $workDir 'job.json') -Encoding UTF8
 
 $assessment = [ordered]@{
-    policy_version = '6.1'
+    policy_version = '6.2'
     job_id = $JobId
     status = 'pending'
     score = $null
@@ -120,4 +140,4 @@ if (-not (Test-Path -LiteralPath $sourcePath)) {
     Set-Content -LiteralPath $sourcePath -Value "# Captured job source`n`nCoordinator: replace this placeholder with the full JD and source/location evidence before invoking an assessor.`n" -Encoding UTF8
 }
 
-Write-Output $workDir
+Emit-Result 'created' -Path $workDir

@@ -3,7 +3,7 @@ name: job-apply-autopilot
 description: "Goal-driven autonomous job discovery, truthful fit triage, tailored resumes, and idempotent verified submission through BrowserOS neo. Uses claimed actions, semantic dedupe, verification quarantine, and deterministic application outcomes."
 ---
 
-# Job Apply Autopilot V6.1.1 — API-Driven Fast Routes
+# Job Apply Autopilot V6.2.0 — Contract-Enforced Parallel Pipeline
 
 Mission: maximize credible net-new interview opportunities per unit time while preserving truth, the candidate's documented geographic eligibility, security controls, and duplicate safety. Tool activity, duplicate work, placeholders, and unverified outcomes are not progress.
 
@@ -17,7 +17,7 @@ Every initial turn and every goal continuation must rerun the authoritative stat
 
 ```powershell
 $workspace = (Get-Location).Path
-$state = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\session-state.ps1" -Workspace $workspace | ConvertFrom-Json
+$state = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\session-state.ps1" -Workspace $workspace -Compact | ConvertFrom-Json
 ```
 
 Never set goals in workers. The configured child-session gate prevents continuation coordinator turns while workers are active.
@@ -49,7 +49,7 @@ Competing sessions may snapshot the same action, but only one owner proceeds. Wo
 
 ```powershell
 $claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.ps1" `
-  -Action Acquire -Scope WorkItem -Stage '<state-stage>' -WorkItemDir '<absolute-path>' -Workspace $workspace | ConvertFrom-Json
+  -Action Acquire -Scope WorkItem -Stage '<state-stage>' -WorkItemDir '<absolute-path>' -Workspace $workspace -LeaseMinutes 20 | ConvertFrom-Json
 ```
 
 If `acquired` is false, exit that action immediately. Keep `owner_id`. Transition scripts clear matching claims. If no transition occurred, release with the complete identity tuple; `-OwnerId` alone is not a valid command:
@@ -66,7 +66,7 @@ Discovery is also claimed:
 
 ```powershell
 $claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.ps1" `
-  -Action Acquire -Scope Discovery -Stage discovery -Workspace $workspace | ConvertFrom-Json
+  -Action Acquire -Scope Discovery -Stage discovery -Workspace $workspace -LeaseMinutes 15 | ConvertFrom-Json
 ```
 
 Only the acquired discovery owner browses or creates items. Release after the pass with:
@@ -78,7 +78,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.p
 
 ## Parallel pipeline
 
-Issue all independent worker Task calls in one assistant turn. Respect `scheduler.active_wave` and each action's `wave`: exhaust `fast` before dispatching `research`. Group by `dispatch`, use every supplied `worker_prompt` verbatim, and rerun state after each wave. LinkedIn Easy Apply alone is serial at one; assessor, research, resume, external ATS, and email workers run up to host capacity.
+Issue all independent worker Task calls in one assistant turn. Respect `scheduler.active_wave` and each action's `wave`: exhaust `fast` before dispatching `research`. Group by `dispatch`, use every supplied `worker_prompt` verbatim, and rerun compact state after each wave. LinkedIn Easy Apply alone is serial at one; the skill imposes no concurrency ceiling on assessor, research, resume, external ATS, or email workers. The runtime may schedule as many independent workers as it can host.
 
 Maintain the reported eight-item source-ready/actionable intake floor. Dispatch ready work, then fill `scheduler.discovery_slots`. Quarantined jobs do not consume discovery capacity.
 
@@ -101,7 +101,7 @@ Prefer keyless FreeHire discovery before browser search when `scheduler.discover
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\discover-freehire.ps1" -Workspace $workspace -TargetNew $state.scheduler.discovery_slots
 ```
 
-It performs one composite faceted request per fresh Pakistan, global-remote, and sponsorship lane; checks `meta.ignored_params`; stores full source/reality metadata; uses semantic-similar jobs only as a sparse-lane fallback; checks posting copies only to recover a missing/aggregator route; captures available application questions; and persists explicit routes. FreeHire reality is evidence with its workings, never an automatic employer verdict. Explicit denylist overrides, unnamed clients, and predatory funnels remain hard quality rejections.
+It performs one composite faceted request per fresh Pakistan, global-remote, and sponsorship lane; checks `meta.ignored_params`; stores full source/reality metadata; uses semantic-similar jobs only as a sparse-lane fallback; checks posting copies to recover a missing/aggregator route; ranks direct ATS/employer copies first; captures available application questions; and persists aggregator-only targets as `unresolved` route evidence. FreeHire reality is evidence with its workings, never an automatic employer verdict. Explicit denylist overrides, unnamed clients, and predatory funnels remain hard quality rejections.
 
 Derive local and regional lanes from `profile.yaml` (`candidate.location` and `search_defaults.locations`). Rotate lanes: home-country/local direct; explicitly compatible regional remote; worldwide/international contractor; sponsorship/relocation; direct employer/ATS; broader backend/platform/AI/software synonyms.
 
@@ -112,13 +112,13 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\dedupe-jobs.ps
   -CandidatesJson '<job_id/company/title JSON array>' -Workspace $workspace
 ```
 
-Create plausible jobs only through `new-workitem.ps1`, then replace the source placeholder with the complete JD before assessment. A `DUPLICATE:` return is not a path.
+Create plausible jobs only through the structured `new-workitem.ps1` contract, then replace the source placeholder with the complete JD only when status is `created`. `existing`, `duplicate`, and `rejected` are terminal results for that discovery candidate; never overwrite their artifacts or count them as newly discovered.
 
 ```powershell
-$workItem = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\new-workitem.ps1" `
+$creation = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\new-workitem.ps1" `
   -JobId '<id>' -Company '<company>' -Title '<title>' -JobUrl '<url>' `
   -Location '<location>' -Source '<source>' -DiscoveryLane '<lane>' `
-  -SearchQuery '<query>' -Workspace $workspace
+  -SearchQuery '<query>' -Workspace $workspace -Structured | ConvertFrom-Json
 ```
 
 Discovery/assessment skips use only an allowed value through `log-decision.ps1`: `skipped-job-quality`, `skipped-obvious`, `skipped-duplicate`, `skipped-closed`, `skipped-ineligible`, `skipped-low-fit`, `skipped-mandatory-gate`, `skipped-stack-mismatch`, `skipped-role-family`, `skipped-location-lock`, `skipped-work-auth-gate`, `skipped-location-gate`, `skipped-agency-unknown-client`, `skipped-agency`, `skipped-aggregator`, `skipped-management-only`, or `skipped-license-clearance`. The command rejects application-route statuses and promoted jobs; application blockers use the application outcome writer.
@@ -133,7 +133,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\log-decision.p
 
 Queue roles plausibly worth applying to. Default score threshold is 72; 68–71 may pass only with strong role identity and eligibility. Hard failures are legal/work-auth/credential blockers, fundamentally different specialist identity, defining unsupported management, or several absent defining capabilities.
 
-Assessment writes go only through `commit-assessment.ps1` with `-ExpectedPriorStatus`. It is first-writer-safe: `already-committed` means stale or duplicate work must stop. Research finalizes pass/fail in the same worker call.
+Assessment writes go only through `commit-assessment.ps1` with `-ExpectedPriorStatus`. It validates the complete payload and returns every schema error in one rejection, enforces the score threshold, and is first-writer-safe: `already-committed` means stale or duplicate work must stop. Research finalizes pass/fail in the same worker call. `advance-workitem.ps1` independently refuses legacy passed assessments below the same threshold.
 
 Passed work advances only through:
 
@@ -146,7 +146,7 @@ Promotion and resume compilation reuse valid existing generated directories/arti
 
 Route ready work immediately using only `application-route.json`. Persist routes through `set-application-route.ps1`; never infer them from the discovery source. Direct employer-email applications go only to `job-autopilot-email-apply`; external ATS/company forms go only to `job-autopilot-external-apply`. Every applicator reservation re-runs the quality gate. LinkedIn Easy Apply remains coordinator-owned and serial under its governor.
 
-For required questions, call `resolve-application-answer.ps1`. It resolves profile-backed education dates, routine fields, demographic declines, and expected compensation. Salary resolution uses a posted range first, then cached FreeHire `/insights/salary` p25 data from the job's country/category/seniority with progressively broader market fallbacks, period conversion, and profile defaults only last. Never create a new `blocked-unknown-fact`; that value remains accepted only as legacy terminal history. Use `blocked-protected-fact` only for genuinely protected identity, legal, authorization, or sensitive-disclosure facts.
+Run `preflight-application.ps1` before an external reservation whenever an answer plan exists. For required questions, call `resolve-application-answer.ps1`. It resolves canonical identity/education/employment facts, demographic declines, availability, and expected compensation. Salary resolution uses a posted range first, then cached FreeHire `/insights/salary` p25 data from the job's country/category/seniority with progressively broader market fallbacks, period conversion, and profile defaults only last. Unknown required capability/routine questions return `needs-semantic-answer`; unknown required identity, legal, authorization, or sensitive-disclosure facts return `blocked-protected-fact`. It never fabricates zero, No, or Not applicable defaults, and a per-claim loop guard stops the same normalized question after two attempts.
 
 ## Submission and quarantine
 

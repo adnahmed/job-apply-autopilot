@@ -1,5 +1,5 @@
 {
-  "policy_version": "6.1",
+  "policy_version": "6.2",
   "job_id": "example",
   "status": "passed",
   "score": 78,
@@ -14,6 +14,7 @@
     "truth_feasibility": true
   },
   "reason_codes": ["credible-core-fit"],
+  "candidate_evidence_requirements": [],
   "needs_external_research": false,
   "needs_candidate_evidence": false
 }

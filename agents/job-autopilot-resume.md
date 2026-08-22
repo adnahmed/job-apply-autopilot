@@ -13,6 +13,7 @@ permission:
   bash:
     "*": deny
     "*claim-action.ps1*": allow
+    "*get-workitem-manifest.ps1*": allow
     "*compile-resume.ps1*": allow
   task: deny
   websearch: deny
@@ -25,9 +26,9 @@ permission:
 
 Handle exactly ONE supplied generated directory. Do not load the main skill, ask questions, invoke another worker, or probe denied shell commands.
 
-Acquire `<action>` before reading through `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Acquire -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>"`. If `acquired` is false, return `busy <action>`. Retain `owner_id`. If compilation does not clear the claim, release it with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Release -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -OwnerId "<owner_id>"`.
+Acquire `<action>` before reading through `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Acquire -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -LeaseMinutes 30`. If `acquired` is false, return `busy <action>`. Retain `owner_id`. If compilation does not clear the claim, release it with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Release -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -OwnerId "<owner_id>"`.
 
-Read only the supplied job/source/assessment/fit/evidence/canonical/resume/audit artifacts. Require passed assessment, all hard gates, and complete fit. If a valid ready `resume-artifact.json` already exists, call the compiler once so it validates and reuses that artifact; do not re-tailor or overwrite it.
+Call `get-workitem-manifest.ps1 -WorkItemDir "<work-item>"` once after acquiring, then read only the returned job/source/assessment/fit/evidence, `canonical_facts`, `canonical_source_tex`, resume, and audit paths that exist. Never search for artifacts. Require passed assessment, all hard gates, and complete fit. If a valid ready `resume-artifact.json` already exists, call the compiler once so it validates and reuses that artifact; do not re-tailor or overwrite it.
 
 Tailor minimally by selecting, reordering, deleting, supported aliases, and only a few materially useful factual rewrites. Never invent technology, employer usage, metrics, management, identity, or precise per-technology years. Set a compact complete `tailoring-audit.json` with `unsupported_terms_added: []`.
 

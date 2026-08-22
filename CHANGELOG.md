@@ -1,3 +1,15 @@
+# V6.2.0 — Runtime Contract Enforcement
+
+- Preserved uncapped non-LinkedIn worker fan-out while replacing 90-minute default worker claims with explicit 20/30/45-minute stage leases and a 15-minute discovery lease.
+- Added a deterministic work-item manifest so workers receive exact canonical, runtime evidence, and optional artifact paths without probing or guessing.
+- Made assessment commits return all schema errors in one response, documented the exact worker payload, and enforced the 72 threshold plus the narrow 68-71 exception in both commit and promotion paths.
+- Removed required-field `0`, `No`, and `Not applicable` guesses; added canonical identity resolution, protected-fact blocking, semantic-answer handoff, application preflight, and a per-claim repeated-question circuit breaker.
+- Added structured `created`/`existing`/`duplicate`/`rejected` work-item creation so exact-ID rediscovery cannot overwrite source metadata or inflate discovery counts.
+- Made semantic title identity insensitive to word order, ranked direct ATS/employer copies ahead of aggregators, and persisted aggregator-only targets as unresolved routes.
+- Added compact continuation state and moved installed-agent backups outside the auto-discovered agent directory with an explicit restart warning for cached definitions.
+- Extended campaign statistics with assessment/route/preflight state, recoverable retry totals, and repeated answer-resolution/loop-guard counts so long-session bottlenecks are visible without reprocessing raw session exports.
+- Added non-sending resilience assertions for structured idempotency, manifest location, aggregate assessment errors, score enforcement, safe answer resolution, and reordered-title dedupe; they are packaged but were not executed for this change.
+
 # V6.1.1 — FreeHire API and Salary Reliability Fix
 
 - Fixed a PowerShell syntax error that prevented the new quality gate from running.

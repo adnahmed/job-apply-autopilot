@@ -13,6 +13,7 @@ permission:
   bash:
     "*": deny
     "*claim-action.ps1*": allow
+    "*get-workitem-manifest.ps1*": allow
     "*application-send-guard.ps1*": allow
     "*check-job-quality.ps1*": allow
     "*write-application-outcome.ps1*": allow
@@ -29,9 +30,9 @@ permission:
 
 Handle exactly ONE supplied approved generated directory and one employer email. Do not load the main skill, ask questions, invoke another worker, write the ledger, or probe denied shell commands. Use exact installed paths under `$HOME\.config\opencode\skills\job-apply-autopilot`.
 
-Acquire `<action>` before reading through `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Acquire -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>"`. If `acquired` is false, return `busy <action>`. Retain `owner_id`. If no transition clears the claim, release it with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Release -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -OwnerId "<owner_id>"`.
+Acquire `<action>` before reading through `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Acquire -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -LeaseMinutes 45`. If `acquired` is false, return `busy <action>`. Retain `owner_id`. If no transition clears the claim, release it with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Release -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -OwnerId "<owner_id>"`.
 
-Require passed gates, a ready exact resume artifact, and an explicit `application-route.json` email route; never infer it from source or domain. If `<action>` is `application_outcome_repair`, never compose or send: call `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\application-send-guard.ps1" -WorkItemDir "<work-item>" -Action Status` to reconstruct a submitted result, or call `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\write-application-outcome.ps1" -WorkItemDir "<work-item>" -Status <canonical-status> -Blocker "<reason>" -ApplyMethod email -Target "<recipient>"` for the terminal blocker recorded in progress.
+Call `get-workitem-manifest.ps1 -WorkItemDir "<work-item>"` once after acquiring and use only its exact returned paths. Require passed gates, a ready exact resume artifact, and an explicit `application-route.json` email route; never infer it from source or domain. If `<action>` is `application_outcome_repair`, never compose or send: call `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\application-send-guard.ps1" -WorkItemDir "<work-item>" -Action Status` to reconstruct a submitted result, or call `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\write-application-outcome.ps1" -WorkItemDir "<work-item>" -Status <canonical-status> -Blocker "<reason>" -ApplyMethod email -Target "<recipient>"` for the terminal blocker recorded in progress.
 
 BrowserOS one-strike rule: `run` may be called once. If it fails, never call it again in this worker; use only granular BrowserOS tools from `$HOME\.config\opencode\skills\job-apply-autopilot\references\browseros-playbook.md`. Never probe shell/CDP. On connection loss, make one tabs probe, finish local checkpoint work, defer, and return `deferred email browseros-unavailable`.
 

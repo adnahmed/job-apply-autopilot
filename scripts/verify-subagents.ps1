@@ -30,7 +30,9 @@ foreach ($name in $names) {
         $failed = $true
         continue
     }
-    if ($text -notmatch '(?m)^\s{4}"\*claim-action\.ps1\*":\s*allow\s*$' -or $text -notmatch '\-Action Acquire') {
+    if ($text -notmatch '(?m)^\s{4}"\*claim-action\.ps1\*":\s*allow\s*$' -or
+        $text -notmatch '(?m)^\s{4}"\*get-workitem-manifest\.ps1\*":\s*allow\s*$' -or
+        $text -notmatch '\-Action Acquire' -or $text -notmatch '\-LeaseMinutes\s+(20|30|45)') {
         Write-Error "ACTION CLAIM CONTRACT MISSING in $path"
         $failed = $true
         continue
@@ -70,7 +72,7 @@ foreach ($name in $names) {
             $failed = $true
             continue
         }
-        if ($name -eq 'job-autopilot-external-apply.md' -and ($text -notmatch '(?m)^\s{4}"\*resolve-application-answer\.ps1\*":\s*allow\s*$' -or $text -notmatch '(?m)^\s{4}"\*get-market-salary\.ps1\*":\s*allow\s*$' -or $text -notmatch '(?m)^\s{4}"\*set-application-route\.ps1\*":\s*allow\s*$')) {
+        if ($name -eq 'job-autopilot-external-apply.md' -and ($text -notmatch '(?m)^\s{4}"\*resolve-application-answer\.ps1\*":\s*allow\s*$' -or $text -notmatch '(?m)^\s{4}"\*preflight-application\.ps1\*":\s*allow\s*$' -or $text -notmatch '(?m)^\s{4}"\*get-market-salary\.ps1\*":\s*allow\s*$' -or $text -notmatch '(?m)^\s{4}"\*set-application-route\.ps1\*":\s*allow\s*$')) {
             Write-Error "EXTERNAL APPLICATOR ANSWER/SALARY/ROUTE PERMISSIONS MISSING in $path"
             $failed = $true
             continue

@@ -89,6 +89,21 @@ try {
         }
     }
 
+    $assessmentScore = 0
+    $scoreValid = [int]::TryParse([string]$assessment.score, [ref]$assessmentScore)
+    $narrowException = @($assessment.reason_codes) -contains 'strong-role-identity-and-eligibility'
+    if (-not $scoreValid -or $assessmentScore -lt 0 -or $assessmentScore -gt 100 -or $assessmentScore -lt 68 -or ($assessmentScore -lt 72 -and -not $narrowException)) {
+        $job = Read-JsonSafe (Join-Path $WorkItemDir 'job.json')
+        $reasonCode = if (-not $scoreValid) { 'assessment-score-invalid' } elseif ($assessmentScore -lt 68) { 'assessment-score-below-policy' } else { 'assessment-narrow-exception-missing' }
+        & (Join-Path $PSScriptRoot 'log-decision.ps1') `
+            -JobId ([string]$job.job_id) -Status 'skipped-low-fit' -ReasonCode $reasonCode `
+            -Company ([string]$job.company) -Title ([string]$job.title) -Location ([string]$job.location) `
+            -JobUrl ([string]$job.job_url) -Source ([string]$job.source) `
+            -Notes "Passed assessment was not promotable under the score policy (score=$assessmentScore)." -Workspace $Workspace | Out-Null
+        Emit @{ status='terminal'; job_id=[string]$job.job_id; code=$reasonCode; score=$assessmentScore; next_stage='process_other_work' }
+        exit 0
+    }
+
     $candidateEvidence = Join-Path $WorkItemDir 'candidate-evidence-research.json'
     if (Test-Path -LiteralPath $candidateEvidence) {
         try {

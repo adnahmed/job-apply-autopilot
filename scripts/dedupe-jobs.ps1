@@ -28,9 +28,16 @@ function Normalize-Company([string]$Value) {
     return $normalized
 }
 
+function Normalize-Title([string]$Value) {
+    $normalized = Normalize-Text $Value
+    if (-not $normalized) { return '' }
+    return (($normalized.Split(' ', [StringSplitOptions]::RemoveEmptyEntries) | Sort-Object) -join ' ')
+}
+
 function Get-IdentityKey([string]$Company, [string]$Title) {
     $companyKey = Normalize-Company $Company
-    $titleKey = Normalize-Text $Title
+    # Job boards frequently reorder the same title tokens for region/repost copies.
+    $titleKey = Normalize-Title $Title
     if (-not $companyKey -or -not $titleKey) { return '' }
     return "$companyKey|$titleKey"
 }

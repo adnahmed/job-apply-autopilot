@@ -1,4 +1,4 @@
-# Parallel Orchestration V6.1 — Claimed Fast/Research Pipeline
+# Parallel Orchestration V6.2 — Claimed Fast/Research Pipeline
 
 Optimize verified net-new submissions per hour. Keeping one independent job in flight is a scheduler failure.
 
@@ -6,7 +6,7 @@ Optimize verified net-new submissions per hour. Keeping one independent job in f
 
 LinkedIn Easy Apply is coordinator-owned and serial at 1 under its governor. Every assessor, research, resume, external ATS, and email worker is otherwise uncapped by skill policy and runs up to runtime capacity.
 
-Group `session-state.ps1` actions by `dispatch` and emit all Task calls for a group in one assistant turn. Never call one worker, wait, and then call the next independent worker. The state snapshot carries each path once; do not reconstruct or duplicate path batches. Every worker and coordinator-local action must acquire its stage claim before reading or acting; a losing owner exits immediately.
+Group compact `session-state.ps1` actions by `dispatch` and emit all Task calls for a group in one assistant turn. Never call one worker, wait, and then call the next independent worker. The state snapshot carries each path once; do not reconstruct or duplicate path batches. Every worker and coordinator-local action must acquire its stage claim before reading or acting; a losing owner exits immediately. Worker leases are stage-sized (20 minutes assessor, 30 research/resume, 45 applicator), not a shared 90-minute stall window.
 
 ## Fast and research waves
 

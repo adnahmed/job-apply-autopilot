@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([string]$Workspace = (Get-Location).Path)
+param(
+    [string]$Workspace = (Get-Location).Path,
+    [switch]$Compact
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -38,7 +41,8 @@ function Get-SubmissionIdentity([string]$Company, [string]$Title, [string]$JobId
         $priorCompanyKey = $companyKey
         $companyKey = ($companyKey -replace '\s+(private limited|pvt ltd|pvt limited|limited|ltd|llc|incorporated|inc|corporation|corp|gmbh|plc|company|co)$', '').Trim()
     } while ($companyKey -ne $priorCompanyKey)
-    $titleKey = (($Title.ToLowerInvariant() -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
+    $titleNormalized = (($Title.ToLowerInvariant() -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
+    $titleKey = (($titleNormalized.Split(' ', [StringSplitOptions]::RemoveEmptyEntries) | Sort-Object) -join ' ')
     if ($companyKey -and $titleKey) { return "$companyKey|$titleKey" }
     return "job:$JobId"
 }
@@ -224,7 +228,7 @@ if (Test-Path -LiteralPath $queueRoot) {
         # Do not reopen an old failed skip just because policy changed. But if a reassessment was already
         # Explicitly reopened technical skips may finish after restart.
         $explicitReassessment = ($job -and (Has-Property $job 'allow_after_prior_skip') -and [bool]$job.allow_after_prior_skip)
-        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0','6.1') -and $status -in @('needs-evidence','needs-research','passed'))
+        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0','6.1','6.2') -and $status -in @('needs-evidence','needs-research','passed'))
         $ledgerBlocks = ($submittedIds.ContainsKey($id) -or ($already -and -not $reassessmentInProgress))
         $shadowedByGenerated = $generatedIds.ContainsKey($id)
         $terminal = $status -in @('failed','rejected','skipped','submitted','blocked')
@@ -290,7 +294,7 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $resultStatus = if ($result -and $result.status) { [string]$result.status } else { $null }
         $linkedinHandoff = ($resultStatus -eq 'handoff-easy-apply')
         $needsReconcile = (($null -ne $result) -and -not $linkedinHandoff -and -not $already)
-        # blocked-unknown-fact remains terminal for legacy rows only. V6.1 workers never create it.
+        # blocked-unknown-fact remains terminal for legacy rows only. V6.2 workers never create it.
         $terminalResult = $resultStatus -in @('submitted','blocked-auth','blocked-security','blocked-automation','blocked-domain-circuit-breaker','blocked-identity-mismatch','blocked-work-auth','blocked-protected-fact','blocked-unknown-fact','blocked-technical','blocked-verification-unresolved','skipped-ineligible','skipped-duplicate','skipped-job-quality','failed')
         $resumeReady = ($artifact -and [string]$artifact.status -eq 'ready-for-upload' -and $artifact.path -and (Test-Path -LiteralPath ([string]$artifact.path)))
         $jobDomain = Get-JobDomain $job
@@ -522,4 +526,39 @@ $out = [ordered]@{
         'Group fast actions by dispatch and emit every non-LinkedIn Task call together up to runtime capacity. Run web-heavy research as a separate wave. LinkedIn Easy Apply remains serial.'
     }
 }
-$out | ConvertTo-Json -Depth 6
+if ($Compact) {
+    $compactActions = @($actions | ForEach-Object {
+        $item = [ordered]@{
+            job_id = $_.job_id
+            company = $_.company
+            title = $_.title
+            stage = $_.stage
+            wave = $_.wave
+            dispatch = $_.dispatch
+            priority = $_.priority
+        }
+        if ($_.worker_prompt) { $item['worker_prompt'] = $_.worker_prompt }
+        elseif ($_.path) { $item['path'] = $_.path }
+        $item
+    })
+    [ordered]@{
+        workspace = $Workspace
+        next_action = $nextAction
+        actions = $compactActions
+        claims = @($claimMetadata | ForEach-Object { [ordered]@{scope=$_.scope;job_id=$_.job_id;stage=$_.stage;owner_id=$_.owner_id;expires_at=$_.expires_at} })
+        quarantined_applications = $quarantinedApplications
+        scheduler = $out.scheduler
+        summary = [ordered]@{
+            submitted_unique = $out.summary.submitted_unique
+            fast_actions = $out.summary.fast_actions
+            research_actions = $out.summary.research_actions
+            claims_active = $out.summary.claims_active
+            reconcile = $out.summary.reconcile
+            application_verification_quarantined = $out.summary.application_verification_quarantined
+        }
+        linkedin = $out.linkedin
+        instruction = $out.instruction
+    } | ConvertTo-Json -Depth 6
+} else {
+    $out | ConvertTo-Json -Depth 6
+}

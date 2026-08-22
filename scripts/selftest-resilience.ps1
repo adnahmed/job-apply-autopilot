@@ -15,6 +15,11 @@ try {
     & (Join-Path $PSScriptRoot 'init-workspace.ps1') -Workspace $workspace | Out-Null
     $workItem = & (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId 'selftest-001' -Company 'Self Test Co' -Title 'Backend Engineer' -Location 'Pakistan' -Source 'selftest' -Workspace $workspace | Select-Object -Last 1
 
+    $existingCreation = (& (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId 'selftest-001' -Company 'Self Test Co' -Title 'Backend Engineer' -Location 'Pakistan' -Source 'selftest' -Workspace $workspace -Structured | Select-Object -Last 1) | ConvertFrom-Json
+    if ($existingCreation.status -ne 'existing' -or [string]$existingCreation.path -ne [string]$workItem) { throw 'Structured exact-ID creation did not return existing/path.' }
+    $manifest = (& (Join-Path $PSScriptRoot 'get-workitem-manifest.ps1') -WorkItemDir $workItem | Select-Object -Last 1) | ConvertFrom-Json
+    if ([string]$manifest.paths.candidate_evidence.path -ne (Join-Path $workspace '.job-apply-autopilot\candidate-evidence.json')) { throw 'Manifest candidate-evidence path escaped the runtime root.' }
+
     $snapshot = (& (Join-Path $PSScriptRoot 'session-state.ps1') -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
     $action = @($snapshot.actions | Where-Object { $_.job_id -eq 'selftest-001' }) | Select-Object -First 1
     if ($null -eq $action -or $action.stage -ne 'source_pending') {
@@ -81,6 +86,17 @@ try {
   ]
 }
 '@
+    $allErrors = (& (Join-Path $PSScriptRoot 'commit-assessment.ps1') -WorkItemDir $workItem -ExpectedPriorStatus unassessed -AssessmentJson '{"status":"pass","score":"bad"}' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($allErrors.status -ne 'rejected-payload' -or [int]$allErrors.error_count -lt 5) { throw 'Assessment validator did not return the complete error set.' }
+    $lowScoreAssessment = $assessmentJson -replace '"score": 88', '"score": 60'
+    $lowScore = (& (Join-Path $PSScriptRoot 'commit-assessment.ps1') -WorkItemDir $workItem -ExpectedPriorStatus unassessed -AssessmentJson $lowScoreAssessment -FitMapJson $fitMapJson | Select-Object -Last 1) | ConvertFrom-Json
+    if ($lowScore.status -ne 'rejected-payload' -or @($lowScore.errors) -notcontains 'passed-below-minimum-score') { throw 'Assessment commit accepted a below-policy passed score.' }
+
+    $unknownNumeric = (& (Join-Path $PSScriptRoot 'resolve-application-answer.ps1') -WorkItemDir $workItem -QuestionJson '{"label":"Years using an unverified specialist tool","type":"number","required":true}' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($unknownNumeric.status -ne 'needs-semantic-answer') { throw 'Unknown required numeric answer was defaulted instead of handed off semantically.' }
+    $missingPhone = (& (Join-Path $PSScriptRoot 'resolve-application-answer.ps1') -WorkItemDir $workItem -QuestionJson '{"label":"Phone number","type":"text","required":true}' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($missingPhone.status -ne 'blocked-protected-fact') { throw 'Missing required phone did not produce a protected-fact blocker.' }
+
     $commit = (& (Join-Path $PSScriptRoot 'commit-assessment.ps1') -WorkItemDir $workItem -ExpectedPriorStatus unassessed -AssessmentJson $assessmentJson -FitMapJson $fitMapJson | Select-Object -Last 1) | ConvertFrom-Json
     if ($commit.status -ne 'committed' -or $commit.next_stage -ne 'coordinator_adjudication_pending') {
         throw "Canonical assessment commit failed: $($commit | ConvertTo-Json -Compress)."
@@ -140,6 +156,9 @@ try {
     if (-not $duplicate.seen -or $duplicate.reason -ne 'semantic-submission' -or $duplicate.matched_job_id -ne 'dup-old') {
         throw "Semantic duplicate detection failed: $($duplicate | ConvertTo-Json -Compress)."
     }
+    $reorderedJson = @([ordered]@{ job_id='dup-reordered'; company='Acme'; title='Engineer Backend' }) | ConvertTo-Json -Compress
+    $reordered = (& (Join-Path $PSScriptRoot 'dedupe-jobs.ps1') -CandidatesJson $reorderedJson -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
+    if (-not $reordered.seen -or $reordered.reason -ne 'semantic-submission') { throw 'Title-token reordering bypassed semantic dedupe.' }
     $duplicateCreate = & (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId 'dup-new' -Company 'Acme' -Title 'Backend Engineer' -Source 'test' -Workspace $workspace | Select-Object -Last 1
     if ([string]$duplicateCreate -notlike 'DUPLICATE:dup-new:semantic-submission:*') {
         throw "new-workitem semantic guard failed: $duplicateCreate"

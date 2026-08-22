@@ -1,4 +1,4 @@
-# Autonomous Application Policy V6.1
+# Autonomous Application Policy V6.2
 
 ## Principle
 Quality and eligibility beat volume. Requested application count is a maximum target, never a quota.
@@ -69,13 +69,13 @@ Never ask the user to choose among routine application/workflow options and neve
 
 ## Unknown required facts
 
-Do not create `blocked-unknown-fact`. First call `resolve-application-answer.ps1`. It uses structured profile defaults for education dates, expected salary, notice/start timing, demographic declines, routine yes/no fields, and benign form defaults. Only identity, legal status, work authorization, or sensitive disclosures may terminate as `blocked-protected-fact` when no honest decline is available.
+Do not create `blocked-unknown-fact`. Run `preflight-application.ps1` when an answer plan exists, then call `resolve-application-answer.ps1`. It uses canonical identity, education, employment, expected salary, notice/start timing, and demographic-decline facts. An unsupported required routine/capability question returns `needs-semantic-answer` for one fit-map/canonical resolution; it is never defaulted from the field type. Only identity, legal status, work authorization, or sensitive disclosures may terminate as `blocked-protected-fact` when no verified answer or honest decline exists. Repeating the same normalized question more than twice in one claim returns `loop-detected`.
 
 For numeric expected compensation, prefer the posting's lower quartile. If the posting has no band, call `get-market-salary.ps1`: use FreeHire country + category + seniority p25 when at least the configured sample count exists, then broader country/category/seniority and country-wide bands, then global category bands. Convert year/month/day/hour consistently. Use the profile's Pakistan/global numbers only when the market API has no usable band. Never use expected-compensation defaults to answer current salary/CTC.
 Try, in order:
 1. profile/canonical facts,
 2. truthful saved LinkedIn/application values,
-3. N/A / decline / non-disclosure where legitimate,
+3. N/A / decline / non-disclosure only where the question and options make it legitimate,
 4. otherwise skip.
 
 Never fabricate to complete a form.

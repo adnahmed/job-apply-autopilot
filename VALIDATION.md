@@ -1,14 +1,18 @@
-# V6.1.1 Release Contract
+# V6.2.0 Release Contract
 
 This document describes the required implementation state. It does not invoke a test suite.
 
-- `VERSION.txt` and the main skill heading are `6.1.1`.
+- `VERSION.txt` and the main skill heading are `6.2.0`.
 - FreeHire composite discovery, ignored-parameter checks, evidence-only reality signals, local salary insights, explicit route sidecars, deterministic answer resolution, quality rejection, and fast/research wave state are present.
 - Persistence is owned only by `opencode-goal-plugin@0.8.1`, with `noContinueWhileChildrenActive: true` and durable state enabled.
 - Every goal continuation reruns `session-state.ps1`; restart recovery remains paused until `/goal resume`.
 - No packaged command launches, monitors, stops, health-gates, or keeps awake an OS background coordinator.
 - Queue/generated/discovery stages use expiring claims; matching transitions clear claims and expired claims do not suppress work.
 - Assessment commits require expected prior state and serialize under the work-item lock.
+- Assessment validation returns all schema errors together and enforces the 72 / narrow 68-71 score policy again at promotion.
+- Workers obtain exact artifact and runtime evidence locations from the deterministic work-item manifest rather than path probing.
+- Work-item creation has structured created/existing/duplicate/rejected results; only created jobs may receive new source metadata.
+- Required answer resolution never fabricates zero, No, or Not applicable; application preflight exposes protected blockers and semantic questions before browser reservation.
 - Promotion and resume compilation reuse valid existing outputs under work-item locks.
 - Applicators write terminal blockers through `write-application-outcome.ps1`.
 - Terminal progress without `application-result.json` exposes `application_outcome_repair`, never `application_resume`.
