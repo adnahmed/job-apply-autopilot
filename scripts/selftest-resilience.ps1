@@ -21,6 +21,9 @@ try {
         throw "Expected a placeholder work item to route to source_pending, got '$($action.stage)'."
     }
     "# Backend Engineer`n`nPakistan role. Build and operate backend APIs, services, databases, tests, and cloud deployments." | Set-Content -LiteralPath (Join-Path $workItem 'source.md') -Encoding UTF8
+    [ordered]@{ provider='freehire'; quality=[ordered]@{ classification='reality-signal-present'; reality_signal=$true; evidence='class=likely-evergreen; repost_count=3' }; reality=[ordered]@{ class='likely-evergreen'; repost_count=3 } } |
+        ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $workItem 'source-metadata.json') -Encoding UTF8
+    & (Join-Path $PSScriptRoot 'set-application-route.ps1') -WorkItemDir $workItem -Route external -Target 'https://jobs.example.com/selftest-001' -Evidence 'self-test explicit route' | Out-Null
 
     # Reproduce the V5.11.4 failure: a plausible assessor result copied directly into assessment.json.
     @{
@@ -110,6 +113,7 @@ try {
     $resumeAction = @($snapshot.actions | Where-Object { $_.job_id -eq 'selftest-001' -and $_.stage -eq 'resume_pending' })
     $assessorActions = @($snapshot.actions | Where-Object { $_.dispatch -eq 'job-autopilot-assessor' })
     if ($resumeAction.Count -ne 1 -or $assessorActions.Count -ne 5) { throw 'Cross-stage runnable work was hidden or collapsed.' }
+    if ($resumeAction[0].wave -ne 'fast' -or $snapshot.scheduler.active_wave -ne 'fast' -or -not [bool]$resumeAction[0].reality_signal) { throw 'Fast-wave or reality-evidence state was not preserved.' }
     if ([string]$snapshot.scheduler.concurrency.default -ne 'unbounded' -or [int]$snapshot.scheduler.concurrency.linkedin_easy_apply -ne 1 -or $snapshot.scheduler.PSObject.Properties.Name -contains 'worker_limits' -or $snapshot.scheduler.PSObject.Properties.Name -contains 'dispatch_batches') {
         throw "Compact uncapped scheduler contract is invalid: $($snapshot.scheduler | ConvertTo-Json -Compress)."
     }
@@ -206,6 +210,25 @@ try {
         -Channel email -Target 'jobs@example.com' -Subject 'Application - Platform Engineer' | Select-Object -Last 1) | ConvertFrom-Json
     if ($afterSubmit.status -ne 'already-submitted' -or $afterSubmit.safe_to_submit) { throw 'Submitted send was not idempotent.' }
 
+    # Confirmed overrides hard-reject at the send boundary, while FreeHire reality evidence alone does not.
+    $qualityRejectDir = Join-Path $workspace '.job-apply-autopilot\generated\quality-reject'
+    New-Item -ItemType Directory -Force -Path $qualityRejectDir | Out-Null
+    [ordered]@{ job_id='quality-reject'; company='Crossing Hurdles'; title='Backend Engineer'; job_url='https://example.com/apply'; source='external' } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $qualityRejectDir 'job.json') -Encoding UTF8
+    $qualityReject = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $qualityRejectDir -Action Reserve -Channel external-ats -Target 'https://example.com/apply' | Select-Object -Last 1) | ConvertFrom-Json
+    $qualityResult = Get-Content -LiteralPath (Join-Path $qualityRejectDir 'application-result.json') -Raw | ConvertFrom-Json
+    if ($qualityReject.status -ne 'quality-rejected' -or $qualityResult.status -ne 'skipped-job-quality') { throw 'Confirmed employer override did not stop at the send boundary.' }
+
+    $qualitySignalDir = Join-Path $workspace '.job-apply-autopilot\generated\quality-signal'
+    New-Item -ItemType Directory -Force -Path $qualitySignalDir | Out-Null
+    [ordered]@{ job_id='quality-signal'; company='Signal Co'; title='Platform Engineer'; job_url='https://jobs.example.net/apply'; source='freehire' } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $qualitySignalDir 'job.json') -Encoding UTF8
+    [ordered]@{ provider='freehire'; reality=[ordered]@{ class='likely-evergreen'; repost_count=5; mass_posting_count=4; fake_freshness=$true } } |
+        ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $qualitySignalDir 'source-metadata.json') -Encoding UTF8
+    $qualitySignal = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $qualitySignalDir -Action Reserve -Channel external-ats -Target 'https://jobs.example.net/apply' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($qualitySignal.status -ne 'acquired') { throw 'Reality evidence was incorrectly treated as an automatic rejection.' }
+    & (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $qualitySignalDir -Action CancelBeforeSubmit -ReservationId $qualitySignal.reservation_id -Proof 'Self-test evidence-only cancellation' | Out-Null
+
     # Repair concatenated legacy JSONL and enforce an active domain marker in session routing.
     $now = [DateTimeOffset]::UtcNow
     $legacyA = [ordered]@{ timestamp=$now.AddHours(-48).ToString('o'); domain='expired.example'; status='blocked-security'; reason='old' } | ConvertTo-Json -Compress
@@ -230,7 +253,7 @@ try {
         throw "Unique submission metrics failed: $($snapshot.summary | ConvertTo-Json -Compress)."
     }
 
-    Write-Output 'PASS resilience: source gating, parallel throughput routing, deterministic transitions, semantic dedupe, idempotent sends, active circuit routing, unique metrics, and atomic governor recovery passed.'
+    Write-Output 'PASS resilience: source gating, parallel throughput routing, reality-evidence quality semantics, deterministic transitions, semantic dedupe, idempotent sends, active circuit routing, unique metrics, and atomic governor recovery passed.'
 } finally {
     Remove-Item -LiteralPath $workspace -Recurse -Force -ErrorAction SilentlyContinue
 }

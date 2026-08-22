@@ -3,7 +3,7 @@ name: job-apply-autopilot
 description: "Goal-driven autonomous job discovery, truthful fit triage, tailored resumes, and idempotent verified submission through BrowserOS neo. Uses claimed actions, semantic dedupe, verification quarantine, and deterministic application outcomes."
 ---
 
-# Job Apply Autopilot V6.1.0 — Fast Routes and Deterministic Answers
+# Job Apply Autopilot V6.1.1 — API-Driven Fast Routes
 
 Mission: maximize credible net-new interview opportunities per unit time while preserving truth, the candidate's documented geographic eligibility, security controls, and duplicate safety. Tool activity, duplicate work, placeholders, and unverified outcomes are not progress.
 
@@ -93,13 +93,15 @@ Never append policy, evidence opinions, job summaries, or recovery instructions.
 
 ## Discovery and dedupe
 
+Read `references\freehire-api.md` when changing or diagnosing FreeHire integration behavior.
+
 Prefer keyless FreeHire discovery before browser search when `scheduler.discovery_slots` is positive:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\discover-freehire.ps1" -Workspace $workspace -TargetNew $state.scheduler.discovery_slots
 ```
 
-It searches fresh Pakistan, global-remote, and sponsorship lanes, stores full source metadata, captures available application questions, persists explicit routes, and quality-rejects excluded employers and low-reality jobs before queue creation.
+It performs one composite faceted request per fresh Pakistan, global-remote, and sponsorship lane; checks `meta.ignored_params`; stores full source/reality metadata; uses semantic-similar jobs only as a sparse-lane fallback; checks posting copies only to recover a missing/aggregator route; captures available application questions; and persists explicit routes. FreeHire reality is evidence with its workings, never an automatic employer verdict. Explicit denylist overrides, unnamed clients, and predatory funnels remain hard quality rejections.
 
 Derive local and regional lanes from `profile.yaml` (`candidate.location` and `search_defaults.locations`). Rotate lanes: home-country/local direct; explicitly compatible regional remote; worldwide/international contractor; sponsorship/relocation; direct employer/ATS; broader backend/platform/AI/software synonyms.
 
@@ -144,7 +146,7 @@ Promotion and resume compilation reuse valid existing generated directories/arti
 
 Route ready work immediately using only `application-route.json`. Persist routes through `set-application-route.ps1`; never infer them from the discovery source. Direct employer-email applications go only to `job-autopilot-email-apply`; external ATS/company forms go only to `job-autopilot-external-apply`. Every applicator reservation re-runs the quality gate. LinkedIn Easy Apply remains coordinator-owned and serial under its governor.
 
-For required questions, call `resolve-application-answer.ps1`. It resolves profile-backed education dates, expected compensation, routine yes/no fields, optional demographic declines, and benign required defaults. Never create a new `blocked-unknown-fact`; that value remains accepted only as legacy terminal history. Use `blocked-protected-fact` only for genuinely protected identity, legal, authorization, or sensitive-disclosure facts.
+For required questions, call `resolve-application-answer.ps1`. It resolves profile-backed education dates, routine fields, demographic declines, and expected compensation. Salary resolution uses a posted range first, then cached FreeHire `/insights/salary` p25 data from the job's country/category/seniority with progressively broader market fallbacks, period conversion, and profile defaults only last. Never create a new `blocked-unknown-fact`; that value remains accepted only as legacy terminal history. Use `blocked-protected-fact` only for genuinely protected identity, legal, authorization, or sensitive-disclosure facts.
 
 ## Submission and quarantine
 

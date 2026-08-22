@@ -1,4 +1,4 @@
-profile_version: 8
+profile_version: 9
 candidate:
   full_name: "Adnan Ahmed Khan"
   location:
@@ -221,3 +221,15 @@ freehire:
   target_new_per_pass: 8
   posted_within_days: 7
   reality: "fresh"
+  salary_insights_enabled: true
+  salary_insights_minimum_samples: 5
+  salary_insights_cache_hours: 168
+  salary_fallback_order:
+    - "posted-range-lower-quartile"
+    - "country-category-seniority-p25"
+    - "country-category-p25"
+    - "country-seniority-p25"
+    - "country-market-p25"
+    - "global-category-seniority-p25"
+    - "global-category-p25"
+    - "profile-fallback"

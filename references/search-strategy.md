@@ -15,7 +15,7 @@ For each search result page:
 6. strong eligibility + in-lane? queue for quick assessment;
 7. ambiguous geography or one genuinely decision-changing specialist gap? let the local assessor request the unified bounded research worker; never perform broad research during discovery.
 
-Start discovery with `discover-freehire.ps1` when slots exist. It uses the public keyless API for fresh Pakistan, global-remote, sponsorship, and selected engineering categories/seniorities, with full descriptions and optional apply-form questions. Then use browser lanes to fill remaining slots. Do not create queue directories for obvious country locks, closed roles, excluded employers, predatory funnels, unknown-client agencies, talent pools, expert marketplaces, or unrelated role identities.
+Start discovery with `discover-freehire.ps1` when slots exist. It uses three composite public API searches rather than one call per category, validates ignored parameters, preserves full descriptions/reality/enrichment, uses `/similar` only when strict lanes are sparse, uses `/copies` only to recover a better route, and captures `/apply-form` questions. Then use browser lanes to fill remaining slots. Do not create queue directories for obvious country locks, closed roles, excluded employers, predatory funnels, unknown-client agencies, talent pools, expert marketplaces, or unrelated role identities.
 
 ## Discovery escalation ladder
 

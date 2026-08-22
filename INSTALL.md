@@ -1,17 +1,17 @@
-# Install Job Apply Autopilot V6.1.0
+# Install Job Apply Autopilot V6.1.1
 
 V6 upgrades an existing campaign in place. Do not delete `<workspace>\.job-apply-autopilot`. Terminate any active V5 background campaign process before installing; V6 does not start or manage OS background processes.
 
 From the campaign workspace:
 
 ```powershell
-$zip  = ".\job-apply-autopilot-v6.1.0.zip"
-$temp = Join-Path $env:TEMP "job-apply-autopilot-v6.1.0"
+$zip  = ".\job-apply-autopilot-v6.1.1.zip"
+$temp = Join-Path $env:TEMP "job-apply-autopilot-v6.1.1"
 $dst  = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-$src = Join-Path $temp "job-apply-autopilot-v6.1.0"
+$src = Join-Path $temp "job-apply-autopilot-v6.1.1"
 
 if (Test-Path -LiteralPath $dst) {
     $backupRoot = "$HOME\.config\opencode\skill-backups"

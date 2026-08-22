@@ -209,6 +209,7 @@ if (Test-Path -LiteralPath $queueRoot) {
         $assessmentFileExists = Test-Path -LiteralPath $assessmentPath
         $assessment = Read-JsonSafe $assessmentPath
         $fit = Read-JsonSafe (Join-Path $dir.FullName 'fit-map.json')
+        $sourceMetadata = Read-JsonSafe (Join-Path $dir.FullName 'source-metadata.json')
         $sourceReady = Test-SourceReady (Join-Path $dir.FullName 'source.md')
         $assessmentMalformed = Test-AssessmentMalformed $assessment $fit $assessmentFileExists
         $recoverable = Read-JsonSafe (Join-Path $dir.FullName 'recoverable-error.json')
@@ -255,6 +256,9 @@ if (Test-Path -LiteralPath $queueRoot) {
             company = if ($job) { $job.company } else { $null }
             title = if ($job) { $job.title } else { $null }
             score = if ($fit) { $fit.score } elseif ($assessment) { $assessment.score } else { $null }
+            quality_classification = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.classification } else { $null }
+            reality_signal = [bool]($sourceMetadata -and $sourceMetadata.quality -and $sourceMetadata.quality.reality_signal)
+            reality_evidence = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.evidence } else { $null }
             actionable = $actionable
             stage = $stage
             speed = $speed
@@ -274,6 +278,7 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $progress = Read-JsonSafe (Join-Path $dir.FullName 'application-progress.json')
         $sendState = Read-JsonSafe (Join-Path $dir.FullName 'application-send-state.json')
         $route = Read-JsonSafe (Join-Path $dir.FullName 'application-route.json')
+        $sourceMetadata = Read-JsonSafe (Join-Path $dir.FullName 'source-metadata.json')
         $artifact = Read-JsonSafe (Join-Path $dir.FullName 'resume-artifact.json')
         $recoverable = Read-JsonSafe (Join-Path $dir.FullName 'recoverable-error.json')
         $retryAfter = if ($recoverable -and $recoverable.retry_after) { Parse-Utc $recoverable.retry_after } else { $null }
@@ -307,9 +312,9 @@ if (Test-Path -LiteralPath $generatedRoot) {
         if ($needsReconcile) { $stage = 'reconcile_result' }
         elseif ($verificationQuarantined) { $stage = 'application_verification_quarantined' }
         elseif ($actionable -and $needsOutcomeRepair) { $stage = 'application_outcome_repair' }
+        elseif ($actionable -and $needsSendVerification) { $stage = 'application_verification' }
         elseif ($actionable -and -not $knownRoute) { $stage = 'route_pending' }
         elseif ($actionable -and -not $resumeReady) { $stage = 'resume_pending' }
-        elseif ($actionable -and $needsSendVerification) { $stage = 'application_verification' }
         elseif ($actionable -and ($linkedinHandoff -or $linkedinRoute)) { $stage = 'linkedin_application_ready' }
         elseif ($actionable -and $emailRoute) { $stage = 'email_application_ready' }
         elseif ($actionable -and $null -ne $progress) { $stage = 'application_resume' }
@@ -324,6 +329,9 @@ if (Test-Path -LiteralPath $generatedRoot) {
             source = if ($job) { $job.source } else { $null }
             domain = $jobDomain
             route = if ($knownRoute) { $routeName } else { 'pending' }
+            quality_classification = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.classification } else { $null }
+            reality_signal = [bool]($sourceMetadata -and $sourceMetadata.quality -and $sourceMetadata.quality.reality_signal)
+            reality_evidence = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.evidence } else { $null }
             actionable = $actionable
             needs_reconcile = $needsReconcile
             reconcile_actionable = ($needsReconcile -and -not $claimed)
@@ -413,6 +421,9 @@ $actions = @($selected | ForEach-Object {
         stage = $_.stage
         speed = $_.speed
         wave = if ($_.speed -eq 'slow') { 'research' } else { 'fast' }
+        quality_classification = $_.quality_classification
+        reality_signal = [bool]$_.reality_signal
+        reality_evidence = $_.reality_evidence
         dispatch = $dispatch
         priority = if ($stagePriority.ContainsKey([string]$_.stage)) { $stagePriority[[string]$_.stage] } else { 999 }
         path = $_.path

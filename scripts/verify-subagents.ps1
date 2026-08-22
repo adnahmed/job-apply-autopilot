@@ -70,6 +70,11 @@ foreach ($name in $names) {
             $failed = $true
             continue
         }
+        if ($name -eq 'job-autopilot-external-apply.md' -and ($text -notmatch '(?m)^\s{4}"\*resolve-application-answer\.ps1\*":\s*allow\s*$' -or $text -notmatch '(?m)^\s{4}"\*get-market-salary\.ps1\*":\s*allow\s*$' -or $text -notmatch '(?m)^\s{4}"\*set-application-route\.ps1\*":\s*allow\s*$')) {
+            Write-Error "EXTERNAL APPLICATOR ANSWER/SALARY/ROUTE PERMISSIONS MISSING in $path"
+            $failed = $true
+            continue
+        }
         if ($text -notmatch '(?m)^\s{4}"\*write-application-outcome\.ps1\*":\s*allow\s*$' -or
             $text -notmatch 'one-strike rule' -or $text -notmatch 'never call (it|`run`) again' -or
             $text -notmatch 'probe denied shell commands|Never probe shell/CDP' -or $text -notmatch 'quarantined' -or

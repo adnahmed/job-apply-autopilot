@@ -22,7 +22,7 @@ permission:
   "browseros-neo_*": deny
 ---
 
-Handle exactly ONE supplied queue directory. Do not load the main skill, browse, ask questions, invoke another worker, search for files, or probe denied shell commands.
+Handle exactly ONE supplied queue directory. Do not load the main skill, browse, ask questions, invoke another worker, search for files, or probe denied shell commands. Read `source-metadata.json` when present. FreeHire `reality` is evidence, not an employer verdict: carry its class, age, repost, mass-posting, and fake-freshness evidence into integrity reasoning, but never hard-fail solely because the signal exists.
 
 Before reading the job, acquire the supplied action through this exact installed script:
 

@@ -2,73 +2,162 @@
 param(
     [Parameter(Mandatory=$true)][string]$Workspace,
     [int]$TargetNew = 8,
-    [string]$BaseUrl = 'https://freehire.me/api/v1'
+    [string]$BaseUrl = '',
+    [string]$ProfilePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'profile.yaml')
 )
+
 $ErrorActionPreference = 'Stop'
+if(-not $BaseUrl){
+    $profileText=Get-Content -LiteralPath $ProfilePath -Raw
+    if($profileText -match '(?m)^\s*base_url:\s*["'']?([^\r\n"'']+)'){$BaseUrl=$Matches[1].Trim()}else{$BaseUrl='https://freehire.me/api/v1'}
+}
 $Workspace = (Resolve-Path -LiteralPath $Workspace).Path
 if (-not (Test-Path -LiteralPath (Join-Path $Workspace '.job-apply-autopilot'))) { throw "No job-apply-autopilot runtime in $Workspace" }
-function Pick($Object,[string[]]$Names,$Default='') { foreach($name in $Names) { if ($Object -and $Object.PSObject.Properties.Name -contains $name -and $null -ne $Object.$name -and [string]$Object.$name) { return $Object.$name } }; return $Default }
-function Slug([string]$Value) { $v=($Value.ToLowerInvariant() -replace '[^a-z0-9]+','-').Trim('-'); if($v.Length -gt 90){$v=$v.Substring(0,90).Trim('-')}; return $v }
-function Write-AtomicJson([string]$Path,$Value) { $temp="$Path.$PID.$([Guid]::NewGuid().ToString('N')).tmp"; try{$Value|ConvertTo-Json -Depth 20|Set-Content -LiteralPath $temp -Encoding UTF8;[IO.File]::Move($temp,$Path,$true)}finally{if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue}} }
+
+function Pick($Object,[string[]]$Names,$Default='') {
+    foreach($name in $Names) {
+        if ($Object -and $Object.PSObject.Properties.Name -contains $name -and $null -ne $Object.$name -and [string]$Object.$name) { return $Object.$name }
+    }
+    return $Default
+}
+function Slug([string]$Value) {
+    $valueSlug = ($Value.ToLowerInvariant() -replace '[^a-z0-9]+','-').Trim('-')
+    if ($valueSlug.Length -gt 90) { $valueSlug=$valueSlug.Substring(0,90).Trim('-') }
+    return $valueSlug
+}
+function Write-AtomicJson([string]$Path,$Value) {
+    $temp="$Path.$PID.$([Guid]::NewGuid().ToString('N')).tmp"
+    try { $Value | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $temp -Encoding UTF8; [IO.File]::Move($temp,$Path,$true) }
+    finally { if(Test-Path -LiteralPath $temp){Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue} }
+}
+function Invoke-FreeHireGet([string]$Path,[hashtable]$Query=@{}) {
+    $pairs=@()
+    foreach($key in $Query.Keys){$pairs += "$([Uri]::EscapeDataString($key))=$([Uri]::EscapeDataString([string]$Query[$key]))"}
+    $uri="$BaseUrl/$Path"
+    if($pairs.Count){$uri += "?$(($pairs -join '&'))"}
+    return Invoke-RestMethod -Method Get -Uri $uri -Headers @{Accept='application/json'}
+}
 
 $categories = @('software_engineering','backend','fullstack','devops','sre','ai_engineering','solutions_engineering')
-$seniorities = 'middle,senior,lead,staff,principal'
+$categoryFilter = $categories -join ','
+$seniorityFilter = 'middle,senior,lead,staff,principal'
 $lanes = @(
-    [ordered]@{ name='freehire-pakistan'; params=@{ countries='PK' } },
-    [ordered]@{ name='freehire-global-remote'; params=@{ regions='global'; work_mode='remote' } },
-    [ordered]@{ name='freehire-visa-sponsorship'; params=@{ visa_sponsorship='true' } }
+    [ordered]@{ name='freehire-pakistan'; geography=@{ countries='PK' } },
+    [ordered]@{ name='freehire-global-remote'; geography=@{ regions='global'; work_mode='remote' } },
+    [ordered]@{ name='freehire-visa-sponsorship'; geography=@{ visa_sponsorship='true' } }
 )
-$seen = @{}; $created = 0; $examined = 0; $rejected = 0; $duplicates = 0
+
+$candidatePool = [Collections.Generic.List[object]]::new()
+$seenSlugs = @{}
+$apiWarnings = [Collections.Generic.List[object]]::new()
+$laneStats = [Collections.Generic.List[object]]::new()
 foreach($lane in $lanes) {
-    foreach($category in $categories) {
-        if($created -ge $TargetNew){break}
-        $query = [ordered]@{ limit=100; category=$category; seniorities=$seniorities; reality='fresh'; posted_within_days=7; sort='newest'; exclude='agency,outsource,outstaff,people_manager' }
-        foreach($key in $lane.params.Keys){$query[$key]=$lane.params[$key]}
-        $pairs=@(); foreach($key in $query.Keys){$pairs += "$([Uri]::EscapeDataString($key))=$([Uri]::EscapeDataString([string]$query[$key]))"}
-        $uri="$BaseUrl/agent/jobs/search?$(($pairs -join '&'))"
-        Write-Progress -Activity 'FreeHire discovery' -Status "$($lane.name) / $category; created $created of $TargetNew"
-        try { $response=Invoke-RestMethod -Method Get -Uri $uri -Headers @{ Accept='application/json' } } catch { Write-Warning "FreeHire lane failed: $($_.Exception.Message)"; continue }
-        $items = if($response.jobs){@($response.jobs)}elseif($response.data -and $response.data.jobs){@($response.data.jobs)}elseif($response.data){@($response.data)}else{@($response)}
-        foreach($item in $items) {
-            if($created -ge $TargetNew){break}
-            $examined++
+    $query = @{
+        limit=100
+        category=$categoryFilter
+        seniority=$seniorityFilter
+        reality='fresh'
+        posted_within_days=7
+        company_type_exclude='agency,outsource,outstaff'
+        role_type_exclude='people_manager'
+        description_format='markdown'
+        sort='posted_at'
+        order='desc'
+    }
+    foreach($key in $lane.geography.Keys){$query[$key]=$lane.geography[$key]}
+    Write-Progress -Activity 'FreeHire discovery' -Status "Fetching $($lane.name)"
+    try { $response=Invoke-FreeHireGet 'agent/jobs/search' $query } catch { $apiWarnings.Add([ordered]@{lane=$lane.name;error=$_.Exception.Message}); continue }
+    $items = if($response.data){@($response.data)}elseif($response.jobs){@($response.jobs)}else{@()}
+    $ignored = if($response.meta -and $response.meta.ignored_params){@($response.meta.ignored_params)}else{@()}
+    if($ignored.Count){$apiWarnings.Add([ordered]@{lane=$lane.name;ignored_params=$ignored})}
+    $laneStats.Add([ordered]@{lane=$lane.name;returned=$items.Count;total=if($response.meta){$response.meta.total}else{$items.Count};ignored_params=$ignored})
+    foreach($item in $items){
+        $publicSlug=[string](Pick $item @('public_slug','slug','id'))
+        if(-not $publicSlug -or $seenSlugs.ContainsKey($publicSlug)){continue}
+        $seenSlugs[$publicSlug]=$true
+        $item | Add-Member -NotePropertyName '_discovery_lane' -NotePropertyValue $lane.name -Force
+        $candidatePool.Add($item)
+    }
+}
+
+# Semantic neighbors are a cheap fallback when strict fresh lanes are sparse.
+if($candidatePool.Count -lt [Math]::Max($TargetNew * 2,16)) {
+    foreach($seed in @($candidatePool | Select-Object -First 5)) {
+        $seedSlug=[string](Pick $seed @('public_slug','slug'))
+        if(-not $seedSlug){continue}
+        try { $similar=Invoke-FreeHireGet "jobs/$([Uri]::EscapeDataString($seedSlug))/similar" @{limit=10} } catch { continue }
+        foreach($item in @($similar.data)){
             $publicSlug=[string](Pick $item @('public_slug','slug','id'))
-            if(-not $publicSlug){continue}
-            if($seen.ContainsKey($publicSlug)){continue}; $seen[$publicSlug]=$true
-            $company=[string](Pick $item @('company_name','company','employer_name') 'Unknown employer')
-            if($item.company -and -not ($item.company -is [string])){$company=[string](Pick $item.company @('name','company_name') $company)}
-            $title=[string](Pick $item @('title','job_title','position') 'Software Engineer')
-            $jobUrl=[string](Pick $item @('apply_url','url','job_url','application_url'))
-            $location=[string](Pick $item @('location','location_name','country'))
-            if($item.location -and -not ($item.location -is [string])){$location=@((Pick $item.location @('city')), (Pick $item.location @('country','country_name'))) | Where-Object {$_}; $location=$location -join ', '}
-            $description=[string](Pick $item @('description','description_text','full_description'))
-            $metadata=[ordered]@{ provider='freehire'; fetched_at=[DateTimeOffset]::UtcNow.ToString('o'); public_slug=$publicSlug; query=$query; lane=$lane.name; reality=$item.reality; apply_url=$jobUrl; description=$description; raw=$item }
-            $jobCandidate=[ordered]@{ job_id="fh-$(Slug $publicSlug)"; company=$company; title=$title; location=$location; job_url=$jobUrl; source='freehire'; discovery_lane=$lane.name; description=$description }
-            $quality=(& (Join-Path $PSScriptRoot 'check-job-quality.ps1') -JobJson ($jobCandidate|ConvertTo-Json -Compress -Depth 8) -MetadataJson ($metadata|ConvertTo-Json -Compress -Depth 20) | Select-Object -Last 1)|ConvertFrom-Json
-            if(-not [bool]$quality.allowed){
-                $rejected++
-                & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $jobCandidate.job_id -Status 'skipped-job-quality' -ReasonCode ([string]$quality.reason_code) -Company $company -Title $title -Location $location -JobUrl $jobUrl -Source 'freehire' -Notes ([string]$quality.evidence) -Workspace $Workspace | Out-Null
-                continue
-            }
-            $workItem=& (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId $jobCandidate.job_id -Company $company -Title $title -JobUrl $jobUrl -Location $location -Source 'freehire' -DiscoveryLane $lane.name -SearchQuery "$category newest fresh" -Workspace $Workspace
-            $workItem=[string]($workItem|Select-Object -Last 1)
-            if($workItem.StartsWith('DUPLICATE:') -or $workItem.StartsWith('REJECTED:')){$duplicates++;continue}
-            Write-AtomicJson (Join-Path $workItem 'source-metadata.json') $metadata
-            $source="# $title`n`nEmployer: $company`nLocation: $location`nSource: FreeHire ($publicSlug)`nApply URL: $jobUrl`n`n$description`n"
-            $source | Set-Content -LiteralPath (Join-Path $workItem 'source.md') -Encoding UTF8
-            if($jobUrl -and $jobUrl -notmatch '(?i)linkedin\.com'){
-                & (Join-Path $PSScriptRoot 'set-application-route.ps1') -WorkItemDir $workItem -Route 'external' -Target $jobUrl -Evidence 'FreeHire direct apply_url field' | Out-Null
-            }
-            try {
-                $form=Invoke-RestMethod -Method Get -Uri "$BaseUrl/jobs/$([Uri]::EscapeDataString($publicSlug))/apply-form" -Headers @{Accept='application/json'}
-                $plan=[ordered]@{ provider=(Pick $form @('provider')); basics=$form.basics; questions=$form.questions; fetched_at=[DateTimeOffset]::UtcNow.ToString('o') }
-                Write-AtomicJson (Join-Path $workItem 'application-answer-plan.json') $plan
-            } catch {}
-            $created++
-            Write-Output "DISCOVERED:$($jobCandidate.job_id):${company}:$title"
+            if(-not $publicSlug -or $seenSlugs.ContainsKey($publicSlug)){continue}
+            $seenSlugs[$publicSlug]=$true
+            $item | Add-Member -NotePropertyName '_discovery_lane' -NotePropertyValue 'freehire-similar' -Force
+            $candidatePool.Add($item)
         }
     }
-    if($created -ge $TargetNew){break}
 }
+
+$created=0; $examined=0; $rejected=0; $duplicates=0
+foreach($item in $candidatePool) {
+    if($created -ge $TargetNew){break}
+    $examined++
+    $publicSlug=[string](Pick $item @('public_slug','slug','id'))
+    $company=[string](Pick $item @('company_name','company','employer_name') 'Unknown employer')
+    if($item.company -and -not ($item.company -is [string])){$company=[string](Pick $item.company @('name','company_name') $company)}
+    $title=[string](Pick $item @('title','job_title','position') 'Software Engineer')
+    $jobUrl=[string](Pick $item @('apply_url','url','job_url','application_url'))
+    $location=[string](Pick $item @('location','location_name','country'))
+    if($item.location -and -not ($item.location -is [string])){$parts=@((Pick $item.location @('city')),(Pick $item.location @('country','country_name')))|Where-Object{$_};$location=$parts -join ', '}
+    $description=[string](Pick $item @('description','description_text','full_description'))
+
+    # Similar results may omit a full description; hydrate only those candidates.
+    if(-not $description -or $description.Length -lt 80){
+        try { $detail=Invoke-FreeHireGet "jobs/$([Uri]::EscapeDataString($publicSlug))"; if($detail.data){$item=$detail.data;$description=[string](Pick $item @('description','description_text','full_description'));$jobUrl=[string](Pick $item @('apply_url','url','job_url','application_url') $jobUrl)} } catch {}
+    }
+
+    $copies=@()
+    if(-not $jobUrl -or $jobUrl -match '(?i)linkedin\.com'){
+        try {
+            $copyResponse=Invoke-FreeHireGet "jobs/$([Uri]::EscapeDataString($publicSlug))/copies" @{limit=50}
+            $copies=@($copyResponse.data)
+            $directCopy=$copies | Where-Object {$_.apply_url -and [string]$_.apply_url -notmatch '(?i)linkedin\.com'} | Select-Object -First 1
+            if($directCopy){$jobUrl=[string]$directCopy.apply_url;if($directCopy.location){$location=[string]$directCopy.location}}
+        } catch {}
+    }
+
+    $lane=[string](Pick $item @('_discovery_lane') 'freehire')
+    $metadata=[ordered]@{
+        provider='freehire';fetched_at=[DateTimeOffset]::UtcNow.ToString('o');public_slug=$publicSlug
+        lane=$lane;reality=$item.reality;apply_url=$jobUrl;description=$description;copies=$copies;raw=$item
+    }
+    $jobCandidate=[ordered]@{job_id="fh-$(Slug $publicSlug)";company=$company;title=$title;location=$location;job_url=$jobUrl;source='freehire';discovery_lane=$lane;description=$description}
+    $quality=(& (Join-Path $PSScriptRoot 'check-job-quality.ps1') -JobJson ($jobCandidate|ConvertTo-Json -Compress -Depth 8) -MetadataJson ($metadata|ConvertTo-Json -Compress -Depth 30) | Select-Object -Last 1)|ConvertFrom-Json
+    if(-not [bool]$quality.allowed){
+        $rejected++
+        & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $jobCandidate.job_id -Status 'skipped-job-quality' -ReasonCode ([string]$quality.reason_code) -Company $company -Title $title -Location $location -JobUrl $jobUrl -Source 'freehire' -Notes ([string]$quality.evidence) -Workspace $Workspace | Out-Null
+        continue
+    }
+    $workItem=& (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId $jobCandidate.job_id -Company $company -Title $title -JobUrl $jobUrl -Location $location -Source 'freehire' -DiscoveryLane $lane -SearchQuery 'fresh engineering composite lane' -Workspace $Workspace
+    $workItem=[string]($workItem|Select-Object -Last 1)
+    if($workItem.StartsWith('DUPLICATE:') -or $workItem.StartsWith('REJECTED:')){$duplicates++;continue}
+    $metadata.quality=$quality
+    Write-AtomicJson (Join-Path $workItem 'source-metadata.json') $metadata
+    "# $title`n`nEmployer: $company`nLocation: $location`nSource: FreeHire ($publicSlug)`nApply URL: $jobUrl`n`n$description`n" | Set-Content -LiteralPath (Join-Path $workItem 'source.md') -Encoding UTF8
+    if($jobUrl -and $jobUrl -notmatch '(?i)linkedin\.com'){
+        & (Join-Path $PSScriptRoot 'set-application-route.ps1') -WorkItemDir $workItem -Route 'external' -Target $jobUrl -Evidence 'FreeHire direct job/copy apply URL' | Out-Null
+    }
+    try {
+        $formResponse=Invoke-FreeHireGet "jobs/$([Uri]::EscapeDataString($publicSlug))/apply-form"
+        $form=if($formResponse.data){$formResponse.data}else{$formResponse}
+        $plan=[ordered]@{provider=[string]$form.provider;basics=@($form.basics);questions=@($form.questions);fetched_at=[DateTimeOffset]::UtcNow.ToString('o')}
+        Write-AtomicJson (Join-Path $workItem 'application-answer-plan.json') $plan
+    } catch {}
+    $created++
+    Write-Output "DISCOVERED:$($jobCandidate.job_id):${company}:$title"
+}
+
 Write-Progress -Activity 'FreeHire discovery' -Completed
-[ordered]@{status='complete';source='freehire';created=$created;target=$TargetNew;examined=$examined;quality_rejected=$rejected;duplicates=$duplicates} | ConvertTo-Json -Compress
+[ordered]@{
+    status='complete';source='freehire';created=$created;target=$TargetNew;examined=$examined
+    candidates=$candidatePool.Count;quality_rejected=$rejected;duplicates=$duplicates
+    lanes=$laneStats;api_warnings=$apiWarnings
+} | ConvertTo-Json -Compress -Depth 12

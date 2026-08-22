@@ -33,7 +33,8 @@ $companyKey = Normalize $company
 $url = if ($job.job_url) { [string]$job.job_url } elseif ($metadata -and $metadata.url) { [string]$metadata.url } else { '' }
 $domain = ''
 try { if ($url) { $domain = ([Uri]$url).Host.ToLowerInvariant() -replace '^www\.','' } } catch {}
-$description = @([string]$job.description, if ($metadata) { [string]$metadata.description } else { '' }) -join "`n"
+$metadataDescription = if ($metadata) { [string]$metadata.description } else { '' }
+$description = @([string]$job.description, $metadataDescription) -join "`n"
 
 foreach ($name in $excludedEmployers) {
     $key = Normalize $name
@@ -59,16 +60,28 @@ if ($description -match '(?i)unpaid\s+(trial|assessment|project)|pay\s+(a|the)\s
     exit 0
 }
 
-$reality = if ($metadata -and $metadata.reality) { $metadata.reality } else { $null }
+$reality = if ($metadata -and $metadata.reality) { $metadata.reality } elseif ($metadata -and $metadata.raw -and $metadata.raw.reality) { $metadata.raw.reality } else { $null }
 $realityClass = if ($reality -and $reality.class) { [string]$reality.class } else { '' }
 $fakeFreshness = if ($reality -and $reality.fake_freshness) { [bool]$reality.fake_freshness } else { $false }
 $reposts = if ($reality -and $null -ne $reality.repost_count) { [int]$reality.repost_count } else { 0 }
 $directDomains = @('greenhouse.io','lever.co','ashbyhq.com','workable.com','smartrecruiters.com','myworkdayjobs.com')
 $direct = $false
 foreach ($known in $directDomains) { if ($domain -eq $known -or $domain.EndsWith(".$known")) { $direct = $true } }
-if ($fakeFreshness -or $realityClass -in @('stale','ghost','mass-posting') -or ($reposts -ge 3 -and -not $direct)) {
-    [ordered]@{ allowed=$false; classification='low-reality'; reason_code='reposted-or-stale'; evidence="class=$realityClass repost_count=$reposts fake_freshness=$fakeFreshness" } | ConvertTo-Json -Compress
-    exit 0
-}
-
-[ordered]@{ allowed=$true; classification=if ($realityClass) { $realityClass } else { 'not-flagged' }; reason_code='quality-pass'; evidence=if ($domain) { $domain } else { $company } } | ConvertTo-Json -Compress
+$realitySignals = @()
+if ($realityClass) { $realitySignals += "class=$realityClass" }
+if ($reposts -gt 0) { $realitySignals += "repost_count=$reposts" }
+if ($reality -and $null -ne $reality.mass_posting_count -and [int]$reality.mass_posting_count -gt 0) { $realitySignals += "mass_posting_count=$([int]$reality.mass_posting_count)" }
+if ($fakeFreshness) { $realitySignals += 'fake_freshness=true' }
+$riskSignal = ($fakeFreshness -or $realityClass -in @('stale','likely-evergreen') -or $reposts -ge 3)
+$classification = if ($riskSignal) { 'reality-signal-present' } elseif ($realityClass) { "reality-$realityClass" } else { 'not-flagged' }
+$reasonCode = if ($riskSignal) { 'quality-pass-with-reality-signal' } else { 'quality-pass' }
+$evidence = if ($realitySignals.Count -gt 0) { $realitySignals -join '; ' } elseif ($domain) { $domain } else { $company }
+[ordered]@{
+    allowed = $true
+    classification = $classification
+    reason_code = $reasonCode
+    evidence = $evidence
+    reality_signal = $riskSignal
+    reality = $reality
+    direct_route = $direct
+} | ConvertTo-Json -Compress -Depth 8

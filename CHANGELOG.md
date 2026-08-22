@@ -1,3 +1,12 @@
+# V6.1.1 — FreeHire API and Salary Reliability Fix
+
+- Fixed a PowerShell syntax error that prevented the new quality gate from running.
+- Fixed country-code array casting that reduced `DE` to `D` and caused silent global salary fallback.
+- Replaced ignored FreeHire query parameters with the documented singular facets, exclusions, and posted-date sorting; collapsed 21 category requests into three composite lane requests.
+- Correctly unwrapped public API `data` envelopes and added targeted `/similar`, `/copies`, and `/apply-form` use.
+- Added cached dynamic local salary p25 resolution through `/insights/salary`, sample thresholds, progressive fallbacks, and period conversion.
+- Changed ghost/repost/fake-freshness data from automatic rejection into exposed evidence-only reality signals; explicit employer overrides remain only for confirmed exceptions.
+
 # V6.1.0 — Fast Routes and Deterministic Answers
 
 - Added keyless FreeHire discovery across Pakistan, global-remote, sponsorship, category, and seniority lanes with full source metadata and optional apply-form capture.

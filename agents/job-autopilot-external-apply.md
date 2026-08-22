@@ -15,6 +15,7 @@ permission:
     "*claim-action.ps1*": allow
     "*application-send-guard.ps1*": allow
     "*resolve-application-answer.ps1*": allow
+    "*get-market-salary.ps1*": allow
     "*set-application-route.ps1*": allow
     "*check-job-quality.ps1*": allow
     "*write-application-outcome.ps1*": allow
