@@ -153,7 +153,9 @@ foreach($item in $candidatePool) {
     $quality=(& (Join-Path $PSScriptRoot 'check-job-quality.ps1') -JobJson ($jobCandidate|ConvertTo-Json -Compress -Depth 8) -MetadataJson ($metadata|ConvertTo-Json -Compress -Depth 30) | Select-Object -Last 1)|ConvertFrom-Json
     if(-not [bool]$quality.allowed){
         $rejected++
-        & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $jobCandidate.job_id -Status 'skipped-job-quality' -ReasonCode ([string]$quality.reason_code) -Company $company -Title $title -Location $location -JobUrl $jobUrl -Source 'freehire' -Notes ([string]$quality.evidence) -Workspace $Workspace | Out-Null
+        try {
+            & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $jobCandidate.job_id -Status 'skipped-job-quality' -ReasonCode ([string]$quality.reason_code) -Company $company -Title $title -Location $location -JobUrl $jobUrl -Source 'freehire' -Notes ([string]$quality.evidence) -Workspace $Workspace | Out-Null
+        } catch { }
         continue
     }
     $postedAt=[string](Pick $item @('posted_at','published_at','created_at'))
