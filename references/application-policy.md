@@ -1,4 +1,4 @@
-# Autonomous Application Policy V6.2
+# Autonomous Application Policy V6.3
 
 ## Principle
 Quality and eligibility beat volume. Requested application count is a maximum target, never a quota.
@@ -10,7 +10,11 @@ Assessment artifacts are committed only through `scripts/commit-assessment.ps1`;
 
 Every outbound application side effect is reserved through `scripts/application-send-guard.ps1`. An interrupted worker, missing receipt, or ambiguous return requires authenticated verification of the real Sent/ATS state before another Send/Submit. Channel-incompatible or unavailable evidence quarantines verification. Direct email applications use `job-autopilot-email-apply`; external forms use `job-autopilot-external-apply`.
 
+An exact FreeHire employer-mail link is also authoritative positive evidence only when `sync-freehire-context.ps1` verifies the stored slug, stable external message ID, recognized application signal, candidate mailbox, and a timestamp at or after the reservation. This proof may confirm submission but can never prove absence. Suggested, unlinked, stale, or merely similar mail is not evidence.
+
 Only `scripts/reconcile-application-result.ps1` converts a terminal per-job result into the shared applications ledger. Terminal blockers are created through `scripts/write-application-outcome.ps1`. Both are idempotent; workers and coordinators never hand-append application rows.
+
+FreeHire tracking is a downstream mirror, never a submission mechanism or authority. `POST /jobs/{slug}/apply` may run only after reconciliation has written a verified local `submitted` row. A FreeHire outage, stale remote stage, or mirror error cannot change local status or permit another send.
 
 ## Hard gates before scoring
 A job must pass all of these before a numeric score is computed:
@@ -74,9 +78,10 @@ Do not create `blocked-unknown-fact`. Run `preflight-application.ps1` when an an
 For numeric expected compensation, prefer the posting's lower quartile. If the posting has no band, call `get-market-salary.ps1`: use FreeHire country + category + seniority p25 when at least the configured sample count exists, then broader country/category/seniority and country-wide bands, then global category bands. Convert year/month/day/hour consistently. Use the profile's Pakistan/global numbers only when the market API has no usable band. Never use expected-compensation defaults to answer current salary/CTC.
 Try, in order:
 1. profile/canonical facts,
-2. truthful saved LinkedIn/application values,
-3. N/A / decline / non-disclosure only where the question and options make it legitimate,
-4. otherwise skip.
+2. non-conflicting candidate-authored FreeHire autofill/screening values,
+3. truthful saved LinkedIn/application values,
+4. N/A / decline / non-disclosure only where the question and options make it legitimate,
+5. otherwise skip.
 
 Never fabricate to complete a form.
 

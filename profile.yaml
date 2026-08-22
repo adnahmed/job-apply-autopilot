@@ -218,6 +218,17 @@ job_quality:
 freehire:
   enabled: true
   base_url: "https://freehire.me/api/v1"
+  authenticated_enabled: true
+  credential_source: "env-or-cli"
+  allow_ai_credits: false
+  cross_source_resolution: "public-only"
+  tracking_mode: "mirror-after-local-reconcile"
+  mail_mode: "optional-exact-match"
+  candidate_cache_hours: 24
+  facet_cache_hours: 24
+  match_cache_hours: 24
+  context_sync_minutes: 30
+  rate_limit_cooldown_minutes: 15
   target_new_per_pass: 8
   posted_within_days: 7
   reality: "fresh"

@@ -43,8 +43,13 @@ try {
         try {
             $existing = $line | ConvertFrom-Json
             if ([string]$existing.job_id -eq $jobId -and ([string]$existing.status -eq 'submitted' -or [string]$existing.status -eq [string]$result.status)) {
+                if ($null -ne $lock) { $lock.Dispose(); $lock = $null }
+                $freehireSync = $null
+                if ([string]$existing.status -eq 'submitted') {
+                    try { $freehireSync = (& (Join-Path $PSScriptRoot 'sync-freehire-application.ps1') -WorkItemDir $WorkItemDir -Workspace $Workspace | Select-Object -Last 1) | ConvertFrom-Json } catch {}
+                }
                 Clear-ReconcileClaim
-                [ordered]@{ status='already-reconciled'; job_id=$jobId; ledger_status=$existing.status } | ConvertTo-Json -Compress
+                [ordered]@{ status='already-reconciled'; job_id=$jobId; ledger_status=$existing.status; freehire_sync=if($freehireSync){[string]$freehireSync.status}else{$null} } | ConvertTo-Json -Compress
                 exit 0
             }
         } catch {}
@@ -91,9 +96,14 @@ try {
         $stream.Write($bytes, 0, $bytes.Length)
         $stream.Flush($true)
     } finally { $stream.Dispose() }
+    if ($null -ne $lock) { $lock.Dispose(); $lock = $null }
+    $freehireSync = $null
+    if ($submitted) {
+        try { $freehireSync = (& (Join-Path $PSScriptRoot 'sync-freehire-application.ps1') -WorkItemDir $WorkItemDir -Workspace $Workspace | Select-Object -Last 1) | ConvertFrom-Json } catch {}
+    }
     & (Join-Path $PSScriptRoot 'update-campaign-stats.ps1') -Workspace $Workspace | Out-Null
     Clear-ReconcileClaim
-    [ordered]@{ status='reconciled'; job_id=$jobId; ledger_status=$ledgerStatus; reason_code=$reasonCode } | ConvertTo-Json -Compress
+    [ordered]@{ status='reconciled'; job_id=$jobId; ledger_status=$ledgerStatus; reason_code=$reasonCode; freehire_sync=if($freehireSync){[string]$freehireSync.status}else{$null} } | ConvertTo-Json -Compress
 } finally {
     if ($null -ne $lock) { $lock.Dispose() }
     try { Clear-ReconcileClaim } catch {}

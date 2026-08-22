@@ -1,3 +1,15 @@
+# V6.3.0 — Zero-Credit FreeHire Acceleration
+
+- Added one guarded FreeHire client with official CLI/environment credential discovery, content-addressed caching, request coalescing, sanitized latency telemetry, provider cooldowns, and a method/path allowlist that blocks credit-consuming or unknown endpoints before network access.
+- Added deterministic per-work-item enrichment across FreeHire, LinkedIn, and browser discoveries: public URL find/resolve, catalogue copies, captured application questions, no-LLM job matching, arbitrary-text matching, and read-only cached match analysis.
+- Added cached candidate autofill and screening values with strict local-canonical-first precedence, plus daily facet/market-coverage evidence for discovery-lane allocation.
+- Prioritized otherwise-equal assessment work by deterministic match coverage while explicitly retaining the assessor as the only fit/eligibility decision-maker.
+- Added best-effort FreeHire tracking only after verified local reconciliation; the local ledger remains authoritative and remote failure never rolls it back.
+- Added optional exact-link Gmail reconciliation. Only post-reservation, slug-linked employer messages with stable IDs and recognized signals may confirm an ambiguous send through a caller-bound send-guard proof kind.
+- Expanded campaign analytics with API latency/cache/auth/error metrics, enrichments, cross-source resolutions, remote mirrors, mail proof counts, and credit-history anomalies.
+- Kept TeX resumes authoritative and permanently excluded automatic match-analysis creation, CV tailoring, assistant/autopilot, experience writes, referrals, Talent Network, ghost reports, and other paid or unrelated side effects.
+- Added release assertions for the zero-credit, public-URL, local-authority, and exact-mail boundaries. They are packaged but were not executed for this change.
+
 # V6.2.0 — Runtime Contract Enforcement
 
 - Preserved uncapped non-LinkedIn worker fan-out while replacing 90-minute default worker claims with explicit 20/30/45-minute stage leases and a 15-minute discovery lease.

@@ -1,11 +1,16 @@
-# V6.2.0 Release Contract
+# V6.3.0 Release Contract
 
 This document describes the required implementation state. It does not invoke a test suite.
 
-- `VERSION.txt` and the main skill heading are `6.2.0`.
+- `VERSION.txt` and the main skill heading are `6.3.0`.
+- Every FreeHire request uses the zero-credit allowlisted client; unknown and credit-consuming endpoints are blocked before network access, and credentials never enter logs or repository files.
+- Authenticated FreeHire enrichment is cached and fail-open; deterministic match evidence prioritizes work but never passes or rejects a job.
+- Cross-source resolution accepts only public HTTP(S) vacancy URLs after local dedupe; private/authenticated/local-network URLs are never sent.
+- Candidate autofill and screening data use local-canonical-first precedence, while application tracking mirrors only after local reconciliation.
+- Exact linked FreeHire mail may prove an ambiguous submission only through the caller-bound send-guard proof kind; suggested, unlinked, stale, or pre-reservation messages cannot.
 - FreeHire composite discovery, ignored-parameter checks, evidence-only reality signals, local salary insights, explicit route sidecars, deterministic answer resolution, quality rejection, and fast/research wave state are present.
 - Persistence is owned only by `opencode-goal-plugin@0.8.1`, with `noContinueWhileChildrenActive: true` and durable state enabled.
-- Every goal continuation reruns `session-state.ps1`; restart recovery remains paused until `/goal resume`.
+- Every goal continuation reruns `session-state.ps1` and the cached fail-open `sync-freehire-context.ps1`; a mail proof causes one state refresh, while restart recovery remains paused until `/goal resume`.
 - No packaged command launches, monitors, stops, health-gates, or keeps awake an OS background coordinator.
 - Queue/generated/discovery stages use expiring claims; matching transitions clear claims and expired claims do not suppress work.
 - Assessment commits require expected prior state and serialize under the work-item lock.

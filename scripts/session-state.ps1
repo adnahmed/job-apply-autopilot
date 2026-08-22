@@ -228,7 +228,7 @@ if (Test-Path -LiteralPath $queueRoot) {
         # Do not reopen an old failed skip just because policy changed. But if a reassessment was already
         # Explicitly reopened technical skips may finish after restart.
         $explicitReassessment = ($job -and (Has-Property $job 'allow_after_prior_skip') -and [bool]$job.allow_after_prior_skip)
-        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0','6.1','6.2') -and $status -in @('needs-evidence','needs-research','passed'))
+        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0','6.1','6.2','6.3') -and $status -in @('needs-evidence','needs-research','passed'))
         $ledgerBlocks = ($submittedIds.ContainsKey($id) -or ($already -and -not $reassessmentInProgress))
         $shadowedByGenerated = $generatedIds.ContainsKey($id)
         $terminal = $status -in @('failed','rejected','skipped','submitted','blocked')
@@ -263,6 +263,7 @@ if (Test-Path -LiteralPath $queueRoot) {
             quality_classification = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.classification } else { $null }
             reality_signal = [bool]($sourceMetadata -and $sourceMetadata.quality -and $sourceMetadata.quality.reality_signal)
             reality_evidence = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.evidence } else { $null }
+            freehire_match_percent = if ($sourceMetadata -and $sourceMetadata.freehire -and $null -ne $sourceMetadata.freehire.match_percent) { [int]$sourceMetadata.freehire.match_percent } else { $null }
             actionable = $actionable
             stage = $stage
             speed = $speed
@@ -294,7 +295,7 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $resultStatus = if ($result -and $result.status) { [string]$result.status } else { $null }
         $linkedinHandoff = ($resultStatus -eq 'handoff-easy-apply')
         $needsReconcile = (($null -ne $result) -and -not $linkedinHandoff -and -not $already)
-        # blocked-unknown-fact remains terminal for legacy rows only. V6.2 workers never create it.
+        # blocked-unknown-fact remains terminal for legacy rows only. V6.3 workers never create it.
         $terminalResult = $resultStatus -in @('submitted','blocked-auth','blocked-security','blocked-automation','blocked-domain-circuit-breaker','blocked-identity-mismatch','blocked-work-auth','blocked-protected-fact','blocked-unknown-fact','blocked-technical','blocked-verification-unresolved','skipped-ineligible','skipped-duplicate','skipped-job-quality','failed')
         $resumeReady = ($artifact -and [string]$artifact.status -eq 'ready-for-upload' -and $artifact.path -and (Test-Path -LiteralPath ([string]$artifact.path)))
         $jobDomain = Get-JobDomain $job
@@ -336,6 +337,7 @@ if (Test-Path -LiteralPath $generatedRoot) {
             quality_classification = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.classification } else { $null }
             reality_signal = [bool]($sourceMetadata -and $sourceMetadata.quality -and $sourceMetadata.quality.reality_signal)
             reality_evidence = if ($sourceMetadata -and $sourceMetadata.quality) { [string]$sourceMetadata.quality.evidence } else { $null }
+            freehire_match_percent = if ($sourceMetadata -and $sourceMetadata.freehire -and $null -ne $sourceMetadata.freehire.match_percent) { [int]$sourceMetadata.freehire.match_percent } else { $null }
             actionable = $actionable
             needs_reconcile = $needsReconcile
             reconcile_actionable = ($needsReconcile -and -not $claimed)
@@ -387,6 +389,7 @@ $selected = @($reconcile) + @($generatedActionable) + @($queueActionable)
 $selected = @($selected | Sort-Object `
     @{Expression={ if ($stagePriority.ContainsKey([string]$_.stage)) { $stagePriority[[string]$_.stage] } else { 999 } }}, `
     @{Expression={ if ($_.speed -eq 'fast') { 0 } elseif ($_.speed -eq 'slow') { 1 } else { 2 } }}, `
+    @{Expression={ if ($null -ne $_.freehire_match_percent) { -[int]$_.freehire_match_percent } else { 1 } }}, `
     @{Expression={ $_.job_id }})
 $nextAction = if ($reconcile.Count -gt 0) {
     'reconcile'
@@ -428,6 +431,7 @@ $actions = @($selected | ForEach-Object {
         quality_classification = $_.quality_classification
         reality_signal = [bool]$_.reality_signal
         reality_evidence = $_.reality_evidence
+        freehire_match_percent = $_.freehire_match_percent
         dispatch = $dispatch
         priority = if ($stagePriority.ContainsKey([string]$_.stage)) { $stagePriority[[string]$_.stage] } else { 999 }
         path = $_.path
@@ -536,6 +540,7 @@ if ($Compact) {
             wave = $_.wave
             dispatch = $_.dispatch
             priority = $_.priority
+            freehire_match_percent = $_.freehire_match_percent
         }
         if ($_.worker_prompt) { $item['worker_prompt'] = $_.worker_prompt }
         elseif ($_.path) { $item['path'] = $_.path }

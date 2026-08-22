@@ -179,7 +179,7 @@ try {
         }
         if ($null -ne $fitDraft -and $validationErrors.Count -eq 0) {
             $fit = [ordered]@{
-                policy_version = '6.2'
+                policy_version = '6.3'
                 job_id = [string]$job.job_id
                 status = 'complete'
                 score = $score
@@ -200,7 +200,7 @@ try {
     }
 
     $assessment = [ordered]@{
-        policy_version = '6.2'
+        policy_version = '6.3'
         job_id = [string]$job.job_id
         status = $draftStatus
         score = $score

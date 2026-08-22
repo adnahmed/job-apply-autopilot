@@ -272,7 +272,16 @@ try {
         throw "Unique submission metrics failed: $($snapshot.summary | ConvertTo-Json -Compress)."
     }
 
-    Write-Output 'PASS resilience: source gating, parallel throughput routing, reality-evidence quality semantics, deterministic transitions, semantic dedupe, idempotent sends, active circuit routing, unique metrics, and atomic governor recovery passed.'
+    # The FreeHire transport must reject paid and unknown surfaces before any network call.
+    $paidBlocked = (& (Join-Path $PSScriptRoot 'freehire-client.ps1') -Method POST -Path 'jobs/example/match-analysis' -CostClass credit -Auth required -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
+    if ($paidBlocked.status -ne 'policy-blocked' -or $paidBlocked.error_code -ne 'ai-credit-spend-disabled') { throw 'FreeHire AI-credit guard did not block before transport.' }
+    $unknownBlocked = (& (Join-Path $PSScriptRoot 'freehire-client.ps1') -Method POST -Path 'assistant/sessions' -CostClass free -Auth none -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
+    if ($unknownBlocked.status -ne 'policy-blocked' -or $unknownBlocked.error_code -ne 'endpoint-not-zero-credit-allowlisted') { throw 'FreeHire endpoint allowlist accepted an unknown surface.' }
+
+    $clientSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'freehire-client.ps1') -Raw
+    if ($clientSource -match '(?i)Authorization\s*=.*Write-(Output|Host)|Emit\s+.*token') { throw 'FreeHire client appears to expose credential material.' }
+
+    Write-Output 'PASS resilience: source gating, parallel throughput routing, reality-evidence quality semantics, deterministic transitions, semantic dedupe, idempotent sends, active circuit routing, unique metrics, atomic governor recovery, and zero-credit FreeHire policy passed.'
 } finally {
     Remove-Item -LiteralPath $workspace -Recurse -Force -ErrorAction SilentlyContinue
 }

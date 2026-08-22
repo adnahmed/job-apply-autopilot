@@ -21,6 +21,9 @@ if(-not $BaseUrl){$BaseUrl=[string](Read-ProfileScalar 'base_url' 'https://freeh
 if($MinimumSamples -le 0){$MinimumSamples=[int](Read-ProfileScalar 'salary_insights_minimum_samples' 5)}
 if($CacheHours -le 0){$CacheHours=[int](Read-ProfileScalar 'salary_insights_cache_hours' 168)}
 $WorkItemDir = (Resolve-Path -LiteralPath $WorkItemDir).Path
+$cursor=[IO.DirectoryInfo]::new($WorkItemDir);$runtimeRoot=$null
+while($null-ne$cursor){if($cursor.Name -eq '.job-apply-autopilot'){$runtimeRoot=$cursor.FullName;break};$cursor=$cursor.Parent}
+$Workspace=if($runtimeRoot){Split-Path -Parent $runtimeRoot}else{(Get-Location).Path}
 $job = Get-Content -LiteralPath (Join-Path $WorkItemDir 'job.json') -Raw | ConvertFrom-Json
 $metadataPath = Join-Path $WorkItemDir 'source-metadata.json'
 $metadata = if (Test-Path -LiteralPath $metadataPath) { try { Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json } catch { $null } } else { $null }
@@ -93,12 +96,11 @@ foreach ($attempt in $attempts) {
     if ($attempt.category) { $query.category=$attempt.category }
     if ($attempt.seniority) { $query.seniority=$attempt.seniority }
     if ($attempt.country) { $query.country=$attempt.country }
-    $pairs = @(); foreach($key in $query.Keys){$pairs += "$([Uri]::EscapeDataString($key))=$([Uri]::EscapeDataString([string]$query[$key]))"}
-    $uri = "$BaseUrl/insights/salary?$(($pairs -join '&'))"
     try {
-        $response = Invoke-RestMethod -Method Get -Uri $uri -Headers @{Accept='application/json'}
-        $bands = if ($response.data) { @($response.data) } else { @() }
-        $responses += [ordered]@{ scope=$attempt.scope; uri=$uri; count=$bands.Count }
+        $responseRaw = & (Join-Path $PSScriptRoot 'freehire-client.ps1') -Method GET -Path 'insights/salary' -QueryJson ($query|ConvertTo-Json -Compress -Depth 8) -Auth none -CostClass free -Workspace $Workspace -ProfilePath $ProfilePath -BaseUrl $BaseUrl -CacheHours $CacheHours | Select-Object -Last 1
+        $response = $responseRaw | ConvertFrom-Json
+        $bands = if ([string]$response.status -eq 'ok') { @($response.data) } else { @() }
+        $responses += [ordered]@{ scope=$attempt.scope; status=[string]$response.status; count=$bands.Count; error_code=[string]$response.error_code }
         $eligible = @($bands | Where-Object { $null -ne $_.p25 -and [int](Get-Property $_ 'sample_size' 0) -ge $MinimumSamples })
         $band = $eligible | Sort-Object @{Expression={ if([string]$_.seniority -eq $Seniority){0}else{1} }}, @{Expression={ -[int](Get-Property $_ 'sample_size' 0) }} | Select-Object -First 1
         if ($band) {
@@ -113,7 +115,7 @@ foreach ($attempt in $attempts) {
             }
             break
         }
-    } catch { $responses += [ordered]@{ scope=$attempt.scope; uri=$uri; error=$_.Exception.Message } }
+    } catch { $responses += [ordered]@{ scope=$attempt.scope; status='error'; error=$_.Exception.Message } }
 }
 
 if ($selected) {

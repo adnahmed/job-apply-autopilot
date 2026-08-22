@@ -18,11 +18,40 @@ $job = Get-Content -LiteralPath (Join-Path $WorkItemDir 'job.json') -Raw | Conve
 $metadataPath = Join-Path $WorkItemDir 'source-metadata.json'
 $metadata = if (Test-Path -LiteralPath $metadataPath) { try { Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json } catch { $null } } else { $null }
 $profile = Get-Content -LiteralPath $ProfilePath -Raw
+$runtimeRoot = $null
+$cursor = [IO.DirectoryInfo]::new($WorkItemDir)
+while ($null -ne $cursor) {
+    if ($cursor.Name -eq '.job-apply-autopilot') { $runtimeRoot=$cursor.FullName; break }
+    $cursor=$cursor.Parent
+}
+$freehireContext = if ($runtimeRoot -and (Test-Path -LiteralPath (Join-Path $runtimeRoot 'freehire-context.json'))) { try { Get-Content -LiteralPath (Join-Path $runtimeRoot 'freehire-context.json') -Raw | ConvertFrom-Json } catch { $null } } else { $null }
 
 function Scalar([string]$Name, $Default = $null) {
     $pattern = '(?m)^\s*' + [regex]::Escape($Name) + ':\s*["'']?([^\r\n"'']+)'
     if ($profile -match $pattern) { return $Matches[1].Trim() }
     return $Default
+}
+
+function FreeHire-Autofill([string]$Name, $Default = $null) {
+    if ($freehireContext -and $freehireContext.autofill -and $freehireContext.autofill.PSObject.Properties.Name -contains $Name -and $null -ne $freehireContext.autofill.$Name -and [string]$freehireContext.autofill.$Name) { return $freehireContext.autofill.$Name }
+    return $Default
+}
+
+function FreeHire-Screening([string]$Name, $Default = $null) {
+    if ($freehireContext -and $freehireContext.screening -and $freehireContext.screening.PSObject.Properties.Name -contains $Name -and $null -ne $freehireContext.screening.$Name) { return $freehireContext.screening.$Name }
+    return $Default
+}
+
+function Candidate-Value([string]$LocalName, [string]$FreeHireName, $Default = $null) {
+    $local = Scalar $LocalName
+    if ($null -ne $local -and -not [string]::IsNullOrWhiteSpace([string]$local)) { return $local }
+    return FreeHire-Autofill $FreeHireName $Default
+}
+
+function Candidate-FullName {
+    $local = Scalar 'full_name'
+    if ($local) { return $local }
+    return ("{0} {1}" -f (FreeHire-Autofill 'first_name'), (FreeHire-Autofill 'last_name')).Trim()
 }
 
 function To-Bool($Value) {
@@ -162,16 +191,16 @@ function Convert-SalaryPeriod([double]$Value, [string]$From, [string]$To) {
 }
 
 # Canonical identity fields. Missing required identity/legal facts are blockers, never synthetic N/A values.
-if (($label -match '(?i)\b(full|legal|candidate)\s*name\b' -or $label.Trim() -match '(?i)^name(\s+of\s+(applicant|candidate))?$') -and $label -notmatch '(?i)company|employer') { Emit-Answer (Scalar 'full_name') 'profile.candidate.full_name' 'identity' }
-if ($label -match '(?i)\bfirst\s*name\b') { Emit-Answer (([string](Scalar 'full_name')).Split(' ')[0]) 'profile.candidate.full_name' 'identity' }
-if ($label -match '(?i)\blast\s*name\b|\bsurname\b') { $parts=([string](Scalar 'full_name')).Split(' ',[StringSplitOptions]::RemoveEmptyEntries); Emit-Answer $parts[$parts.Count-1] 'profile.candidate.full_name' 'identity' }
-if ($label -match '(?i)\be[\s-]?mail\b') { Emit-Answer (Scalar 'email') 'profile.candidate.email' 'identity' }
-if ($label -match '(?i)linkedin') { Emit-Answer (Scalar 'linkedin') 'profile.candidate.linkedin' 'identity' }
+if (($label -match '(?i)\b(full|legal|candidate)\s*name\b' -or $label.Trim() -match '(?i)^name(\s+of\s+(applicant|candidate))?$') -and $label -notmatch '(?i)company|employer') { Emit-Answer (Candidate-FullName) 'candidate-authoritative-local-first' 'identity' }
+if ($label -match '(?i)\bfirst\s*name\b') { $localName=[string](Scalar 'full_name'); Emit-Answer ($(if($localName){$localName.Split(' ')[0]}else{FreeHire-Autofill 'first_name'})) 'candidate-authoritative-local-first' 'identity' }
+if ($label -match '(?i)\blast\s*name\b|\bsurname\b') { $localName=[string](Scalar 'full_name'); if($localName){$parts=$localName.Split(' ',[StringSplitOptions]::RemoveEmptyEntries);$last=$parts[$parts.Count-1]}else{$last=FreeHire-Autofill 'last_name'}; Emit-Answer $last 'candidate-authoritative-local-first' 'identity' }
+if ($label -match '(?i)\be[\s-]?mail\b') { Emit-Answer (Candidate-Value 'email' 'email') 'candidate-authoritative-local-first' 'identity' }
+if ($label -match '(?i)linkedin') { Emit-Answer (Candidate-Value 'linkedin' 'linkedin') 'candidate-authoritative-local-first' 'identity' }
 if ($label -match '(?i)github') { Emit-Answer (Scalar 'github') 'profile.candidate.github' 'identity' }
-if ($label -match '(?i)\b(portfolio|personal\s*website)\b') { Emit-Answer (Scalar 'github') 'profile.candidate.github' 'identity' }
+if ($label -match '(?i)\b(portfolio|personal\s*website)\b') { Emit-Answer (Candidate-Value 'github' 'portfolio') 'candidate-authoritative-local-first' 'identity' }
 if ($label -match '(?i)\b(phone|mobile|telephone|whatsapp|contact\s*number)\b') {
-    $phone = Scalar 'phone'
-    if ($phone) { Emit-Answer $phone 'profile.candidate.phone' 'identity' }
+    $phone = Candidate-Value 'phone' 'phone'
+    if ($phone) { Emit-Answer $phone 'candidate-authoritative-local-first' 'identity' }
     if ($required) { Block-Protected 'required-phone-missing' 'identity' }
     Emit-Answer '' 'optional-blank' 'identity'
 }
@@ -182,7 +211,14 @@ if ($label -match '(?i)\b(street\s*address|address\s*line|postal\s*code|zip\s*co
 if ($label -match '(?i)\bcity\b') { Emit-Answer (Scalar 'city') 'profile.candidate.location.city' 'identity' }
 if ($label -match '(?i)\b(current\s*)?location\b') { Emit-Answer "$(Scalar 'city'), $(Scalar 'country')" 'profile.candidate.location' 'identity' }
 if ($label -match '(?i)\bcountry\b' -and $label -notmatch '(?i)work|authoriz|eligible|visa|sponsor|citizen|nationality') { Emit-Answer (Scalar 'country') 'profile.candidate.location.country' 'identity' }
+if ($label -match '(?i)(require|need).*(visa|immigration).*(sponsor)|sponsorship.*(require|need)') {
+    $sponsorship = FreeHire-Screening 'visa_sponsorship_needed'
+    if ($null -ne $sponsorship) { Emit-Answer ($(if([bool]$sponsorship){'Yes'}else{'No'})) 'freehire.candidate-screening' 'legal-authorization' }
+}
 if ($label -match '(?i)(work\s*authoriz|authorized\s*to\s*work|legally\s*(eligible|entitled)|visa\s*(status|sponsor)|require\s*sponsorship|right\s*to\s*work)') {
+    $countryCode = if ($question.country_code) { [string]$question.country_code } elseif ([string]$question.country -match '^[A-Za-z]{2}$') { [string]$question.country } else { '' }
+    $authorizedCountries = @(FreeHire-Screening 'authorized_countries' @())
+    if ($countryCode -and $authorizedCountries.Count -gt 0) { Emit-Answer ($(if($authorizedCountries -contains $countryCode.ToUpperInvariant()){'Yes'}else{'No'})) 'freehire.candidate-screening' 'legal-authorization' }
     if ($required) { Block-Protected 'work-authorization-not-verified' 'legal-authorization' }
     Emit-Answer '' 'optional-blank' 'legal-authorization'
 }
@@ -219,6 +255,12 @@ if ($label -match '(?i)(expected|desired|salary expectation|compensation expecta
         if (-not $desiredPeriod) { $desiredPeriod = 'year' }
         Emit-Answer (Convert-SalaryPeriod ([double]$market.value) ([string]$market.period) $desiredPeriod) ([string]$market.source) 'expected-compensation' @{currency=[string]$market.currency;period=$desiredPeriod;sample_size=$market.sample_size;market_scope=$market.scope;country=$market.country;category=$market.category;seniority=$market.seniority}
     }
+    $screeningSalary=FreeHire-Screening 'desired_salary_amount'
+    if($null -ne $screeningSalary){
+        $fromPeriod=[string](FreeHire-Screening 'desired_salary_period' 'year')
+        $desiredPeriod=if($label -match '(?i)hour'){'hour'}elseif($label -match '(?i)month'){'month'}elseif($label -match '(?i)day'){'day'}elseif($label -match '(?i)year|annual'){'year'}else{$fromPeriod}
+        Emit-Answer (Convert-SalaryPeriod ([double]$screeningSalary) $fromPeriod $desiredPeriod) 'freehire.candidate-screening' 'expected-compensation' @{currency=[string](FreeHire-Screening 'desired_salary_currency');period=$desiredPeriod}
+    }
     $location = [string]$job.location
     if ($label -match '(?i)hour') { Emit-Answer ([int](Scalar 'global_remote_hourly_numeric' 30)) 'profile.global-remote-default' 'expected-compensation' }
     if ($label -match '(?i)month') { Emit-Answer ($(if ($location -match '(?i)pakistan|islamabad|rawalpindi|lahore|karachi') { [int](Scalar 'pakistan_local_unlabeled_numeric' 350000) } else { [int](Scalar 'global_remote_monthly_numeric' 5000) })) 'profile.location-default' 'expected-compensation' }
@@ -233,7 +275,9 @@ if ($label -match '(?i)gender|race|ethnic|veteran|disability|demographic') {
     if (-not $required) { Emit-Answer '' 'optional-blank' 'optional-demographic' }
     Block-Protected 'required-sensitive-disclosure-without-decline-option' 'sensitive-disclosure'
 }
-if ($label -match '(?i)notice\s*period') { Emit-Answer 30 'profile.answer_policy' 'availability' }
+if ($label -match '(?i)(willing|open).*(relocat)|relocat.*(willing|open)') { $relocate=FreeHire-Screening 'willing_to_relocate'; if($null -ne $relocate){Emit-Answer ($(if([bool]$relocate){'Yes'}else{'No'})) 'freehire.candidate-screening' 'availability'} }
+if ($label -match '(?i)(18|eighteen).*(older|age)|age.*(18|eighteen)') { $adult=FreeHire-Screening 'age_18_or_older'; if($null -ne $adult){Emit-Answer ($(if([bool]$adult){'Yes'}else{'No'})) 'freehire.candidate-screening' 'identity'} }
+if ($label -match '(?i)notice\s*period') { $notice=FreeHire-Screening 'notice_period_days'; Emit-Answer ($(if($null -ne $notice){[int]$notice}else{30})) ($(if($null -ne $notice){'freehire.candidate-screening'}else{'profile.answer_policy'})) 'availability' }
 if ($label -match '(?i)start\s*date|available\s*to\s*start') { Emit-Answer '30 days after offer' 'profile.answer_policy' 'availability' }
 if (-not $required) { Emit-Answer '' 'optional-blank' }
 

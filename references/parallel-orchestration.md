@@ -1,4 +1,4 @@
-# Parallel Orchestration V6.2 — Claimed Fast/Research Pipeline
+# Parallel Orchestration V6.3 — Claimed Fast/Research Pipeline
 
 Optimize verified net-new submissions per hour. Keeping one independent job in flight is a scheduler failure.
 

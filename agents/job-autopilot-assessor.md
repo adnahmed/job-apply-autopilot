@@ -25,6 +25,8 @@ permission:
 
 Handle exactly ONE supplied queue directory. Do not load the main skill, browse, ask questions, invoke another worker, search for files, or probe denied shell commands. Read `source-metadata.json` when present. FreeHire `reality` is evidence, not an employer verdict: carry its class, age, repost, mass-posting, and fake-freshness evidence into integrity reasoning, but never hard-fail solely because the signal exists.
 
+When `source-metadata.json.freehire.deterministic_match` exists, reuse its exact/adjacent/missing skill evidence instead of rediscovering the same keyword split. Its percentage is a queue-priority hint, not a fit verdict: it cannot establish eligibility, role identity, mandatory experience, or truth feasibility, and it cannot independently pass or fail the job. `cached_match_analysis` is non-authoritative external analysis and must never override the complete source or canonical facts.
+
 Before reading the job, acquire the supplied action through this exact installed script:
 
 ```powershell

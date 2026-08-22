@@ -1,4 +1,8 @@
-# Campaign Analytics V6.2
+# Campaign Analytics V6.3
+
+The `freehire` block reports source decisions/submissions plus API calls, cache hits, median latency, authentication fallbacks, policy-blocked calls, provider errors, enriched work items, deterministic matches, cross-source resolutions, remote application mirrors, mirror failures, exact mail events, mail-based submission proofs, current credits, and credit-history anomalies. These metrics evaluate whether the API removes agent/browser work without weakening local authority.
+
+`freehire-api.jsonl` contains only method, normalized path, query-key names, request-body hash, status, latency, cache state, credential-source label, and sanitized error code. It must never contain a token, authorization header, request body, or raw mail body.
 
 ## Purpose
 Use accumulated application outcomes to spend discovery effort where credible eligible jobs are actually found. Analytics may change search allocation, never truth/eligibility/fit standards.

@@ -3,7 +3,7 @@ name: job-apply-autopilot
 description: "Goal-driven autonomous job discovery, truthful fit triage, tailored resumes, and idempotent verified submission through BrowserOS neo. Uses claimed actions, semantic dedupe, verification quarantine, and deterministic application outcomes."
 ---
 
-# Job Apply Autopilot V6.2.0 — Contract-Enforced Parallel Pipeline
+# Job Apply Autopilot V6.3.0 — Zero-Credit API-Accelerated Parallel Pipeline
 
 Mission: maximize credible net-new interview opportunities per unit time while preserving truth, the candidate's documented geographic eligibility, security controls, and duplicate safety. Tool activity, duplicate work, placeholders, and unverified outcomes are not progress.
 
@@ -18,7 +18,13 @@ Every initial turn and every goal continuation must rerun the authoritative stat
 ```powershell
 $workspace = (Get-Location).Path
 $state = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\session-state.ps1" -Workspace $workspace -Compact | ConvertFrom-Json
+$freehireSync = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\sync-freehire-context.ps1" -Workspace $workspace -Compact | ConvertFrom-Json
+if ($freehireSync.submission_proofs -gt 0) {
+    $state = pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\session-state.ps1" -Workspace $workspace -Compact | ConvertFrom-Json
+}
 ```
+
+The FreeHire context sync is deterministic, cached, and fail-open. Missing credentials, a provider outage, or a rate-limit response never blocks local or browser work. It may resolve an ambiguous send only from an exact slug-linked employer message satisfying the send guard; otherwise it only refreshes candidate, market, mail, and credit telemetry.
 
 Never set goals in workers. The configured child-session gate prevents continuation coordinator turns while workers are active.
 
@@ -103,6 +109,12 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\discover-freeh
 
 It performs one composite faceted request per fresh Pakistan, global-remote, and sponsorship lane; checks `meta.ignored_params`; stores full source/reality metadata; uses semantic-similar jobs only as a sparse-lane fallback; checks posting copies to recover a missing/aggregator route; ranks direct ATS/employer copies first; captures available application questions; and persists aggregator-only targets as `unresolved` route evidence. FreeHire reality is evidence with its workings, never an automatic employer verdict. Explicit denylist overrides, unnamed clients, and predatory funnels remain hard quality rejections.
 
+All FreeHire calls go through `freehire-client.ps1`, whose method/path allowlist excludes every AI-credit endpoint. It may read an already-cached match analysis but never create one. It never calls CV tailoring or the generic assistant. Authentication resolves from `FREEHIRE_TOKEN`, then `FREEHIRE_API_KEY`, then the official CLI credential file; no token may enter a prompt, artifact, command result, repository file, or telemetry row.
+
+For every plausible non-FreeHire job with a complete public source URL, run `enrich-freehire-workitem.ps1` immediately after local dedupe and source capture. It first checks `/jobs/find`, may send only a public HTTP(S) vacancy URL to `/jobs/resolve`, and falls back to deterministic `/me/match-text` when no catalogue slug exists. Private, authenticated, local-network, or user-info URLs are never sent. Enrichment failure is non-blocking.
+
+Deterministic match coverage prioritizes otherwise-equal assessment actions. It is not a gate and cannot independently pass or reject a job. Assessors reuse its matched/adjacent/missing evidence while retaining full responsibility for eligibility, role identity, mandatory requirements, integrity, and truth feasibility. Daily market coverage is lane-allocation evidence only; it never changes canonical skills.
+
 Derive local and regional lanes from `profile.yaml` (`candidate.location` and `search_defaults.locations`). Rotate lanes: home-country/local direct; explicitly compatible regional remote; worldwide/international contractor; sponsorship/relocation; direct employer/ATS; broader backend/platform/AI/software synonyms.
 
 Batch visible-card identity through:
@@ -151,6 +163,8 @@ Run `preflight-application.ps1` before an external reservation whenever an answe
 ## Submission and quarantine
 
 Every external side effect uses `application-send-guard.ps1`. A missing result, interrupted worker, public page, browser history entry, missing local file, or missing confirmation email never proves absence.
+
+After local reconciliation records a verified submission, `reconcile-application-result.ps1` best-effort mirrors the FreeHire `applied` state for work items carrying a catalogue slug. The local ledger remains authoritative and remote failure never rolls it back. An already-connected FreeHire Gmail account is optional: context sync may queue incremental sync and consume exact linked signals, but it never connects, disconnects, deletes, uploads arbitrary mail, accepts suggested links, or treats unlinked mail as proof.
 
 Channel-compatible absence proof is mandatory:
 

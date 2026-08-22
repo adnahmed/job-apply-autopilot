@@ -97,7 +97,31 @@ $answerCalls = 0
 $answerQuestions = 0
 $answerRepeated = 0
 $answerLooped = 0
+$freehireEnriched = 0
+$freehireDeterministicMatches = 0
+$freehireResolved = 0
+$freehireRemoteSynced = 0
+$freehireMirrorFailures = 0
 foreach ($dir in @($workItemDirs.Values | Sort-Object -Unique)) {
+    $sourceMetadataPath = Join-Path $dir 'source-metadata.json'
+    if (Test-Path -LiteralPath $sourceMetadataPath) {
+        try {
+            $sourceMetadata = Get-Content -LiteralPath $sourceMetadataPath -Raw | ConvertFrom-Json
+            if ($sourceMetadata.freehire) {
+                $freehireEnriched++
+                if ($sourceMetadata.freehire.deterministic_match -and [string]$sourceMetadata.freehire.deterministic_match.status -eq 'ok') { $freehireDeterministicMatches++ }
+                if ($sourceMetadata.freehire.resolution -and [string]$sourceMetadata.freehire.resolution.status -in @('found','tracked','imported','review','queued')) { $freehireResolved++ }
+            }
+        } catch {}
+    }
+    $freehireSyncPath = Join-Path $dir 'freehire-sync.json'
+    if (Test-Path -LiteralPath $freehireSyncPath) {
+        try {
+            $freehireSync = Get-Content -LiteralPath $freehireSyncPath -Raw | ConvertFrom-Json
+            if ($freehireSync.remote_applied_at) { $freehireRemoteSynced++ }
+            elseif ($freehireSync.error_code) { $freehireMirrorFailures++ }
+        } catch { $freehireMirrorFailures++ }
+    }
     $assessmentPath = Join-Path $dir 'assessment.json'
     if (Test-Path -LiteralPath $assessmentPath) {
         try { $assessmentStates.Add([string](Get-Content -LiteralPath $assessmentPath -Raw | ConvertFrom-Json).status) } catch { $assessmentStates.Add('malformed') }
@@ -128,6 +152,19 @@ foreach ($dir in @($workItemDirs.Values | Sort-Object -Unique)) {
     }
 }
 
+$freehireApiEvents = @()
+$freehireApiPath = Join-Path $root 'freehire-api.jsonl'
+if (Test-Path -LiteralPath $freehireApiPath) {
+    foreach ($line in Get-Content -LiteralPath $freehireApiPath) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        try { $freehireApiEvents += ($line | ConvertFrom-Json) } catch {}
+    }
+}
+$freehireLatencies = @($freehireApiEvents | Where-Object { $null -ne $_.latency_ms } | ForEach-Object { [double]$_.latency_ms } | Sort-Object)
+$freehireContext = $null
+$freehireContextPath = Join-Path $root 'freehire-context.json'
+if (Test-Path -LiteralPath $freehireContextPath) { try { $freehireContext=Get-Content -LiteralPath $freehireContextPath -Raw | ConvertFrom-Json } catch {} }
+
 $stats = [ordered]@{
     generated_at = (Get-Date).ToUniversalTime().ToString('o')
     total_decisions = $total
@@ -140,7 +177,27 @@ $stats = [ordered]@{
     submission_rate = if ($total) { [math]::Round($submittedTotal / $total, 4) } else { 0 }
     median_decision_minutes = Median $completedDurations
     median_submission_minutes = Median $submittedDurations
-    freehire = [ordered]@{ decisions=@($rows | Where-Object source -eq 'freehire').Count; submitted=@($submittedRows | Where-Object source -eq 'freehire').Count }
+    freehire = [ordered]@{
+        decisions=@($rows | Where-Object source -eq 'freehire').Count
+        submitted=@($submittedRows | Where-Object source -eq 'freehire').Count
+        api_calls=$freehireApiEvents.Count
+        cache_hits=@($freehireApiEvents | Where-Object cache_hit).Count
+        median_api_latency_ms=Median $freehireLatencies
+        auth_fallbacks=@($freehireApiEvents | Where-Object status -eq 'auth-unavailable').Count
+        policy_blocked=@($freehireApiEvents | Where-Object status -eq 'policy-blocked').Count
+        errors=@($freehireApiEvents | Where-Object status -in @('error','rate-limited')).Count
+        enriched_work_items=$freehireEnriched
+        deterministic_matches=$freehireDeterministicMatches
+        cross_source_resolutions=$freehireResolved
+        remote_applications_mirrored=$freehireRemoteSynced
+        mirror_failures=$freehireMirrorFailures
+        exact_mail_events=if($freehireContext -and $freehireContext.mail){[int]$freehireContext.mail.exact_events}else{0}
+        mail_submission_proofs=if($freehireContext -and $freehireContext.mail){[int]$freehireContext.mail.submission_proofs}else{0}
+        credit_anomaly=[bool]($freehireContext -and $freehireContext.credit_anomaly)
+        credit_remaining=if($freehireContext -and $freehireContext.credits){$freehireContext.credits.remaining}else{$null}
+        candidate_conflicts=if($freehireContext -and $freehireContext.candidate_conflicts){@($freehireContext.candidate_conflicts).Count}else{0}
+        endpoint_statuses=@($freehireApiEvents | Group-Object status | Sort-Object Name | ForEach-Object { [ordered]@{status=$_.Name;count=$_.Count} })
+    }
     quality_rejected = @($rows | Where-Object status -eq 'skipped-job-quality').Count
     statuses = @($rows | Group-Object status | Sort-Object Name | ForEach-Object { [ordered]@{ status=$_.Name; count=$_.Count } })
     by_source = @(Summarize $rows 'source')

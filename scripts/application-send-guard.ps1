@@ -7,15 +7,17 @@ param(
     [string]$Subject = '',
     [string]$ReservationId = '',
     [string]$Proof = '',
-    [ValidateSet('','authenticated-ats-tracker-absence','exact-sent-search-absence','user-confirmed-absence')][string]$ProofKind = '',
+    [ValidateSet('','authenticated-ats-tracker-absence','exact-sent-search-absence','user-confirmed-absence','freehire-exact-linked-mail')][string]$ProofKind = '',
     [switch]$ResolutionCommand,
     [int]$VerificationGraceMinutes = 15
 )
 
 $ErrorActionPreference = 'Stop'
 $resolverScriptPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'resolve-application-quarantine.ps1'))
+$freehireSyncScriptPath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'sync-freehire-context.ps1'))
 $callerScriptPath = if ([string]::IsNullOrWhiteSpace([string]$MyInvocation.ScriptName)) { '' } else { [IO.Path]::GetFullPath([string]$MyInvocation.ScriptName) }
 $resolutionCommandAuthorized = ([bool]$ResolutionCommand -and $callerScriptPath -eq $resolverScriptPath)
+$freehireMailAuthorized = ($ProofKind -eq 'freehire-exact-linked-mail' -and $callerScriptPath -eq $freehireSyncScriptPath)
 $WorkItemDir = (Resolve-Path -LiteralPath $WorkItemDir).Path
 $statePath = Join-Path $WorkItemDir 'application-send-state.json'
 $resultPath = Join-Path $WorkItemDir 'application-result.json'
@@ -171,6 +173,7 @@ try {
                 status = 'submitted'
                 submitted = $true
                 confirmation = [string]$state.proof
+                proof_kind = if ($state.PSObject.Properties.Name -contains 'proof_kind') { [string]$state.proof_kind } else { $null }
                 resume_filename = if ($artifact) { $artifact.filename } else { $null }
                 reservation_id = [string]$state.reservation_id
                 submitted_at = $state.submitted_at
@@ -273,10 +276,15 @@ try {
         'MarkSubmitted' {
             if (-not (Test-Reservation $state $ReservationId)) { exit 0 }
             if ([string]::IsNullOrWhiteSpace($Proof)) { throw 'MarkSubmitted requires -Proof.' }
+            if ($ProofKind -eq 'freehire-exact-linked-mail' -and -not $freehireMailAuthorized) {
+                Write-Result ([ordered]@{ status='rejected-proof'; safe_to_submit=$false; reservation_id=$state.reservation_id; proof_kind=$ProofKind; required_caller='sync-freehire-context.ps1' })
+                exit 0
+            }
             $job = Read-JsonSafe $jobPath
             $artifact = Read-JsonSafe $artifactPath
             $state.status = 'submitted'
             Set-StateProperty $state 'proof' $Proof.Trim()
+            if ($ProofKind) { Set-StateProperty $state 'proof_kind' $ProofKind }
             Set-StateProperty $state 'submitted_at' $now.ToString('o')
             Set-StateProperty $state 'verification_retry_after' $null
             $state.updated_at = $now.ToString('o')
@@ -292,6 +300,7 @@ try {
                 status = 'submitted'
                 submitted = $true
                 confirmation = $Proof.Trim()
+                proof_kind = if ($ProofKind) { $ProofKind } else { $null }
                 resume_filename = if ($artifact) { $artifact.filename } else { $null }
                 reservation_id = [string]$state.reservation_id
                 submitted_at = $now.ToString('o')

@@ -1,17 +1,17 @@
-# Install Job Apply Autopilot V6.2.0
+# Install Job Apply Autopilot V6.3.0
 
 V6 upgrades an existing campaign in place. Do not delete `<workspace>\.job-apply-autopilot`. Terminate any active V5 background campaign process before installing; V6 does not start or manage OS background processes.
 
 From the campaign workspace:
 
 ```powershell
-$zip  = ".\job-apply-autopilot-v6.2.0.zip"
-$temp = Join-Path $env:TEMP "job-apply-autopilot-v6.2.0"
+$zip  = ".\job-apply-autopilot-v6.3.0.zip"
+$temp = Join-Path $env:TEMP "job-apply-autopilot-v6.3.0"
 $dst  = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-$src = Join-Path $temp "job-apply-autopilot-v6.2.0"
+$src = Join-Path $temp "job-apply-autopilot-v6.3.0"
 
 if (Test-Path -LiteralPath $dst) {
     $backupRoot = "$HOME\.config\opencode\skill-backups"
@@ -34,6 +34,16 @@ Pop-Location
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\init-workspace.ps1" -Workspace (Get-Location).Path
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$dst\scripts\session-state.ps1" -Workspace (Get-Location).Path
 ```
+
+Optional authenticated FreeHire acceleration uses the API key you created, but the key must never be placed in this package or campaign workspace. Authenticate once through the installed CLI:
+
+```powershell
+& "$([Environment]::GetFolderPath('UserProfile'))\go\bin\freehire.exe" auth login --token '<paste-key-interactively>'
+```
+
+Alternatively expose `FREEHIRE_TOKEN` from the external harness secret store. The scripts also accept `FREEHIRE_API_KEY` for API-documentation compatibility. Credential precedence is environment token, environment API key, then the official CLI credential file. Without any credential, public FreeHire discovery continues and all authenticated enrichment returns a non-blocking `auth-unavailable` result.
+
+Automatic AI-credit spending is disabled in both configuration and the transport allowlist. Do not change `allow_ai_credits` or bypass `freehire-client.ps1` to enable match-analysis creation, CV tailoring, or assistant calls.
 
 The npm command downloads the plugin but does not activate it. Merge the `plugin` and `command.goal` entries from `opencode-config-snippet.jsonc` into `$HOME\.config\opencode\opencode.json`, preserving other entries. The plugin options must include:
 

@@ -1,4 +1,4 @@
-# Search Strategy V5.14 — Keep Moving
+# Search Strategy V6.3 — Keep Moving
 
 Search for credible interview opportunities, not exhaustive cataloguing. A dry result page is not campaign completion.
 
@@ -16,6 +16,8 @@ For each search result page:
 7. ambiguous geography or one genuinely decision-changing specialist gap? let the local assessor request the unified bounded research worker; never perform broad research during discovery.
 
 Start discovery with `discover-freehire.ps1` when slots exist. It uses three composite public API searches rather than one call per category, validates ignored parameters, preserves full descriptions/reality/enrichment, uses `/similar` only when strict lanes are sparse, uses `/copies` only to recover a better route, and captures `/apply-form` questions. Then use browser lanes to fill remaining slots. Do not create queue directories for obvious country locks, closed roles, excluded employers, predatory funnels, unknown-client agencies, talent pools, expert marketplaces, or unrelated role identities.
+
+Cache FreeHire facets and market coverage to prioritize productive lanes. After local dedupe and full source capture, pass public LinkedIn/board URLs through `enrich-freehire-workitem.ps1`; it uses find/resolve, deterministic match, route copies, and captured form questions without consuming AI credits. Match coverage orders otherwise-equal assessment work but never substitutes for eligibility or fit judgment.
 
 ## Discovery escalation ladder
 

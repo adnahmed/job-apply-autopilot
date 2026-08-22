@@ -47,11 +47,11 @@ function Get-RouteRank([string]$Url) {
     return 10
 }
 function Invoke-FreeHireGet([string]$Path,[hashtable]$Query=@{}) {
-    $pairs=@()
-    foreach($key in $Query.Keys){$pairs += "$([Uri]::EscapeDataString($key))=$([Uri]::EscapeDataString([string]$Query[$key]))"}
-    $uri="$BaseUrl/$Path"
-    if($pairs.Count){$uri += "?$(($pairs -join '&'))"}
-    return Invoke-RestMethod -Method Get -Uri $uri -Headers @{Accept='application/json'}
+    $cacheHours = if ($Path -eq 'agent/jobs/search') { 0 } else { 24 }
+    $raw = & (Join-Path $PSScriptRoot 'freehire-client.ps1') -Method GET -Path $Path -QueryJson ($Query | ConvertTo-Json -Compress -Depth 10) -Auth none -CostClass free -Workspace $Workspace -ProfilePath $ProfilePath -BaseUrl $BaseUrl -CacheHours $cacheHours | Select-Object -Last 1
+    $result = $raw | ConvertFrom-Json
+    if ([string]$result.status -ne 'ok') { throw "FreeHire $Path failed: $($result.error_code)" }
+    return [pscustomobject]@{ data=$result.data; meta=$result.meta }
 }
 
 $categories = @('software_engineering','backend','fullstack','devops','sre','ai_engineering','solutions_engineering')
@@ -161,7 +161,7 @@ foreach($item in $candidatePool) {
     if([string]$creation.status -eq 'existing'){$existing++;continue}
     if([string]$creation.status -eq 'duplicate'){$duplicates++;continue}
     if([string]$creation.status -eq 'rejected'){$rejected++;continue}
-    if([string]$creation.status -ne 'created' -or [string]::IsNullOrWhiteSpace([string]$creation.path){$apiWarnings.Add([ordered]@{lane=$lane;error="unexpected-new-workitem-status:$($creation.status)"});continue}
+    if([string]$creation.status -ne 'created' -or [string]::IsNullOrWhiteSpace([string]$creation.path)){$apiWarnings.Add([ordered]@{lane=$lane;error="unexpected-new-workitem-status:$($creation.status)"});continue}
     $workItem=[string]$creation.path
     $metadata.quality=$quality
     Write-AtomicJson (Join-Path $workItem 'source-metadata.json') $metadata
@@ -173,11 +173,9 @@ foreach($item in $candidatePool) {
         $routePending++
     }
     try {
-        $formResponse=Invoke-FreeHireGet "jobs/$([Uri]::EscapeDataString($publicSlug))/apply-form"
-        $form=if($formResponse.data){$formResponse.data}else{$formResponse}
-        $plan=[ordered]@{provider=[string]$form.provider;basics=@($form.basics);questions=@($form.questions);fetched_at=[DateTimeOffset]::UtcNow.ToString('o')}
-        Write-AtomicJson (Join-Path $workItem 'application-answer-plan.json') $plan
-    } catch {}
+        $enrichment = (& (Join-Path $PSScriptRoot 'enrich-freehire-workitem.ps1') -WorkItemDir $workItem -Workspace $Workspace -ProfilePath $ProfilePath | Select-Object -Last 1) | ConvertFrom-Json
+        if ([string]$enrichment.status -notin @('enriched','unchanged')) { $apiWarnings.Add([ordered]@{lane=$lane;job_id=$jobCandidate.job_id;enrichment_status=[string]$enrichment.status}) }
+    } catch { $apiWarnings.Add([ordered]@{lane=$lane;job_id=$jobCandidate.job_id;enrichment_error=$_.Exception.Message}) }
     $created++
     Write-Output "DISCOVERED:$($jobCandidate.job_id):${company}:$title"
 }
