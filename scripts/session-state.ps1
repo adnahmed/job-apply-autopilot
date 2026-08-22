@@ -691,7 +691,6 @@ if ($Compact) {
                 $item['discovery_group'] = $_.discovery_group
                 $item['discovery_source'] = $_.discovery_source
                 $item['target_new'] = $_.target_new
-                $item['shared_claim_required'] = $_.shared_claim_required
                 $item['browser_instruction'] = $_.browser_instruction
             }
             $item

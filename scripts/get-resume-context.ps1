@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$Workspace,
     [Parameter(Mandatory=$true)][string]$JobId,
-    [ValidateSet('queue','generated')][string]$Kind = 'generated'
+    [ValidateSet('generated')][string]$Kind = 'generated'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,6 +17,13 @@ function Read-FileSafe([string]$Path) {
     try { return Get-Content -LiteralPath $Path -Raw } catch { return $null }
 }
 
+function Has-Property($Object, [string]$Name) {
+    return (
+        $null -ne $Object -and
+        $Object.PSObject.Properties.Name -contains $Name
+    )
+}
+
 function Emit([hashtable]$Value) {
     $Value | ConvertTo-Json -Depth 12 -Compress | Write-Output
 }
@@ -29,27 +36,18 @@ if (-not (Test-Path -LiteralPath $runtimeRoot)) {
     exit 0
 }
 
-# Resolve work item by JobId
-$roots = if ($Kind -eq 'auto') { @('generated','queue') } else { @($Kind) }
-$matches = [Collections.Generic.List[string]]::new()
-foreach ($rootName in $roots) {
-    $rootPath = Join-Path $runtimeRoot $rootName
-    if (-not (Test-Path -LiteralPath $rootPath)) { continue }
-    foreach ($dir in Get-ChildItem -LiteralPath $rootPath -Directory -ErrorAction SilentlyContinue) {
-        $jobPath = Join-Path $dir.FullName 'job.json'
-        if (-not (Test-Path -LiteralPath $jobPath)) { continue }
-        try {
-            $candidate = Get-Content -LiteralPath $jobPath -Raw | ConvertFrom-Json
-            if ([string]$candidate.job_id -eq $JobId) { $matches.Add($dir.FullName) }
-        } catch {}
-    }
-    if ($matches.Count -gt 0 -and $Kind -eq 'auto') { break }
-}
-if ($matches.Count -ne 1) {
-    Emit @{ status='error'; code='workitem-not-found'; message="Expected one $Kind work item for job '$JobId', found $($matches.Count)." }
+# Resolve work item by JobId using get-workitem-manifest
+$manifestScript = Join-Path $PSScriptRoot 'get-workitem-manifest.ps1'
+$manifestRaw = & $manifestScript -Workspace $Workspace -JobId $JobId -Kind generated | Select-Object -Last 1
+try { $manifest = $manifestRaw | ConvertFrom-Json } catch {
+    Emit @{ status='error'; code='manifest-parse-failed'; message='Failed to parse manifest output' }
     exit 0
 }
-$workItemDir = $matches[0]
+if (-not $manifest -or -not $manifest.work_item) {
+    Emit @{ status='error'; code='workitem-not-found'; message="No generated work item found for job '$JobId'" }
+    exit 0
+}
+$workItemDir = $manifest.work_item
 
 # Acquire resume_pending claim with 10-minute lease
 $claimScript = Join-Path $PSScriptRoot 'claim-action.ps1'
@@ -61,6 +59,7 @@ if (-not $claim -or [string]$claim.status -notin @('acquired','renewed')) {
 }
 $ownerId = $claim.owner_id
 
+$retainClaim = $false
 try {
     # Read assessment and validate
     $assessmentPath = Join-Path $workItemDir 'assessment.json'
@@ -107,6 +106,8 @@ try {
         }
     }
 
+    $retainClaim = $true
+
     Emit @{
         status = 'ready'
         work_item = $workItemDir
@@ -123,6 +124,14 @@ try {
         resume_artifact = if ($artifactReady) { $resumeArtifact } else { $null }
     }
 } finally {
-    # Note: We do NOT release the claim here - the resume worker retains it
-    # The worker will release it after compilation or on error
+    if (-not $retainClaim -and $ownerId) {
+        & $claimScript `
+            -Action Release `
+            -Scope WorkItem `
+            -Stage 'resume_pending' `
+            -WorkItemDir $workItemDir `
+            -Workspace $Workspace `
+            -OwnerId $ownerId |
+            Out-Null
+    }
 }

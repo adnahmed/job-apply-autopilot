@@ -24,8 +24,29 @@ Action: route_pending
 
 Workflow:
 
-Resolve work item.
-Acquire `route_pending`.
+Resolve work item via manifest:
+```powershell
+$manifest = pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\get-workitem-manifest.ps1" `
+  -Workspace "<workspace>" `
+  -JobId "<job-id>" `
+  -Kind generated |
+  ConvertFrom-Json
+```
+
+Acquire `route_pending` with a 10-minute lease:
+```powershell
+$claim = pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" `
+  -Action Acquire `
+  -Scope WorkItem `
+  -Stage route_pending `
+  -WorkItemDir $manifest.work_item `
+  -Workspace "<workspace>" `
+  -LeaseMinutes 10 |
+  ConvertFrom-Json
+```
+
+If not acquired (`acquired: false`), return `busy route_pending`. Retain `owner_id`.
+
 Read job + source metadata + current application-route.
 Resolve the actual employer/ATS destination.
 If direct external:
@@ -44,7 +65,16 @@ write-application-outcome.ps1 `
     -ApplyMethod external `
     -Target "<observed-target>"
 ```
-Release claim if no transition cleared it.
-Return one canonical line.
+If route resolution exits without a transition that clears the claim, release using the same owner_id:
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" `
+  -Action Release `
+  -Scope WorkItem `
+  -Stage route_pending `
+  -WorkItemDir $manifest.work_item `
+  -Workspace "<workspace>" `
+  -OwnerId <owner_id>
+```
 
-Do not leave a confirmed aggregator dead-end as route=unresolved forever.
+A dead route worker must not leave the route locked for the default 90-minute claim duration.
+Return one canonical line.

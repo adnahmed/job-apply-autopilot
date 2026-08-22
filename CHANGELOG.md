@@ -12,6 +12,14 @@
 - Changed passed assessment next_stage from `coordinator_adjudication_pending` to `promotion_pending`; assessor immediately calls `advance-workitem.ps1`
 - Added `route_pending` to stages cleared by `write-application-outcome.ps1`
 - Removed `scripts/start-freehire-discovery.ps1` (no longer needed; background Task provides async boundary)
+- Fixed resume worker double-acquiring resume_pending and busying itself
+- Fixed missing Has-Property helper in get-resume-context.ps1
+- Made get-resume-context the single resume identity/claim/context entrypoint
+- Released resume claims immediately on context validation errors
+- Removed redundant generated-directory scanning from resume context loading
+- Stopped recompiling already verified ready resume artifacts
+- Made route-resolver claim lease explicit at 10 minutes
+- Removed stale shared-discovery compact metadata
 
 # V6.7.0 — Dedupe & Enrichment Pipeline Optimization
 
