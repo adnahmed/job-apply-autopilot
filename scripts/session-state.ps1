@@ -228,7 +228,7 @@ if (Test-Path -LiteralPath $queueRoot) {
         # Do not reopen an old failed skip just because policy changed. But if a reassessment was already
         # Explicitly reopened technical skips may finish after restart.
         $explicitReassessment = ($job -and (Has-Property $job 'allow_after_prior_skip') -and [bool]$job.allow_after_prior_skip)
-        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0','6.1','6.2','6.3') -and $status -in @('needs-evidence','needs-research','passed'))
+        $reassessmentInProgress = ($explicitReassessment -and $priorLedgerStatus -in $technicalPriorSkips -and $policyVersion -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0','6.1','6.2','6.3','6.4') -and $status -in @('needs-evidence','needs-research','passed'))
         $ledgerBlocks = ($submittedIds.ContainsKey($id) -or ($already -and -not $reassessmentInProgress))
         $shadowedByGenerated = $generatedIds.ContainsKey($id)
         $terminal = $status -in @('failed','rejected','skipped','submitted','blocked')
@@ -295,8 +295,10 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $resultStatus = if ($result -and $result.status) { [string]$result.status } else { $null }
         $linkedinHandoff = ($resultStatus -eq 'handoff-easy-apply')
         $needsReconcile = (($null -ne $result) -and -not $linkedinHandoff -and -not $already)
-        # blocked-unknown-fact remains terminal for legacy rows only. V6.3 workers never create it.
-        $terminalResult = $resultStatus -in @('submitted','blocked-auth','blocked-security','blocked-automation','blocked-domain-circuit-breaker','blocked-identity-mismatch','blocked-work-auth','blocked-protected-fact','blocked-unknown-fact','blocked-technical','blocked-verification-unresolved','skipped-ineligible','skipped-duplicate','skipped-job-quality','failed')
+        # Legacy protected/unknown statuses remain terminal for compatibility only. V6.4 workers never create them.
+        # Legacy protected/unknown results remain readable so upgrades do not mutate
+        # historical campaigns, but V6.4 writers can no longer create them.
+        $terminalResult = $resultStatus -in @('submitted','blocked-auth','blocked-security','blocked-automation','blocked-domain-circuit-breaker','blocked-identity-mismatch','blocked-work-auth','blocked-protected-fact','blocked-unknown-fact','blocked-technical','blocked-verification-unresolved','skipped-closed','skipped-ineligible','skipped-duplicate','skipped-job-quality','failed')
         $resumeReady = ($artifact -and [string]$artifact.status -eq 'ready-for-upload' -and $artifact.path -and (Test-Path -LiteralPath ([string]$artifact.path)))
         $jobDomain = Get-JobDomain $job
         $domainCircuit = Get-ActiveCircuitForDomain $jobDomain
@@ -391,6 +393,13 @@ $selected = @($selected | Sort-Object `
     @{Expression={ if ($_.speed -eq 'fast') { 0 } elseif ($_.speed -eq 'slow') { 1 } else { 2 } }}, `
     @{Expression={ if ($null -ne $_.freehire_match_percent) { -[int]$_.freehire_match_percent } else { 1 } }}, `
     @{Expression={ $_.job_id }})
+
+# Continuous campaign discovery is an independent producer, not a refill step.
+# Keep one claimed discovery batch running alongside every downstream wave even
+# when the current pipeline is already above the historical eight-item floor.
+$pipelineBufferTarget = 8
+$pipelineDepth = @($generated | Where-Object { ($_.actionable -or $_.claimed -or $_.needs_reconcile) -and $_.stage -ne 'application_verification_quarantined' }).Count + @($queue | Where-Object { ($_.actionable -or $_.claimed) -and $_.stage -ne 'source_pending' }).Count
+$discoverySlots = if ($null -eq $discoveryClaim) { $pipelineBufferTarget } else { 0 }
 $nextAction = if ($reconcile.Count -gt 0) {
     'reconcile'
 } elseif ($generatedActionable.Count -gt 0) {
@@ -422,6 +431,7 @@ function Get-DispatchTarget($Item) {
 $actions = @($selected | ForEach-Object {
     $dispatch = Get-DispatchTarget $_
     $action = [ordered]@{
+        action_id = "$($_.stage):$($_.job_id)"
         job_id = $_.job_id
         company = $_.company
         title = $_.title
@@ -437,14 +447,26 @@ $actions = @($selected | ForEach-Object {
         path = $_.path
     }
     if ($dispatch -like 'job-autopilot-*') {
-        $action['worker_prompt'] = "Work item directory: $($_.path)`nAction: $($_.stage)"
+        $kind = if ([string]$_.path -match '[\\/]generated[\\/]') { 'generated' } else { 'queue' }
+        $action['worker_prompt'] = "Workspace: $Workspace`nJob ID: $($_.job_id)`nKind: $kind`nAction: $($_.stage)"
     }
     $action
 })
-
-$pipelineBufferTarget = 8
-$pipelineDepth = @($generated | Where-Object { ($_.actionable -or $_.claimed -or $_.needs_reconcile) -and $_.stage -ne 'application_verification_quarantined' }).Count + @($queue | Where-Object { ($_.actionable -or $_.claimed) -and $_.stage -ne 'source_pending' }).Count
-$discoverySlots = [Math]::Max(0, $pipelineBufferTarget - $pipelineDepth)
+if ($discoverySlots -gt 0) {
+    $actions = @([ordered]@{
+        action_id = 'discovery:continuous'
+        job_id = $null
+        company = $null
+        title = 'Continuous FreeHire discovery'
+        stage = 'discovery'
+        speed = 'fast'
+        wave = 'fast'
+        dispatch = 'coordinator-discovery'
+        priority = 5
+        target_new = $discoverySlots
+        command = "pwsh -NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\discover-freehire.ps1`" -Workspace `"$Workspace`" -TargetNew $discoverySlots"
+    }) + @($actions)
+}
 if ($null -eq $nextAction) {
     $nextAction = if ($discoverySlots -gt 0 -and $null -eq $discoveryClaim) { 'discover' } else { 'await-active-claims' }
 }
@@ -452,7 +474,7 @@ $concurrency = [ordered]@{
     default = 'unbounded'
     linkedin_easy_apply = 1
 }
-$activeWave = if (@($actions | Where-Object { $_.wave -eq 'fast' }).Count -gt 0) { 'fast' } elseif (@($actions | Where-Object { $_.wave -eq 'research' }).Count -gt 0) { 'research' } else { 'none' }
+$activeWave = if ($actions.Count -gt 0) { 'all' } else { 'none' }
 
 $circuitPath = Join-Path $root 'domain-circuit-breakers.jsonl'
 $circuitCount = 0
@@ -482,10 +504,11 @@ $out = [ordered]@{
     quarantined_applications = $quarantinedApplications
     scheduler = [ordered]@{
         mode = 'parallel-pipeline'
+        continuous_discovery = $true
         active_wave = $activeWave
         pipeline_buffer_target = $pipelineBufferTarget
         pipeline_depth = $pipelineDepth
-        discovery_needed = ($discoverySlots -gt 0 -and $null -eq $discoveryClaim)
+        discovery_needed = ($discoverySlots -gt 0)
         discovery_slots = $discoverySlots
         discovery_claim = $discoveryClaim
         concurrency = $concurrency
@@ -523,17 +546,18 @@ $out = [ordered]@{
     instruction = if ($nextAction -eq 'await-active-claims') {
         'No unclaimed action is currently available. Rerun state after active claims finish or expire.'
     } elseif ($nextAction -eq 'discover') {
-        "Discover a batch of $pipelineBufferTarget source-ready plausible jobs before returning to state."
+        "Launch continuous discovery immediately, then rerun state."
     } elseif ($discoverySlots -gt 0) {
-        "Group fast actions by dispatch and emit every non-LinkedIn Task call together up to runtime capacity; then run the separate research wave. Refill $discoverySlots pipeline slot(s) after ready work."
+        "In this same turn, launch the discovery command and every independent worker action, including research, together; never wait for one stage before another."
     } else {
-        'Group fast actions by dispatch and emit every non-LinkedIn Task call together up to runtime capacity. Run web-heavy research as a separate wave. LinkedIn Easy Apply remains serial.'
+        'Emit every independent non-LinkedIn worker action together up to runtime capacity, including research. LinkedIn Easy Apply remains serial.'
     }
 }
 if ($Compact) {
     $compactActions = @($actions | ForEach-Object {
         $item = [ordered]@{
             job_id = $_.job_id
+            action_id = $_.action_id
             company = $_.company
             title = $_.title
             stage = $_.stage
@@ -543,6 +567,7 @@ if ($Compact) {
             freehire_match_percent = $_.freehire_match_percent
         }
         if ($_.worker_prompt) { $item['worker_prompt'] = $_.worker_prompt }
+        elseif ($_.command) { $item['command'] = $_.command }
         elseif ($_.path) { $item['path'] = $_.path }
         $item
     })

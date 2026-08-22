@@ -156,7 +156,9 @@ foreach($item in $candidatePool) {
         & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $jobCandidate.job_id -Status 'skipped-job-quality' -ReasonCode ([string]$quality.reason_code) -Company $company -Title $title -Location $location -JobUrl $jobUrl -Source 'freehire' -Notes ([string]$quality.evidence) -Workspace $Workspace | Out-Null
         continue
     }
-    $creationRaw=& (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId $jobCandidate.job_id -Company $company -Title $title -JobUrl $jobUrl -Location $location -Source 'freehire' -DiscoveryLane $lane -SearchQuery 'fresh engineering composite lane' -Workspace $Workspace -Structured
+    $postedAt=[string](Pick $item @('posted_at','published_at','created_at'))
+    $externalId=[string](Pick $item @('external_id','id'))
+    $creationRaw=& (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId $jobCandidate.job_id -Company $company -Title $title -JobUrl $jobUrl -Location $location -Source 'freehire' -DiscoveryLane $lane -SearchQuery 'fresh engineering composite lane' -Description $description -PostedAt $postedAt -ExternalId $externalId -MetadataJson ($metadata|ConvertTo-Json -Compress -Depth 30) -Workspace $Workspace -Structured
     $creation=([string]($creationRaw|Select-Object -Last 1))|ConvertFrom-Json
     if([string]$creation.status -eq 'existing'){$existing++;continue}
     if([string]$creation.status -eq 'duplicate'){$duplicates++;continue}

@@ -8,6 +8,10 @@ param(
     [string]$Source = '',
     [string]$DiscoveryLane = '',
     [string]$SearchQuery = '',
+    [string]$Description = '',
+    [string]$PostedAt = '',
+    [string]$ExternalId = '',
+    [string]$MetadataJson = '',
     [string]$Workspace = (Get-Location).Path,
     [switch]$Structured
 )
@@ -57,8 +61,10 @@ if (-not (Test-Path -LiteralPath $runtimeRoot)) {
 }
 New-Item -ItemType Directory -Force -Path $queueRoot | Out-Null
 
-$qualityCandidate = [ordered]@{ job_id=$JobId; company=$Company; title=$Title; location=$Location; job_url=$JobUrl; source=$Source; discovery_lane=$DiscoveryLane }
-$quality = (& (Join-Path $PSScriptRoot 'check-job-quality.ps1') -JobJson ($qualityCandidate | ConvertTo-Json -Compress -Depth 6) | Select-Object -Last 1) | ConvertFrom-Json
+$qualityCandidate = [ordered]@{ job_id=$JobId; company=$Company; title=$Title; location=$Location; job_url=$JobUrl; source_url=$JobUrl; source=$Source; discovery_lane=$DiscoveryLane; description=$Description; posted_at=$PostedAt; external_id=$ExternalId }
+$qualityArgs = @{ JobJson = ($qualityCandidate | ConvertTo-Json -Compress -Depth 8) }
+if ($MetadataJson) { $qualityArgs.MetadataJson = $MetadataJson }
+$quality = (& (Join-Path $PSScriptRoot 'check-job-quality.ps1') @qualityArgs | Select-Object -Last 1) | ConvertFrom-Json
 if (-not [bool]$quality.allowed) {
     & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $JobId -Status 'skipped-job-quality' -ReasonCode ([string]$quality.reason_code) `
         -Company $Company -Title $Title -Location $Location -JobUrl $JobUrl -Source $Source -Notes ([string]$quality.evidence) -Workspace $Workspace | Out-Null
@@ -85,7 +91,7 @@ foreach ($base in @($queueRoot, $generatedRoot)) {
 # Guard against reposts/region variants with a new job ID after the same company/title was
 # already submitted or is already active. Exact job-ID dedupe alone allowed duplicate applications.
 $dedupeScript = Join-Path $PSScriptRoot 'dedupe-jobs.ps1'
-$candidateJson = @([ordered]@{ job_id=$JobId; company=$Company; title=$Title }) | ConvertTo-Json -Compress
+$candidateJson = @($qualityCandidate) | ConvertTo-Json -Compress -Depth 8
 $dedupe = (& $dedupeScript -CandidatesJson $candidateJson -Workspace $Workspace | Select-Object -Last 1) | ConvertFrom-Json
 $duplicate = @($dedupe | Where-Object { $_.job_id -eq $JobId -and $_.seen }) | Select-Object -First 1
 if ($duplicate) {
@@ -110,13 +116,16 @@ $job = [ordered]@{
     source = $Source
     discovery_lane = $DiscoveryLane
     search_query = $SearchQuery
+    description = $Description
+    posted_at = $PostedAt
+    external_id = $ExternalId
     created_at = (Get-Date).ToUniversalTime().ToString('o')
     status = 'captured-awaiting-source-and-assessment'
 }
 $job | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $workDir 'job.json') -Encoding UTF8
 
 $assessment = [ordered]@{
-    policy_version = '6.3'
+    policy_version = '6.4'
     job_id = $JobId
     status = 'pending'
     score = $null

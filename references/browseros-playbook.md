@@ -9,13 +9,11 @@ Use this reference only when browser work is active or a BrowserOS action fails.
 - A `page ... is not owned by this agent` response is expected isolation, not a transient error. Open the URL in a new owned tab immediately; do not retry the foreign page.
 - Open only task-owned tabs that are useful now and close disposable tabs promptly. There is no skill numeric tab cap, but each worker should normally need one application tab. Never close a tab whose CAPTCHA solver is pending or whose side effect still needs verification.
 
-## Tool fast path and one-strike fallback
+## Granular tool path
 
 Use the tools and argument schemas available in the current session; do not infer an older API from examples.
 
-1. For a multi-step flow, try `run` once when its current schema is known.
-2. On `run` compatibility errors such as `output schema`, `not a function`, unavailable CDP methods, or an SDK-shape error, disable `run` for that BrowserOS session and continue with granular `snapshot`/`read`/`act`/`upload` tools.
-3. Do not probe `run` repeatedly with variants. A BrowserOS/OpenCode update or a new MCP session may be tested once again.
+Use granular `snapshot`/`read`/`act`/`upload` tools. Do not call free-form `run`; observed output-schema incompatibilities make it less reliable than the granular interface.
 
 For discovery, one targeted page-context extraction is allowed. If it fails, switch to `read` or `snapshot`; do not keep rewriting equivalent extraction code.
 

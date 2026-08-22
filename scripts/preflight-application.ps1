@@ -65,15 +65,13 @@ foreach ($question in $questions) {
     })
 }
 
-$blocked = @($results | Where-Object { $_.status -eq 'blocked-protected-fact' })
 $semantic = @($results | Where-Object { $_.status -in @('needs-semantic-answer','loop-detected') })
-$status = if ($blocked.Count -gt 0) { 'blocked-protected-fact' } elseif ($semantic.Count -gt 0) { 'needs-semantic-answer' } else { 'ready' }
+$status = if ($semantic.Count -gt 0) { 'needs-semantic-answer' } else { 'ready' }
 $preflight = [ordered]@{
-    version = 1
+    version = 2
     status = $status
     questions = $results.Count
     answered = @($results | Where-Object { $_.status -eq 'answered' }).Count
-    protected_blockers = $blocked.Count
     semantic_required = $semantic.Count
     results = @($results)
     resolved_at = [DateTimeOffset]::UtcNow.ToString('o')

@@ -1,11 +1,27 @@
 {
-  "policy_version": "6.3",
+  "policy_version": "6.4",
   "job_id": "example",
   "status": "passed",
   "score": 78,
+  "score_components": {
+    "core_technical": 25,
+    "role_identity": 20,
+    "seniority_tenure": 11,
+    "production_ownership": 8,
+    "domain_overlap": 5,
+    "eligibility_certainty": 6,
+    "experience_band": 2,
+    "quality_recency_comp": 1
+  },
   "trust_class": "DIRECT_REASONABLE",
   "role_family": "backend-engineer",
   "eligibility_state": "HOME_JURISDICTION_ELIGIBLE",
+  "identity_check": {
+    "advertised_employer": "Example Co",
+    "body_employer": "Example Co",
+    "consistent": true,
+    "evidence": "Header and body identify the same employer."
+  },
   "hard_gates": {
     "integrity": true,
     "eligibility": true,

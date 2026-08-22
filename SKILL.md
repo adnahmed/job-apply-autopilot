@@ -3,7 +3,7 @@ name: job-apply-autopilot
 description: "Goal-driven autonomous job discovery, truthful fit triage, tailored resumes, and idempotent verified submission through BrowserOS neo. Uses claimed actions, semantic dedupe, verification quarantine, and deterministic application outcomes."
 ---
 
-# Job Apply Autopilot V6.3.0 — Zero-Credit API-Accelerated Parallel Pipeline
+# Job Apply Autopilot V6.4.0 — Continuous Discovery and Completion-First Answers
 
 Mission: maximize credible net-new interview opportunities per unit time while preserving truth, the candidate's documented geographic eligibility, security controls, and duplicate safety. Tool activity, duplicate work, placeholders, and unverified outcomes are not progress.
 
@@ -84,14 +84,16 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\claim-action.p
 
 ## Parallel pipeline
 
-Issue all independent worker Task calls in one assistant turn. Respect `scheduler.active_wave` and each action's `wave`: exhaust `fast` before dispatching `research`. Group by `dispatch`, use every supplied `worker_prompt` verbatim, and rerun compact state after each wave. LinkedIn Easy Apply alone is serial at one; the skill imposes no concurrency ceiling on assessor, research, resume, external ATS, or email workers. The runtime may schedule as many independent workers as it can host.
+Issue all independent worker Task calls and the `coordinator-discovery` command in one assistant turn. Discovery is a permanent producer: launch it immediately alongside assess, research, resume, and apply work, even when the pipeline already contains eight or more items. Group workers by `dispatch`, use supplied prompts verbatim, and rerun compact state after the parallel batch. LinkedIn Easy Apply alone is serial at one; every other stage uses all host capacity.
 
-Maintain the reported eight-item source-ready/actionable intake floor. Dispatch ready work, then fill `scheduler.discovery_slots`. Quarantined jobs do not consume discovery capacity.
+Treat `scheduler.discovery_slots` as the next continuous discovery batch size, not as a refill threshold. A discovery claim prevents duplicate producers; once it clears, the next continuation launches another batch. Quarantined jobs do not affect discovery.
 
-Each worker prompt is exactly two lines:
+Each worker prompt is exactly four identity lines; the worker resolves the authoritative directory through the manifest script:
 
 ```text
-Work item directory: <absolute-path>
+Workspace: <absolute-path>
+Job ID: <job-id>
+Kind: queue|generated
 Action: <action>
 ```
 
@@ -101,7 +103,7 @@ Never append policy, evidence opinions, job summaries, or recovery instructions.
 
 Read `references\freehire-api.md` when changing or diagnosing FreeHire integration behavior.
 
-Prefer keyless FreeHire discovery before browser search when `scheduler.discovery_slots` is positive:
+Run keyless FreeHire discovery immediately and concurrently whenever `scheduler.discovery_needed` is true:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\discover-freehire.ps1" -Workspace $workspace -TargetNew $state.scheduler.discovery_slots
@@ -158,7 +160,7 @@ Promotion and resume compilation reuse valid existing generated directories/arti
 
 Route ready work immediately using only `application-route.json`. Persist routes through `set-application-route.ps1`; never infer them from the discovery source. Direct employer-email applications go only to `job-autopilot-email-apply`; external ATS/company forms go only to `job-autopilot-external-apply`. Every applicator reservation re-runs the quality gate. LinkedIn Easy Apply remains coordinator-owned and serial under its governor.
 
-Run `preflight-application.ps1` before an external reservation whenever an answer plan exists. For required questions, call `resolve-application-answer.ps1`. It resolves canonical identity/education/employment facts, demographic declines, availability, and expected compensation. Salary resolution uses a posted range first, then cached FreeHire `/insights/salary` p25 data from the job's country/category/seniority with progressively broader market fallbacks, period conversion, and profile defaults only last. Unknown required capability/routine questions return `needs-semantic-answer`; unknown required identity, legal, authorization, or sensitive-disclosure facts return `blocked-protected-fact`. It never fabricates zero, No, or Not applicable defaults, and a per-claim loop guard stops the same normalized question after two attempts.
+Run `preflight-application.ps1` before an external reservation whenever an answer plan exists. For required questions, call `resolve-application-answer.ps1`. It resolves configured identity/education/employment facts, optional demographic declines, availability, and compensation. Current and expected numeric compensation share the same posted-range, FreeHire market-p25, and profile-fallback strategy. Every unresolved required question—including identity, legal, authorization, and sensitive fields—returns `needs-semantic-answer`; the applicator generates one concrete context-aware answer and continues, with one correction after exact form validation. Missing facts never create a protected-fact blocker or skip.
 
 ## Submission and quarantine
 
@@ -192,7 +194,7 @@ Read the installed `references\browseros-playbook.md` when browser work starts. 
 
 On BrowserOS connection loss, stop browser calls after one cheap health probe, finish all available local actions, persist/checkpoint affected work, and continue unrelated local work. If state exposes nothing useful that can proceed without BrowserOS, block the active goal with the concrete BrowserOS failure. Recovery is BrowserOS restoration followed by `/goal resume`.
 
-Never bypass CAPTCHA, MFA, security, truth, identity, eligibility, or work-authorization controls. One bad job or domain never ends unrelated work.
+Never bypass CAPTCHA, MFA, account security, duplicate-submission, or ambiguous-side-effect controls. Required application facts follow the configured completion-first generated-answer policy. One bad job or domain never ends unrelated work.
 
 For a recoverable job-local failure, checkpoint through the exact transition command and continue other work:
 
@@ -205,15 +207,15 @@ The checkpoint stage may differ from the scheduler claim stage; the defer transi
 
 ## Truth and autonomy
 
-Never ask the user to choose, approve, or clarify routine campaign decisions. Choose `Recommended` when present, otherwise the first safe benign option. Resolve routine fields through the deterministic answer script. Factual fields must come from canonical/profile evidence or verified per-job evidence; use an honest decline/N/A for optional sensitive fields and reserve a protected-fact blocker for identity, legal, authorization, or sensitive disclosure only.
+Never ask the user to choose, approve, or clarify routine campaign decisions. Choose `Recommended` when present, otherwise the first safe benign option. Resolve fields through the deterministic answer script first; for every unresolved mandatory field, generate one context-aware answer and continue. Missing identity, legal, authorization, compensation, or sensitive information never creates a protected-fact blocker or skip.
 
-Never fabricate employer history, degree/licence/clearance, work authorization, people management, production metrics, specialist identity, or precise technology-specific duration. Overall software tenure supports a requirement only when the capability itself is supported or reasonably plausible. Ordinary form validation gets one correction. Confirm explicit success before recording `submitted`.
+Never fabricate employer history, degree/licence/clearance, people management, production metrics, specialist identity, or unsupported technologies in resumes and fit artifacts. Generated mandatory form answers never become canonical resume evidence. Overall software tenure supports a requirement only when the capability itself is supported or reasonably plausible. Ordinary form validation gets one correction. Confirm explicit success before recording `submitted`.
 
 ## Fault containment
 
-Schema, script, worker, resume, and browser implementation errors are job/route-local. Correct once when deterministic; otherwise defer and continue. Never compensate for an assessor failure by having the coordinator construct or commit an assessment. If a resume worker returns empty or leaves an incomplete artifact, inspect only `resume-artifact.json` and re-dispatch that resume worker once; do not hand-tailor or manually compile in the coordinator.
+Schema, script, worker, resume, and browser implementation errors are job/route-local. Worker PowerShell is intentionally broad so routine commands and installed scripts are not rejected by brittle string allowlists. Correct deterministic failures once; otherwise defer and continue. Never compensate for an assessor failure by having the coordinator construct or commit an assessment. If a resume worker returns empty or leaves an incomplete artifact, inspect only `resume-artifact.json` and re-dispatch that resume worker once; do not hand-tailor or manually compile in the coordinator.
 
-Only the affected route stops for truthful impossibility, unresolved CAPTCHA after the single recovery window, MFA/security controls, or unavailable BrowserOS. Every unaffected domain, local stage, and discovery lane continues.
+Only the affected route stops for a confirmed hard eligibility rejection, unresolved CAPTCHA after the single recovery window, MFA/security controls, or unavailable BrowserOS. Missing application facts do not stop it. Every unaffected domain, local stage, and discovery lane continues.
 
 ## Final invariant
 

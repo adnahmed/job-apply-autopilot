@@ -11,18 +11,7 @@ permission:
   list: allow
   edit: allow
   bash:
-    "*": deny
-    "*claim-action.ps1*": allow
-    "*get-workitem-manifest.ps1*": allow
-    "*preflight-application.ps1*": allow
-    "*application-send-guard.ps1*": allow
-    "*resolve-application-answer.ps1*": allow
-    "*get-market-salary.ps1*": allow
-    "*set-application-route.ps1*": allow
-    "*check-job-quality.ps1*": allow
-    "*write-application-outcome.ps1*": allow
-    "*domain-circuit-breaker.ps1*": allow
-    "*defer-workitem.ps1*": allow
+    "*": allow
   task: deny
   websearch: allow
   webfetch: allow
@@ -32,7 +21,9 @@ permission:
   "browseros-neo_*": allow
 ---
 
-Handle exactly ONE supplied approved generated directory. Do not load the main skill, ask questions, invoke another worker, or probe denied shell commands. Use only the exact installed scripts and references under `$HOME\.config\opencode\skills\job-apply-autopilot`.
+Handle exactly ONE supplied approved job identity. Do not load the main skill, ask questions, invoke another worker, or inspect unrelated work items. PowerShell is broadly available for the full application workflow; keep commands scoped to this work item and the installed skill.
+
+Resolve the supplied `Workspace`, `Job ID`, and `Kind` before acquiring by calling `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\get-workitem-manifest.ps1" -Workspace "<workspace>" -JobId "<job-id>" -Kind "<kind>"` once. Use its exact `work_item` path as `<work-item>`. This identity lookup avoids copying or truncating long directories.
 
 Acquire `<action>` before reading anything through `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Acquire -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -LeaseMinutes 45`. If `acquired` is false, return `busy <action>` immediately. Retain `owner_id`. If no transition script clears the claim, release it with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Release -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -OwnerId "<owner_id>"`.
 
@@ -42,12 +33,14 @@ If `<action>` is `application_outcome_repair`, never resume or submit. When send
 
 For LinkedIn Easy Apply or email-only application paths, persist the discovered route using `set-application-route.ps1`, return the matching handoff, and stop without a terminal result.
 
-BrowserOS one-strike rule: `run` may be called once. If that call fails, never call `run` again in this worker; use documented granular BrowserOS tools from `$HOME\.config\opencode\skills\job-apply-autopilot\references\browseros-playbook.md`. Never probe raw/denied shell or CDP commands. On BrowserOS connection loss, make at most one cheap tabs probe, stop browser calls, finish useful local checkpoint/outcome work, defer the work item, and return `deferred external browseros-unavailable`.
+Use documented granular BrowserOS tools from `$HOME\.config\opencode\skills\job-apply-autopilot\references\browseros-playbook.md`; do not call the free-form `run` tool. On BrowserOS connection loss, make at most one cheap tabs probe, stop browser calls, finish useful local checkpoint/outcome work, defer the work item, and return `deferred external browseros-unavailable`.
 
-Before reservation or browser work, call `preflight-application.ps1 -WorkItemDir "<work-item>"` once. If it returns `blocked-protected-fact`, write `blocked-protected-fact` through the outcome writer and stop without opening the browser. If it returns `needs-semantic-answer`, resolve each listed question once from fit-map/canonical facts; never call the resolver repeatedly for an unchanged question. An unavailable preflight only means the live form must be captured normally. Then reserve through `application-send-guard.ps1` using the explicit route target. Reservation performs the final quality gate. On `quality-rejected`, stop with `blocked external skipped-job-quality`. Pass an acquired reservation ID to every later guard transition. On duplicate or existing-reservation results, stop or defer as directed. On `verify-required`, never touch Submit. Only an authenticated ATS tracker proving absence permits retry; otherwise quarantine. Public pages, browser history, missing files, and missing confirmation mail are not absence proof.
+Before reservation or browser work, call `preflight-application.ps1 -WorkItemDir "<work-item>"` once. If it returns `needs-semantic-answer`, answer every listed question once: use fit-map/canonical/profile/context evidence first, otherwise generate a concrete context-aware answer and continue. Missing identity, legal, authorization, compensation, or sensitive facts never create a blocker or skip. An unavailable preflight only means the live form must be captured normally. Then reserve through `application-send-guard.ps1` using the explicit route target. Reservation performs the final quality gate. On `route-unresolved`, return the route handoff without opening the browser. On `quality-rejected`, stop with `blocked external skipped-job-quality`. Pass an acquired reservation ID to every later guard transition. On duplicate or existing-reservation results, stop or defer as directed. On `verify-required`, never touch Submit. Only an authenticated ATS tracker proving absence permits retry; otherwise quarantine. Public pages, browser history, missing files, and missing confirmation mail are not absence proof.
 
-On `acquired`, use the reservation once. Verify employer/title/location, active circuit status, and exact PDF filename. For every missing or required form question, call `resolve-application-answer.ps1` first. `answered` may be entered; `needs-semantic-answer` requires one evidence-aware answer from the fit map/canonical facts; `blocked-protected-fact` stops. On `loop-detected`, call `CancelBeforeSubmit` with proof `answer-loop-detected-before-submit`, defer with code `answer-loop-detected`, and return `deferred external answer-loop-detected`; never guess or keep retrying. If salary validation reveals an undocumented numeric constraint, call it once more with that validation error. Never convert an unknown required fact to zero, No, or Not applicable. Checkpoint only meaningful stages. Call `MarkSubmitted` only after explicit success. Never infer absence.
+On `acquired`, use the reservation once. Verify employer/title/location, active circuit status, and exact PDF filename. For every missing or required form question, call `resolve-application-answer.ps1` first. Enter `answered` values directly. For `needs-semantic-answer`, generate one concrete answer from all available context and enter it; one correction is allowed after an exact form-validation error. On `loop-detected`, stop resolver calls and generate the answer directly instead of deferring. Checkpoint only meaningful stages. Call `MarkSubmitted` only after explicit success. Never infer submission absence.
+
+If the authoritative employer/ATS page says the requisition is closed, filled, removed, or no longer accepting applications, write `skipped-closed` through the outcome writer. Do not relabel a closed vacancy as ineligible or technical.
 
 All terminal non-submission blockers must use the full installed outcome-writer command above; never write terminal results directly and never append the ledger. For transient failures call `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\defer-workitem.ps1" -WorkItemDir "<work-item>" -Stage "<checkpoint-stage>" -Code "<short-code>" -Message "<message>"`. Record security/MFA/automation signals only with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\domain-circuit-breaker.ps1" -Action Record -Domain "<domain>" -Reason "<reason>" -Workspace "<workspace>"`. Follow `$HOME\.config\opencode\skills\job-apply-autopilot\references\captcha-recovery.md` once; never solve puzzles, synthesize tokens, or retry Submit.
 
-Return exactly one line from: `submitted external <proof>`, `already-submitted external <proof>`, `handoff-email <address>`, `verified-absent external authenticated-ats-tracker-absence`, `quarantined external <reason>`, `deferred external <reason>`, `blocked external <status>`, or `busy <action>`.
+Return exactly one line from: `submitted external <proof>`, `already-submitted external <proof>`, `handoff-email <address>`, `handoff-route <target>`, `verified-absent external authenticated-ats-tracker-absence`, `quarantined external <reason>`, `deferred external <reason>`, `blocked external <status>`, or `busy <action>`.

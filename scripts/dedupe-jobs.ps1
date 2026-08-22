@@ -8,39 +8,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'job-identity.ps1')
 
 if ([string]::IsNullOrWhiteSpace($Workspace)) { $Workspace = (Get-Location).Path }
 $Workspace = (Resolve-Path -LiteralPath $Workspace).Path
 $root = Join-Path $Workspace '.job-apply-autopilot'
 if (-not (Test-Path -LiteralPath $root)) { throw "No job-apply-autopilot runtime at $root" }
-
-function Normalize-Text([string]$Value) {
-    if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
-    return (($Value.ToLowerInvariant() -replace '&', ' and ' -replace '[^a-z0-9]+', ' ').Trim() -replace '\s+', ' ')
-}
-
-function Normalize-Company([string]$Value) {
-    $normalized = Normalize-Text $Value
-    $suffixes = @('private limited','pvt ltd','pvt limited','limited','ltd','llc','incorporated','inc','corporation','corp','gmbh','plc','company','co')
-    foreach ($suffix in $suffixes) {
-        $normalized = ($normalized -replace ("\s+" + [regex]::Escape($suffix) + '$'), '').Trim()
-    }
-    return $normalized
-}
-
-function Normalize-Title([string]$Value) {
-    $normalized = Normalize-Text $Value
-    if (-not $normalized) { return '' }
-    return (($normalized.Split(' ', [StringSplitOptions]::RemoveEmptyEntries) | Sort-Object) -join ' ')
-}
-
-function Get-IdentityKey([string]$Company, [string]$Title) {
-    $companyKey = Normalize-Company $Company
-    # Job boards frequently reorder the same title tokens for region/repost copies.
-    $titleKey = Normalize-Title $Title
-    if (-not $companyKey -or -not $titleKey) { return '' }
-    return "$companyKey|$titleKey"
-}
 
 function Read-JsonSafe([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
@@ -87,14 +60,14 @@ function Mark-Seen([string]$CandidateId, [string]$Reason, [string]$Location, [st
     if ($LedgerStatus) { $entry.ledger_status = $LedgerStatus }
 }
 
-$candidateKeys = @{}
-foreach ($candidate in $candidates) {
-    $id = [string]$candidate.job_id
-    if (-not $result.Contains($id)) { continue }
-    $key = Get-IdentityKey ([string]$candidate.company) ([string]$candidate.title)
-    if ($key) {
-        if (-not $candidateKeys.ContainsKey($key)) { $candidateKeys[$key] = @() }
-        $candidateKeys[$key] = @($candidateKeys[$key]) + $id
+# Dedupe within the incoming batch before touching persistent state.
+for ($i = 0; $i -lt $candidates.Count; $i++) {
+    for ($j = 0; $j -lt $i; $j++) {
+        $match = Test-JobIdentityMatch $candidates[$i] $candidates[$j]
+        if ([bool]$match.matched) {
+            Mark-Seen ([string]$candidates[$i].job_id) 'semantic-batch' 'candidate-batch' ([string]$candidates[$j].job_id)
+            break
+        }
     }
 }
 
@@ -120,12 +93,10 @@ if (Test-Path -LiteralPath $ledger) {
                 } catch {}
             }
             if (-not $recent) { continue }
-            $key = Get-IdentityKey ([string]$row.company) ([string]$row.title)
-            if ($key -and $candidateKeys.ContainsKey($key)) {
-                foreach ($candidateId in @($candidateKeys[$key])) {
-                    if ($candidateId -ne $rowId) {
-                        Mark-Seen $candidateId 'semantic-submission' 'ledger' $rowId ([string]$row.status)
-                    }
+            foreach ($candidate in $candidates) {
+                $candidateId = [string]$candidate.job_id
+                if ($candidateId -ne $rowId -and [bool](Test-JobIdentityMatch $candidate $row).matched) {
+                    Mark-Seen $candidateId 'semantic-submission' 'ledger' $rowId ([string]$row.status)
                 }
             }
         } catch {}
@@ -142,12 +113,21 @@ foreach ($kind in @('queue','generated')) {
             Mark-Seen $rowId "exact-$kind" $kind $rowId
         }
         if ($job) {
-            $key = Get-IdentityKey ([string]$job.company) ([string]$job.title)
-            if ($key -and $candidateKeys.ContainsKey($key)) {
-                foreach ($candidateId in @($candidateKeys[$key])) {
-                    if ($candidateId -ne $rowId) {
-                        Mark-Seen $candidateId "semantic-workitem" $kind $rowId
-                    }
+            $metadata = Read-JsonSafe (Join-Path $child.FullName 'source-metadata.json')
+            if (-not ($job.PSObject.Properties.Name -contains 'description') -or [string]::IsNullOrWhiteSpace([string]$job.description)) {
+                $sourcePath = Join-Path $child.FullName 'source.md'
+                if ($metadata -and $metadata.description) { $job | Add-Member -NotePropertyName description -NotePropertyValue ([string]$metadata.description) -Force }
+                elseif (Test-Path -LiteralPath $sourcePath) { $job | Add-Member -NotePropertyName description -NotePropertyValue (Get-Content -LiteralPath $sourcePath -Raw) -Force }
+            }
+            foreach ($name in @('posted_at','external_id')) {
+                if ($metadata -and $metadata.raw -and $metadata.raw.PSObject.Properties.Name -contains $name -and -not ($job.PSObject.Properties.Name -contains $name)) {
+                    $job | Add-Member -NotePropertyName $name -NotePropertyValue $metadata.raw.$name -Force
+                }
+            }
+            foreach ($candidate in $candidates) {
+                $candidateId = [string]$candidate.job_id
+                if ($candidateId -ne $rowId -and [bool](Test-JobIdentityMatch $candidate $job).matched) {
+                    Mark-Seen $candidateId "semantic-workitem" $kind $rowId
                 }
             }
         }

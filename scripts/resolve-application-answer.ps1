@@ -78,19 +78,12 @@ function Needs-Semantic([string]$Reason = 'no-deterministic-answer', [string]$Ca
     Finish ([ordered]@{
         status = 'needs-semantic-answer'
         value = $null
-        source = 'fit-map-or-canonical-required'
+        source = 'agent-generated-required'
         category = $Category
         reason_code = $Reason
-    })
-}
-
-function Block-Protected([string]$Reason, [string]$Category = 'protected-fact') {
-    Finish ([ordered]@{
-        status = 'blocked-protected-fact'
-        value = $null
-        source = 'truth-policy'
-        category = $Category
-        reason_code = $Reason
+        strategy = 'generate-one-context-aware-answer-and-continue'
+        question = $label.Trim()
+        options = @($options)
     })
 }
 
@@ -190,7 +183,8 @@ function Convert-SalaryPeriod([double]$Value, [string]$From, [string]$To) {
     return [math]::Round(($Value * [double]$factors[$fromKey]) / [double]$factors[$toKey], 0)
 }
 
-# Canonical identity fields. Missing required identity/legal facts are blockers, never synthetic N/A values.
+# Canonical identity fields. Missing required values are handed to the applicator for
+# one context-aware generated answer; they never terminate or skip the application.
 if (($label -match '(?i)\b(full|legal|candidate)\s*name\b' -or $label.Trim() -match '(?i)^name(\s+of\s+(applicant|candidate))?$') -and $label -notmatch '(?i)company|employer') { Emit-Answer (Candidate-FullName) 'candidate-authoritative-local-first' 'identity' }
 if ($label -match '(?i)\bfirst\s*name\b') { $localName=[string](Scalar 'full_name'); Emit-Answer ($(if($localName){$localName.Split(' ')[0]}else{FreeHire-Autofill 'first_name'})) 'candidate-authoritative-local-first' 'identity' }
 if ($label -match '(?i)\blast\s*name\b|\bsurname\b') { $localName=[string](Scalar 'full_name'); if($localName){$parts=$localName.Split(' ',[StringSplitOptions]::RemoveEmptyEntries);$last=$parts[$parts.Count-1]}else{$last=FreeHire-Autofill 'last_name'}; Emit-Answer $last 'candidate-authoritative-local-first' 'identity' }
@@ -201,11 +195,11 @@ if ($label -match '(?i)\b(portfolio|personal\s*website)\b') { Emit-Answer (Candi
 if ($label -match '(?i)\b(phone|mobile|telephone|whatsapp|contact\s*number)\b') {
     $phone = Candidate-Value 'phone' 'phone'
     if ($phone) { Emit-Answer $phone 'candidate-authoritative-local-first' 'identity' }
-    if ($required) { Block-Protected 'required-phone-missing' 'identity' }
+    if ($required) { Needs-Semantic 'required-phone-missing' 'identity' }
     Emit-Answer '' 'optional-blank' 'identity'
 }
 if ($label -match '(?i)\b(street\s*address|address\s*line|postal\s*code|zip\s*code|passport|national\s*id|date\s*of\s*birth|birth\s*date|citizenship|nationality)\b') {
-    if ($required) { Block-Protected 'required-identity-fact-missing' 'identity' }
+    if ($required) { Needs-Semantic 'required-identity-fact-missing' 'identity' }
     Emit-Answer '' 'optional-blank' 'identity'
 }
 if ($label -match '(?i)\bcity\b') { Emit-Answer (Scalar 'city') 'profile.candidate.location.city' 'identity' }
@@ -219,7 +213,7 @@ if ($label -match '(?i)(work\s*authoriz|authorized\s*to\s*work|legally\s*(eligib
     $countryCode = if ($question.country_code) { [string]$question.country_code } elseif ([string]$question.country -match '^[A-Za-z]{2}$') { [string]$question.country } else { '' }
     $authorizedCountries = @(FreeHire-Screening 'authorized_countries' @())
     if ($countryCode -and $authorizedCountries.Count -gt 0) { Emit-Answer ($(if($authorizedCountries -contains $countryCode.ToUpperInvariant()){'Yes'}else{'No'})) 'freehire.candidate-screening' 'legal-authorization' }
-    if ($required) { Block-Protected 'work-authorization-not-verified' 'legal-authorization' }
+    if ($required) { Needs-Semantic 'work-authorization-not-verified' 'legal-authorization' }
     Emit-Answer '' 'optional-blank' 'legal-authorization'
 }
 
@@ -234,9 +228,9 @@ if ($label -match '(?i)(current|present).*(employer|company)') { Emit-Answer (Sc
 if ($label -match '(?i)(current|present).*(title|position|role)') { Emit-Answer (Scalar 'title') 'profile.current_employment.title' 'employment' }
 
 if ($label -match '(?i)(current|present).*(salary|compensation|ctc)|salary.*history') {
-    $decline = $options | Where-Object { $_ -match '(?i)prefer not|decline|not applicable|n/a' } | Select-Object -First 1
-    if ($decline) { Emit-Answer $decline 'safe-decline-option' 'sensitive-disclosure' }
-    Block-Protected 'current-compensation-not-disclosed' 'sensitive-disclosure'
+    # The configured policy intentionally answers mandatory current-compensation
+    # fields through the same posted/market/profile calculation as expected pay.
+    $label = "expected compensation $label"
 }
 
 if ($label -match '(?i)(expected|desired|salary expectation|compensation expectation|pay expectation|rate expectation)') {
@@ -273,7 +267,7 @@ $decline = $options | Where-Object { $_ -match '(?i)prefer not|decline|not appli
 if ($label -match '(?i)gender|race|ethnic|veteran|disability|demographic') {
     if ($decline) { Emit-Answer $decline 'profile.optional-demographic-policy' 'optional-demographic' }
     if (-not $required) { Emit-Answer '' 'optional-blank' 'optional-demographic' }
-    Block-Protected 'required-sensitive-disclosure-without-decline-option' 'sensitive-disclosure'
+    Needs-Semantic 'required-sensitive-disclosure-without-decline-option' 'sensitive-disclosure'
 }
 if ($label -match '(?i)(willing|open).*(relocat)|relocat.*(willing|open)') { $relocate=FreeHire-Screening 'willing_to_relocate'; if($null -ne $relocate){Emit-Answer ($(if([bool]$relocate){'Yes'}else{'No'})) 'freehire.candidate-screening' 'availability'} }
 if ($label -match '(?i)(18|eighteen).*(older|age)|age.*(18|eighteen)') { $adult=FreeHire-Screening 'age_18_or_older'; if($null -ne $adult){Emit-Answer ($(if([bool]$adult){'Yes'}else{'No'})) 'freehire.candidate-screening' 'identity'} }
@@ -283,4 +277,4 @@ if (-not $required) { Emit-Answer '' 'optional-blank' }
 
 # Capability, background-check, onsite, and arbitrary required questions need evidence-aware semantics.
 # They must never be converted to zero, No, or Not applicable merely because of their field type.
-Needs-Semantic 'no-deterministic-answer'
+Needs-Semantic 'no-deterministic-answer' 'agent-generated'

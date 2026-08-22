@@ -11,10 +11,7 @@ permission:
   list: deny
   edit: allow
   bash:
-    "*": deny
-    "*claim-action.ps1*": allow
-    "*get-workitem-manifest.ps1*": allow
-    "*compile-resume.ps1*": allow
+    "*": allow
   task: deny
   websearch: deny
   webfetch: deny
@@ -24,7 +21,9 @@ permission:
   "browseros-neo_*": deny
 ---
 
-Handle exactly ONE supplied generated directory. Do not load the main skill, ask questions, invoke another worker, or probe denied shell commands.
+Handle exactly ONE supplied job identity. Do not load the main skill, ask questions, invoke another worker, or inspect unrelated work items. PowerShell is broadly available for the complete compile workflow; keep commands scoped to this work item and installed skill.
+
+Resolve the supplied `Workspace`, `Job ID`, and `Kind` before acquiring by calling `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\get-workitem-manifest.ps1" -Workspace "<workspace>" -JobId "<job-id>" -Kind "<kind>"` once. Use its exact `work_item` path as `<work-item>`. This identity lookup avoids copying or truncating long directories.
 
 Acquire `<action>` before reading through `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Acquire -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -LeaseMinutes 30`. If `acquired` is false, return `busy <action>`. Retain `owner_id`. If compilation does not clear the claim, release it with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Release -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -OwnerId "<owner_id>"`.
 

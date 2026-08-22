@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$JobJson,
     [string]$MetadataJson = '',
+    [string]$SourcePath = '',
     [string]$ProfilePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'profile.yaml')
 )
 
@@ -34,7 +35,8 @@ $url = if ($job.job_url) { [string]$job.job_url } elseif ($metadata -and $metada
 $domain = ''
 try { if ($url) { $domain = ([Uri]$url).Host.ToLowerInvariant() -replace '^www\.','' } } catch {}
 $metadataDescription = if ($metadata) { [string]$metadata.description } else { '' }
-$description = @([string]$job.description, $metadataDescription) -join "`n"
+$sourceDescription = if ($SourcePath -and (Test-Path -LiteralPath $SourcePath)) { Get-Content -LiteralPath $SourcePath -Raw } else { '' }
+$description = @([string]$job.description, $metadataDescription, $sourceDescription) -join "`n"
 
 foreach ($name in $excludedEmployers) {
     $key = Normalize $name
@@ -51,9 +53,26 @@ foreach ($blockedDomain in $excludedDomains) {
     }
 }
 
-if ($description -match '(?i)our\s+(confidential\s+)?client|undisclosed\s+client|on\s+behalf\s+of\s+our\s+client') {
+if ($description -match '(?i)our\s+(confidential\s+)?client|undisclosed\s+client|on\s+behalf\s+of\s+our\s+client|hiring\s+for\s+(one\s+of\s+)?(our\s+)?clients?|for\s+an?\s+(unnamed\s+)?client') {
     [ordered]@{ allowed=$false; classification='agency-unknown-client'; reason_code='unnamed-client'; evidence='Description conceals the hiring employer.' } | ConvertTo-Json -Compress
     exit 0
+}
+
+# Aggregator feeds occasionally attach one company's header to another employer's
+# body. When the advertised company never appears in the body but a different
+# organization explicitly says it is hiring/seeking, the identity is not safe.
+$identityBody = $description -replace '(?im)^\s*(?:#+.*|Employer:.*|Company:.*|Location:.*|Source:.*|Apply URL:.*)\s*$', ''
+$bodyKey = Normalize $identityBody
+$companyWords = @($companyKey.Split(' ', [StringSplitOptions]::RemoveEmptyEntries) | Where-Object { $_.Length -gt 2 })
+$companyMentioned = ($companyWords.Count -gt 0 -and @($companyWords | Where-Object { $bodyKey -match "(^| )$([regex]::Escape($_))( |$)" }).Count -eq $companyWords.Count)
+$hiringMatch = [regex]::Match($identityBody, '(?is)([A-Z][A-Za-z0-9&.\-]+(?:\s+[A-Z][A-Za-z0-9&.\-]+){0,4})(?:\s+in\s+[^.,\r\n]{2,50})?\s+(?:is\s+seeking|seeks|is\s+hiring)')
+if (-not $companyMentioned -and $hiringMatch.Success) {
+    $observedEmployer = $hiringMatch.Groups[1].Value.Trim()
+    $observedKey = Normalize $observedEmployer
+    if ($observedKey -and $observedKey -ne $companyKey) {
+        [ordered]@{ allowed=$false; classification='identity-mismatch'; reason_code='employer-body-mismatch'; evidence="Advertised employer '$company' conflicts with body employer '$observedEmployer'." } | ConvertTo-Json -Compress
+        exit 0
+    }
 }
 if ($description -match '(?i)unpaid\s+(trial|assessment|project)|pay\s+(a|the)\s+fee|purchase\s+.*(assessment|training)|mandatory\s+video\s+interview\s+before') {
     [ordered]@{ allowed=$false; classification='predatory-assessment-funnel'; reason_code='predatory-assessment'; evidence='Job requests an exploitative pre-application funnel.' } | ConvertTo-Json -Compress

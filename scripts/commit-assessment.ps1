@@ -101,13 +101,38 @@ try {
         Add-ValidationError 'assessment-score-invalid'
     }
 
-    foreach ($required in @('trust_class','role_family','eligibility_state','hard_gates','needs_external_research','needs_candidate_evidence')) {
+    foreach ($required in @('trust_class','role_family','eligibility_state','identity_check','score_components','hard_gates','needs_external_research','needs_candidate_evidence')) {
         if (-not (Has-Property $draft $required)) { Add-ValidationError "assessment-$required-missing" }
     }
     foreach ($requiredText in @('trust_class','role_family','eligibility_state')) {
         if ((Has-Property $draft $requiredText) -and [string]::IsNullOrWhiteSpace([string]$draft.$requiredText)) {
             Add-ValidationError "assessment-$requiredText-empty"
         }
+    }
+    if ((Has-Property $draft 'trust_class') -and [string]$draft.trust_class -notin @('DIRECT_VERIFIED','DIRECT_REASONABLE','AGENCY_NAMED_CLIENT','AGENCY_UNKNOWN_CLIENT','JOB_AGGREGATOR_ONLY','IDENTITY_MISMATCH','UNVERIFIABLE')) {
+        Add-ValidationError 'assessment-trust-class-invalid'
+    }
+    $identityCheckValid = $false
+    if (Has-Property $draft 'identity_check') {
+        foreach ($name in @('advertised_employer','body_employer','consistent','evidence')) {
+            if (-not (Has-Property $draft.identity_check $name)) { Add-ValidationError "identity-check-$name-missing" }
+        }
+        $identityCheckValid = (Has-Property $draft.identity_check 'consistent') -and (Is-Bool $draft.identity_check.consistent)
+        if (-not $identityCheckValid) { Add-ValidationError 'identity-check-consistent-invalid' }
+    }
+    $scoreComponentSpec = [ordered]@{
+        core_technical = 30; role_identity = 25; seniority_tenure = 15; production_ownership = 10
+        domain_overlap = 8; eligibility_certainty = 7; experience_band = 3; quality_recency_comp = 2
+    }
+    $scoreComponentSum = 0
+    if (Has-Property $draft 'score_components') {
+        foreach ($component in $scoreComponentSpec.Keys) {
+            $componentValue = 0
+            if (-not (Has-Property $draft.score_components $component) -or -not [int]::TryParse([string]$draft.score_components.$component, [ref]$componentValue) -or $componentValue -lt 0 -or $componentValue -gt [int]$scoreComponentSpec[$component]) {
+                Add-ValidationError "score-component-$component-invalid"
+            } else { $scoreComponentSum += $componentValue }
+        }
+        if ($scoreValid -and $scoreComponentSum -ne $score) { Add-ValidationError 'score-components-do-not-sum-to-score' }
     }
     $gates = [ordered]@{}
     foreach ($gate in @('integrity','eligibility','role_family','mandatory_requirements','truth_feasibility')) {
@@ -127,6 +152,9 @@ try {
         if ($externalFlagValid -and $evidenceFlagValid -and ([bool]$draft.needs_external_research -or [bool]$draft.needs_candidate_evidence)) {
             Add-ValidationError 'passed-cannot-need-research'
         }
+        if ($identityCheckValid -and -not [bool]$draft.identity_check.consistent) { Add-ValidationError 'passed-with-identity-mismatch' }
+        if ([string]$draft.trust_class -in @('AGENCY_UNKNOWN_CLIENT','JOB_AGGREGATOR_ONLY','IDENTITY_MISMATCH','UNVERIFIABLE')) { Add-ValidationError 'passed-with-rejected-trust-class' }
+        if ([string]$job.title -match '(?i)react\s*native|\bmobile\b|\bios\b|\bandroid\b|wordpress|\bfrontend\b') { Add-ValidationError 'passed-role-family-outside-campaign-lanes' }
     }
     if ($statusValid -and $externalFlagValid -and $evidenceFlagValid -and $draftStatus -eq 'needs-research' -and (-not [bool]$draft.needs_external_research -or [bool]$draft.needs_candidate_evidence)) {
         Add-ValidationError 'needs-research-flags-invalid'
@@ -136,7 +164,8 @@ try {
     }
 
     $reasonCodes = if (Has-Property $draft 'reason_codes') { @($draft.reason_codes) } else { @() }
-    if ($reasonCodes.Count -gt 2) { Add-ValidationError 'too-many-reason-codes' }
+    $reasonCodes = @($reasonCodes | ForEach-Object { [string]$_ } | Select-Object -Unique)
+    if ($reasonCodes.Count -gt 8) { Add-ValidationError 'too-many-reason-codes' }
     if (@($reasonCodes | Where-Object { [string]::IsNullOrWhiteSpace([string]$_) }).Count -gt 0) { Add-ValidationError 'reason-code-empty' }
     $candidateRequirements = if (Has-Property $draft 'candidate_evidence_requirements') { @($draft.candidate_evidence_requirements) } else { @() }
     if ($candidateRequirements.Count -gt 4) { Add-ValidationError 'too-many-candidate-evidence-requirements' }
@@ -168,18 +197,22 @@ try {
                 if ($requirements.Count -eq 0) { Add-ValidationError 'fit-map-requirements-empty' }
                 if ($requirements.Count -gt 8) { Add-ValidationError 'fit-map-too-many-requirements' }
                 foreach ($requirement in $requirements) {
-                    foreach ($name in @('requirement','evidence_class','evidence_scope','support','ats_keyword_allowed')) {
+                    foreach ($name in @('requirement','requirement_kind','evidence_class','evidence_scope','support','ats_keyword_allowed')) {
                         if (-not (Has-Property $requirement $name)) { Add-ValidationError "fit-map-$name-missing" }
                     }
                     if ((Has-Property $requirement 'ats_keyword_allowed') -and -not (Is-Bool $requirement.ats_keyword_allowed)) {
                         Add-ValidationError 'fit-map-ats-keyword-flag-invalid'
                     }
+                    if ((Has-Property $requirement 'requirement_kind') -and [string]$requirement.requirement_kind -notin @('defining','mandatory','preferred')) { Add-ValidationError 'fit-map-requirement-kind-invalid' }
+                    if ((Has-Property $requirement 'evidence_class') -and [string]$requirement.evidence_class -notin @('EXACT','DIRECT','ADJACENT','WEAK','NONE')) { Add-ValidationError 'fit-map-evidence-class-invalid' }
+                    if ((Has-Property $requirement 'ats_keyword_allowed') -and [bool]$requirement.ats_keyword_allowed -and [string]$requirement.evidence_class -notin @('EXACT','DIRECT')) { Add-ValidationError 'fit-map-unsupported-ats-keyword' }
+                    if ([string]$requirement.requirement_kind -in @('defining','mandatory') -and [string]$requirement.evidence_class -in @('WEAK','NONE')) { Add-ValidationError 'passed-with-unsupported-mandatory-requirement' }
                 }
             }
         }
         if ($null -ne $fitDraft -and $validationErrors.Count -eq 0) {
             $fit = [ordered]@{
-                policy_version = '6.3'
+                policy_version = '6.4'
                 job_id = [string]$job.job_id
                 status = 'complete'
                 score = $score
@@ -199,14 +232,29 @@ try {
         exit 0
     }
 
+    if ($draftStatus -eq 'passed') {
+        $qualityArgs = @{ JobJson = ($job | ConvertTo-Json -Compress -Depth 10) }
+        $metadataPath = Join-Path $WorkItemDir 'source-metadata.json'
+        $sourcePath = Join-Path $WorkItemDir 'source.md'
+        if (Test-Path -LiteralPath $metadataPath) { $qualityArgs.MetadataJson = $metadataPath }
+        if (Test-Path -LiteralPath $sourcePath) { $qualityArgs.SourcePath = $sourcePath }
+        $quality = (& (Join-Path $PSScriptRoot 'check-job-quality.ps1') @qualityArgs | Select-Object -Last 1) | ConvertFrom-Json
+        if (-not [bool]$quality.allowed) {
+            Emit @{ status='rejected-payload'; code='quality-gate-rejected'; errors=@("quality-gate-$([string]$quality.reason_code)"); error_count=1; next_stage=$rejectionStage }
+            exit 0
+        }
+    }
+
     $assessment = [ordered]@{
-        policy_version = '6.3'
+        policy_version = '6.4'
         job_id = [string]$job.job_id
         status = $draftStatus
         score = $score
         trust_class = [string]$draft.trust_class
         role_family = [string]$draft.role_family
         eligibility_state = [string]$draft.eligibility_state
+        identity_check = $draft.identity_check
+        score_components = $draft.score_components
         hard_gates = $gates
         reason_codes = $reasonCodes
         candidate_evidence_requirements = $candidateRequirements

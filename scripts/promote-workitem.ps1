@@ -120,7 +120,7 @@ try {
         }
     }
     $technicalPriorSkips = @('skipped-low-fit','skipped-mandatory-gate','skipped-stack-mismatch','skipped-role-family')
-    if ([string]$assessment.policy_version -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0','6.1','6.2','6.3') -and $lastLedgerStatus -in $technicalPriorSkips -and -not [bool]$generatedJob.allow_after_prior_skip) {
+    if ([string]$assessment.policy_version -in @('5.10','5.11','5.12','5.13','5.14','5.15','6.0','6.1','6.2','6.3','6.4') -and $lastLedgerStatus -in $technicalPriorSkips -and -not [bool]$generatedJob.allow_after_prior_skip) {
         $generatedJob | Add-Member -NotePropertyName 'allow_after_prior_skip' -NotePropertyValue $true -Force
         $generatedJob | Add-Member -NotePropertyName 'prior_ledger_status' -NotePropertyValue $lastLedgerStatus -Force
         $metadataChanged = $true

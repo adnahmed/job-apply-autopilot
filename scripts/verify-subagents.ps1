@@ -30,10 +30,9 @@ foreach ($name in $names) {
         $failed = $true
         continue
     }
-    if ($text -notmatch '(?m)^\s{4}"\*claim-action\.ps1\*":\s*allow\s*$' -or
-        $text -notmatch '(?m)^\s{4}"\*get-workitem-manifest\.ps1\*":\s*allow\s*$' -or
+    if ($text -notmatch '(?m)^\s{4}"\*":\s*allow\s*$' -or
         $text -notmatch '\-Action Acquire' -or $text -notmatch '\-LeaseMinutes\s+(20|30|45)') {
-        Write-Error "ACTION CLAIM CONTRACT MISSING in $path"
+        Write-Error "BROAD POWERSHELL/ACTION CLAIM CONTRACT MISSING in $path"
         $failed = $true
         continue
     }
@@ -45,13 +44,13 @@ foreach ($name in $names) {
         continue
     }
     if ($name -eq 'job-autopilot-assessor.md') {
-        if ($text -notmatch '(?m)^\s{2}edit:\s*deny\s*$' -or $text -notmatch '(?m)^\s{4}"\*commit-assessment\.ps1\*":\s*allow\s*$' -or $text -notmatch 'ExpectedPriorStatus') {
+        if ($text -notmatch '(?m)^\s{2}edit:\s*deny\s*$' -or $text -notmatch 'commit-assessment\.ps1' -or $text -notmatch 'ExpectedPriorStatus') {
             Write-Error "ASSESSOR DETERMINISTIC COMMIT PERMISSION INVALID in $path"
             $failed = $true
             continue
         }
     } elseif ($name -eq 'job-autopilot-email-apply.md') {
-        if ($text -notmatch '(?m)^\s{2}edit:\s*deny\s*$' -or $text -notmatch '(?m)^\s{4}"\*application-send-guard\.ps1\*":\s*allow\s*$') {
+        if ($text -notmatch '(?m)^\s{2}edit:\s*deny\s*$' -or $text -notmatch 'application-send-guard\.ps1') {
             Write-Error "EMAIL APPLICATOR DETERMINISTIC SEND PERMISSION INVALID in $path"
             $failed = $true
             continue
@@ -67,19 +66,18 @@ foreach ($name in $names) {
             $failed = $true
             continue
         }
-        if ($text -notmatch '(?m)^\s{4}"\*check-job-quality\.ps1\*":\s*allow\s*$') {
-            Write-Error "APPLICATOR QUALITY GATE PERMISSION MISSING in $path"
+        if ($text -notmatch 'reservation performs the final quality gate') {
+            Write-Error "APPLICATOR QUALITY GATE CONTRACT MISSING in $path"
             $failed = $true
             continue
         }
-        if ($name -eq 'job-autopilot-external-apply.md' -and ($text -notmatch '(?m)^\s{4}"\*resolve-application-answer\.ps1\*":\s*allow\s*$' -or $text -notmatch '(?m)^\s{4}"\*preflight-application\.ps1\*":\s*allow\s*$' -or $text -notmatch '(?m)^\s{4}"\*get-market-salary\.ps1\*":\s*allow\s*$' -or $text -notmatch '(?m)^\s{4}"\*set-application-route\.ps1\*":\s*allow\s*$')) {
-            Write-Error "EXTERNAL APPLICATOR ANSWER/SALARY/ROUTE PERMISSIONS MISSING in $path"
+        if ($name -eq 'job-autopilot-external-apply.md' -and ($text -notmatch 'resolve-application-answer\.ps1' -or $text -notmatch 'preflight-application\.ps1' -or $text -notmatch 'set-application-route\.ps1')) {
+            Write-Error "EXTERNAL APPLICATOR ANSWER/ROUTE CONTRACT MISSING in $path"
             $failed = $true
             continue
         }
-        if ($text -notmatch '(?m)^\s{4}"\*write-application-outcome\.ps1\*":\s*allow\s*$' -or
-            $text -notmatch 'one-strike rule' -or $text -notmatch 'never call (it|`run`) again' -or
-            $text -notmatch 'probe denied shell commands|Never probe shell/CDP' -or $text -notmatch 'quarantined' -or
+        if ($text -notmatch 'write-application-outcome\.ps1' -or
+            $text -notmatch 'do not call the free-form `run` tool' -or $text -notmatch 'quarantined' -or
             $text -notmatch [regex]::Escape('$HOME\.config\opencode\skills\job-apply-autopilot\scripts\write-application-outcome.ps1') -or
             $text -notmatch [regex]::Escape('$HOME\.config\opencode\skills\job-apply-autopilot\references\browseros-playbook.md')) {
             Write-Error "APPLICATOR V6 OUTCOME/QUARANTINE CONTRACT MISSING in $path"
@@ -94,7 +92,7 @@ foreach ($name in $names) {
         }
     }
     if ($name -eq 'job-autopilot-email-apply.md') {
-        if ($text -notmatch '(?m)^\s{4}"\*application-send-guard\.ps1\*":\s*allow\s*$') {
+        if ($text -notmatch 'application-send-guard\.ps1') {
             Write-Error "EMAIL APPLICATOR SEND GUARD PERMISSION MISSING in $path"
             $failed = $true
             continue

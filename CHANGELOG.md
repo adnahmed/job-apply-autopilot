@@ -1,3 +1,13 @@
+# V6.4.0 — Continuous Discovery and Completion-First Answers
+
+- Added the configured candidate phone and routed mandatory current compensation through the expected-compensation resolver.
+- Removed all new `blocked-protected-fact` production paths. Unknown identity, legal, authorization, compensation, and sensitive questions now require one context-aware generated answer and continue; legacy results remain readable only.
+- Made discovery a permanent claimed fast-wave action that launches immediately alongside assessment, resume, and application work regardless of pipeline depth.
+- Replaced brittle per-command PowerShell permission patterns with broad worker PowerShell access scoped by worker instructions and work-item claims.
+- Added hydrated semantic job fingerprints, within-batch dedupe, employer/body identity checks, unnamed-client enforcement, final aggregator-route rejection, and `skipped-closed` outcomes.
+- Added component-summed assessment scores, explicit identity checks, requirement importance, evidence/ATS-keyword enforcement, and up to eight distinct reason codes.
+- Switched browser workers to granular BrowserOS tools and added a non-destructive session-export JSON sanitizer for PII and token material.
+
 # V6.3.0 — Zero-Credit FreeHire Acceleration
 
 - Added one guarded FreeHire client with official CLI/environment credential discovery, content-addressed caching, request coalescing, sanitized latency telemetry, provider cooldowns, and a method/path allowlist that blocks credit-consuming or unknown endpoints before network access.

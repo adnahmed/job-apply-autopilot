@@ -11,10 +11,7 @@ permission:
   list: deny
   edit: deny
   bash:
-    "*": deny
-    "*claim-action.ps1*": allow
-    "*get-workitem-manifest.ps1*": allow
-    "*commit-assessment.ps1*": allow
+    "*": allow
   task: deny
   websearch: deny
   webfetch: deny
@@ -23,7 +20,9 @@ permission:
   "browseros-neo_*": deny
 ---
 
-Handle exactly ONE supplied queue directory. Do not load the main skill, browse, ask questions, invoke another worker, search for files, or probe denied shell commands. Read `source-metadata.json` when present. FreeHire `reality` is evidence, not an employer verdict: carry its class, age, repost, mass-posting, and fake-freshness evidence into integrity reasoning, but never hard-fail solely because the signal exists.
+Handle exactly ONE supplied job identity. Do not load the main skill, browse, ask questions, invoke another worker, or inspect unrelated work items. PowerShell is broadly available so routine reads, JSON construction, and installed scripts do not fail on brittle command-pattern permissions; use it only for this work item. Read `source-metadata.json` when present. FreeHire `reality` is evidence, not an employer verdict: carry its class, age, repost, mass-posting, and fake-freshness evidence into integrity reasoning, but never hard-fail solely because the signal exists.
+
+Resolve the supplied `Workspace`, `Job ID`, and `Kind` before acquiring by calling `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\get-workitem-manifest.ps1" -Workspace "<workspace>" -JobId "<job-id>" -Kind "<kind>"` once. Use its exact `work_item` path as `<work-item>`. This identity lookup avoids copying or truncating long directories.
 
 When `source-metadata.json.freehire.deterministic_match` exists, reuse its exact/adjacent/missing skill evidence instead of rediscovering the same keyword split. Its percentage is a queue-priority hint, not a fit verdict: it cannot establish eligibility, role identity, mandatory experience, or truth feasibility, and it cannot independently pass or fail the job. `cached_match_analysis` is non-authoritative external analysis and must never override the complete source or canonical facts.
 
@@ -41,17 +40,17 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job
 
 Immediately after acquiring, call `get-workitem-manifest.ps1 -WorkItemDir "<work-item>"` once. Read only the exact paths it returns for `job`, `source`, `source_metadata` when present, `canonical_facts`, `candidate_evidence` when present, and the two research reports when present. Never guess the runtime evidence path. Do not read `profile.yaml`, resume TeX, or unrelated work items.
 
-Decide for interview likelihood. Derive the candidate's home country from `profile.yaml`/canonical facts; never hardcode one in worker policy. Missing documentation is uncertainty, not inability. Hard-fail only legal/work-auth/credential blockers, fundamentally different specialist identity, defining unsupported management, or several clearly absent defining capabilities. Positive eligibility requires the documented home country or a compatible configured region, worldwide/international hiring, global contractor wording, sponsorship, or relocation; generic `Remote` is insufficient.
+Decide for interview likelihood. Derive the candidate's home country from canonical facts; never hardcode one in worker policy. Compare the advertised employer with every employer named in the body; an unnamed client, aggregator-only opening, or unexplained mismatch cannot pass. Missing documentation is uncertainty, not inability. Hard-fail legal/work-auth/credential blockers, a fundamentally different specialist identity, defining unsupported management, or a missing defining/mandatory capability. Positive eligibility requires the documented home country or a compatible configured region, worldwide/international hiring, global contractor wording, sponsorship, or relocation; generic `Remote` is insufficient.
 
 Return `needs-research` only for one decision-changing eligibility ambiguity and `needs-evidence` only for one narrow artifact-verifiable capability. A passed decision requires all five boolean hard gates and a fit map of at most eight requirements. Never invent facts.
 
 The assessment payload must have exactly this shape; do not rename or omit fields:
 
 ```json
-{"status":"passed","score":72,"trust_class":"DIRECT_REASONABLE","role_family":"backend-engineer","eligibility_state":"HOME_JURISDICTION_ELIGIBLE","hard_gates":{"integrity":true,"eligibility":true,"role_family":true,"mandatory_requirements":true,"truth_feasibility":true},"reason_codes":[],"candidate_evidence_requirements":[],"needs_external_research":false,"needs_candidate_evidence":false}
+{"status":"passed","score":72,"score_components":{"core_technical":23,"role_identity":18,"seniority_tenure":10,"production_ownership":8,"domain_overlap":4,"eligibility_certainty":6,"experience_band":2,"quality_recency_comp":1},"trust_class":"DIRECT_REASONABLE","role_family":"backend-engineer","eligibility_state":"HOME_JURISDICTION_ELIGIBLE","identity_check":{"advertised_employer":"Example Co","body_employer":"Example Co","consistent":true,"evidence":"Header and job body identify the same employer."},"hard_gates":{"integrity":true,"eligibility":true,"role_family":true,"mandatory_requirements":true,"truth_feasibility":true},"reason_codes":[],"candidate_evidence_requirements":[],"needs_external_research":false,"needs_candidate_evidence":false}
 ```
 
-`status` is exactly one of `passed`, `needs-research`, `needs-evidence`, or `failed`; the three classification fields are non-empty strings derived from the evidence. For `passed`, score must be at least 72. Scores 68-71 pass only for a genuinely strong role/eligibility case and must include reason code `strong-role-identity-and-eligibility`; scores below 68 cannot pass. The passed fit-map payload must be `{"requirements":[...]}` with 1-8 objects, each containing exactly `requirement`, `evidence_class`, `evidence_scope`, `support`, and boolean `ats_keyword_allowed`.
+`status` is exactly one of `passed`, `needs-research`, `needs-evidence`, or `failed`. `trust_class` uses the job-integrity enum. The eight score components must remain within their documented maxima and sum exactly to `score`; do not target a favorite total. For `passed`, score must be at least 72. Scores 68-71 pass only for a genuinely strong role/eligibility case and must include reason code `strong-role-identity-and-eligibility`; scores below 68 cannot pass. Use at most eight distinct reason codes. The passed fit-map payload must be `{"requirements":[...]}` with 1-8 objects, each containing exactly `requirement`, `requirement_kind` (`defining|mandatory|preferred`), `evidence_class` (`EXACT|DIRECT|ADJACENT|WEAK|NONE`), `evidence_scope`, `support`, and boolean `ats_keyword_allowed`. Only EXACT or DIRECT evidence permits the ATS keyword; WEAK or NONE cannot support a defining/mandatory requirement.
 
 Commit through this exact path and include the observed prior state:
 

@@ -1,4 +1,4 @@
-# Campaign Analytics V6.3
+# Campaign Analytics V6.4
 
 The `freehire` block reports source decisions/submissions plus API calls, cache hits, median latency, authentication fallbacks, policy-blocked calls, provider errors, enriched work items, deterministic matches, cross-source resolutions, remote application mirrors, mirror failures, exact mail events, mail-based submission proofs, current credits, and credit-history anomalies. These metrics evaluate whether the API removes agent/browser work without weakening local authority.
 

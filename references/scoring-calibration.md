@@ -1,4 +1,4 @@
-# Scoring Calibration V5.11 — Interview Likelihood
+# Scoring Calibration V6.4 — Interview Likelihood
 
 Score for credible interview probability, not checklist perfection.
 
@@ -43,3 +43,5 @@ Default apply threshold: 72.
 - <68 usually skip
 
 Do not inflate scores to satisfy volume. Do not require exhaustive evidence for every bullet.
+
+Assessment payloads must expose all eight component values within these maxima; `commit-assessment.ps1` recomputes their sum and rejects unexplained totals. A passed fit map labels each requirement as defining, mandatory, or preferred. `WEAK`/`NONE` cannot support defining or mandatory requirements, and ATS keywords are allowed only for `EXACT` or `DIRECT` evidence.

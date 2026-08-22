@@ -1,17 +1,17 @@
-# Install Job Apply Autopilot V6.3.0
+# Install Job Apply Autopilot V6.4.0
 
 V6 upgrades an existing campaign in place. Do not delete `<workspace>\.job-apply-autopilot`. Terminate any active V5 background campaign process before installing; V6 does not start or manage OS background processes.
 
 From the campaign workspace:
 
 ```powershell
-$zip  = ".\job-apply-autopilot-v6.3.0.zip"
-$temp = Join-Path $env:TEMP "job-apply-autopilot-v6.3.0"
+$zip  = ".\job-apply-autopilot-v6.4.0.zip"
+$temp = Join-Path $env:TEMP "job-apply-autopilot-v6.4.0"
 $dst  = "$HOME\.config\opencode\skills\job-apply-autopilot"
 
 Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-$src = Join-Path $temp "job-apply-autopilot-v6.3.0"
+$src = Join-Path $temp "job-apply-autopilot-v6.4.0"
 
 if (Test-Path -LiteralPath $dst) {
     $backupRoot = "$HOME\.config\opencode\skill-backups"
@@ -75,7 +75,7 @@ opencode debug agent goal
 BrowserOS neo, its signed-in profile, network access, and OS keep-awake behavior are managed outside this repository. Restart OpenCode from the campaign workspace and create one session goal:
 
 ```text
-/goal "Use job-apply-autopilot. Keep discovering, assessing, tailoring, and submitting net-new job applications until I explicitly run /goal pause or /goal stop." --max-turns 9007199254740991 --max-duration-ms 9007199254740991 --max-tokens 9007199254740991 --no-progress-threshold 1 --no-progress-turns 9007199254740991 --constraints "never duplicate a submission; verify ambiguous side effects before retrying; never bypass CAPTCHA, MFA, security, eligibility, or truthfulness safeguards"
+/goal "Use job-apply-autopilot. Keep discovering, assessing, tailoring, and submitting net-new job applications until I explicitly run /goal pause or /goal stop." --max-turns 9007199254740991 --max-duration-ms 9007199254740991 --max-tokens 9007199254740991 --no-progress-threshold 1 --no-progress-turns 9007199254740991 --constraints "never duplicate a submission; verify ambiguous side effects before retrying"
 ```
 
 Use `/goal status`, `/goal pause`, and `/goal stop` for lifecycle control. Persisted goals load paused after an OpenCode restart; restore BrowserOS if needed, then run `/goal resume`. Do not create a second persistence loop.
@@ -112,7 +112,7 @@ No runtime data or legacy ledger row is automatically migrated by installation.
 - One goal owns continuation; workers never create goals and a coordinator continuation is withheld while child workers remain active.
 - Every continuation reruns `session-state.ps1`; runnable generated and queue work remains visible together and is dispatched in parallel waves.
 - Assessor, research, resume, external ATS, and email work is limited only by host capacity; LinkedIn Easy Apply remains serial under its persistent governor.
-- The eight-job intake floor refills discovery without delaying ready work, and complete JDs route through `source_pending` before assessment.
+- Continuous discovery launches immediately alongside every downstream wave, independent of queue depth, and complete JDs route through `source_pending` before assessment.
 - Assessment is local/web-free unless one bounded decision-changing research branch is explicitly requested.
 - Claims suppress duplicate stage owners, expire after abandonment, and are cleared by completed transitions.
 - Assessment, promotion, compilation, outbound reservation, terminal outcome writing, and result reconciliation are idempotent boundaries.

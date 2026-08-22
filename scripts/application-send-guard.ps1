@@ -240,9 +240,22 @@ try {
                 exit 0
             }
             $job = Read-JsonSafe $jobPath
+            $targetHost = Get-TargetDomain $Target $Channel
+            $aggregatorDomains = @('whatjobs.com','jobleads.com','jooble.org','talent.com','bebee.com','jobrapido.com','adzuna.com')
+            $aggregatorTarget = $false
+            foreach ($aggregatorDomain in $aggregatorDomains) {
+                if ($targetHost -eq $aggregatorDomain -or $targetHost.EndsWith(".$aggregatorDomain")) { $aggregatorTarget = $true; break }
+            }
+            if ($Channel -eq 'external-ats' -and $aggregatorTarget) {
+                & (Join-Path $PSScriptRoot 'set-application-route.ps1') -WorkItemDir $WorkItemDir -Route unresolved -Target $Target -Evidence 'Reservation rejected aggregator route; direct employer or ATS route required.' | Out-Null
+                Write-Result ([ordered]@{ status='route-unresolved'; safe_to_submit=$false; target=$Target; reason_code='aggregator-route-rejected' })
+                exit 0
+            }
             $metadataPath = Join-Path $WorkItemDir 'source-metadata.json'
             $qualityArgs = @{ JobJson = ($job | ConvertTo-Json -Compress -Depth 8) }
             if (Test-Path -LiteralPath $metadataPath) { $qualityArgs.MetadataJson = $metadataPath }
+            $sourcePath = Join-Path $WorkItemDir 'source.md'
+            if (Test-Path -LiteralPath $sourcePath) { $qualityArgs.SourcePath = $sourcePath }
             $quality = (& (Join-Path $PSScriptRoot 'check-job-quality.ps1') @qualityArgs | Select-Object -Last 1) | ConvertFrom-Json
             if (-not [bool]$quality.allowed) {
                 & (Join-Path $PSScriptRoot 'write-application-outcome.ps1') -WorkItemDir $WorkItemDir -Status 'skipped-job-quality' -Blocker ([string]$quality.reason_code) -ApplyMethod $Channel -Target $Target | Out-Null

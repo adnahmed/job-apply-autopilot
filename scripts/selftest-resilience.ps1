@@ -19,6 +19,8 @@ try {
     if ($existingCreation.status -ne 'existing' -or [string]$existingCreation.path -ne [string]$workItem) { throw 'Structured exact-ID creation did not return existing/path.' }
     $manifest = (& (Join-Path $PSScriptRoot 'get-workitem-manifest.ps1') -WorkItemDir $workItem | Select-Object -Last 1) | ConvertFrom-Json
     if ([string]$manifest.paths.candidate_evidence.path -ne (Join-Path $workspace '.job-apply-autopilot\candidate-evidence.json')) { throw 'Manifest candidate-evidence path escaped the runtime root.' }
+    $manifestById = (& (Join-Path $PSScriptRoot 'get-workitem-manifest.ps1') -Workspace $workspace -JobId 'selftest-001' -Kind queue | Select-Object -Last 1) | ConvertFrom-Json
+    if ([string]$manifestById.work_item -ne [string]$workItem) { throw 'Identity-based manifest lookup did not resolve the exact work-item path.' }
 
     $snapshot = (& (Join-Path $PSScriptRoot 'session-state.ps1') -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
     $action = @($snapshot.actions | Where-Object { $_.job_id -eq 'selftest-001' }) | Select-Object -First 1
@@ -58,9 +60,25 @@ try {
 {
   "status": "passed",
   "score": 88,
+  "score_components": {
+    "core_technical": 27,
+    "role_identity": 23,
+    "seniority_tenure": 13,
+    "production_ownership": 9,
+    "domain_overlap": 6,
+    "eligibility_certainty": 6,
+    "experience_band": 2,
+    "quality_recency_comp": 2
+  },
   "trust_class": "DIRECT_REASONABLE",
   "role_family": "backend-engineer",
   "eligibility_state": "PAKISTAN_ELIGIBLE",
+  "identity_check": {
+    "advertised_employer": "Self Test Co",
+    "body_employer": "Self Test Co",
+    "consistent": true,
+    "evidence": "Header and body identify Self Test Co."
+  },
   "hard_gates": {
     "integrity": true,
     "eligibility": true,
@@ -78,6 +96,7 @@ try {
   "requirements": [
     {
       "requirement": "Backend engineering",
+      "requirement_kind": "mandatory",
       "evidence_class": "EXACT",
       "evidence_scope": "professional",
       "support": ["H1"],
@@ -94,8 +113,12 @@ try {
 
     $unknownNumeric = (& (Join-Path $PSScriptRoot 'resolve-application-answer.ps1') -WorkItemDir $workItem -QuestionJson '{"label":"Years using an unverified specialist tool","type":"number","required":true}' | Select-Object -Last 1) | ConvertFrom-Json
     if ($unknownNumeric.status -ne 'needs-semantic-answer') { throw 'Unknown required numeric answer was defaulted instead of handed off semantically.' }
-    $missingPhone = (& (Join-Path $PSScriptRoot 'resolve-application-answer.ps1') -WorkItemDir $workItem -QuestionJson '{"label":"Phone number","type":"text","required":true}' | Select-Object -Last 1) | ConvertFrom-Json
-    if ($missingPhone.status -ne 'blocked-protected-fact') { throw 'Missing required phone did not produce a protected-fact blocker.' }
+    $phone = (& (Join-Path $PSScriptRoot 'resolve-application-answer.ps1') -WorkItemDir $workItem -QuestionJson '{"label":"Phone number","type":"text","required":true}' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($phone.status -ne 'answered' -or [string]$phone.value -ne '+923205700547') { throw 'Configured phone was not answered deterministically.' }
+    $unknownLegal = (& (Join-Path $PSScriptRoot 'resolve-application-answer.ps1') -WorkItemDir $workItem -QuestionJson '{"label":"Passport number","type":"text","required":true}' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($unknownLegal.status -ne 'needs-semantic-answer' -or $unknownLegal.strategy -ne 'generate-one-context-aware-answer-and-continue') { throw 'Unknown required identity fact did not route to agent generation.' }
+    $currentSalary = (& (Join-Path $PSScriptRoot 'resolve-application-answer.ps1') -WorkItemDir $workItem -QuestionJson '{"label":"Current monthly salary","type":"number","required":true}' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($currentSalary.status -ne 'answered' -or [double]$currentSalary.value -le 0) { throw 'Current salary did not reuse expected-compensation resolution.' }
 
     $commit = (& (Join-Path $PSScriptRoot 'commit-assessment.ps1') -WorkItemDir $workItem -ExpectedPriorStatus unassessed -AssessmentJson $assessmentJson -FitMapJson $fitMapJson | Select-Object -Last 1) | ConvertFrom-Json
     if ($commit.status -ne 'committed' -or $commit.next_stage -ne 'coordinator_adjudication_pending') {
@@ -129,13 +152,15 @@ try {
     $resumeAction = @($snapshot.actions | Where-Object { $_.job_id -eq 'selftest-001' -and $_.stage -eq 'resume_pending' })
     $assessorActions = @($snapshot.actions | Where-Object { $_.dispatch -eq 'job-autopilot-assessor' })
     if ($resumeAction.Count -ne 1 -or $assessorActions.Count -ne 5) { throw 'Cross-stage runnable work was hidden or collapsed.' }
-    if ($resumeAction[0].wave -ne 'fast' -or $snapshot.scheduler.active_wave -ne 'fast' -or -not [bool]$resumeAction[0].reality_signal) { throw 'Fast-wave or reality-evidence state was not preserved.' }
+    if ($resumeAction[0].wave -ne 'fast' -or $snapshot.scheduler.active_wave -ne 'all' -or -not [bool]$resumeAction[0].reality_signal) { throw 'Unified-wave or reality-evidence state was not preserved.' }
     if ([string]$snapshot.scheduler.concurrency.default -ne 'unbounded' -or [int]$snapshot.scheduler.concurrency.linkedin_easy_apply -ne 1 -or $snapshot.scheduler.PSObject.Properties.Name -contains 'worker_limits' -or $snapshot.scheduler.PSObject.Properties.Name -contains 'dispatch_batches') {
         throw "Compact uncapped scheduler contract is invalid: $($snapshot.scheduler | ConvertTo-Json -Compress)."
     }
-    if ($snapshot.scheduler.pipeline_buffer_target -ne 8 -or -not $snapshot.scheduler.discovery_needed -or $snapshot.scheduler.discovery_slots -ne 2) {
+    if ($snapshot.scheduler.pipeline_buffer_target -ne 8 -or -not $snapshot.scheduler.continuous_discovery -or -not $snapshot.scheduler.discovery_needed -or $snapshot.scheduler.discovery_slots -ne 8) {
         throw "Pipeline buffer routing is invalid: $($snapshot.scheduler | ConvertTo-Json -Compress)."
     }
+    $discoveryAction = @($snapshot.actions | Where-Object { $_.stage -eq 'discovery' -and $_.dispatch -eq 'coordinator-discovery' })
+    if ($discoveryAction.Count -ne 1 -or [string]$discoveryAction[0].command -notmatch 'discover-freehire\.ps1') { throw 'Continuous discovery was not emitted alongside worker actions.' }
 
     # A fresh terminal skip must not be mistaken for an old explicitly reopened reassessment.
     $freshSkip = & (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId 'fresh-skip' -Company 'Training Market' -Title 'LLM Evaluator' -Location 'Pakistan' -Source 'test' -Workspace $workspace | Select-Object -Last 1
@@ -159,6 +184,12 @@ try {
     $reorderedJson = @([ordered]@{ job_id='dup-reordered'; company='Acme'; title='Engineer Backend' }) | ConvertTo-Json -Compress
     $reordered = (& (Join-Path $PSScriptRoot 'dedupe-jobs.ps1') -CandidatesJson $reorderedJson -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json
     if (-not $reordered.seen -or $reordered.reason -ne 'semantic-submission') { throw 'Title-token reordering bypassed semantic dedupe.' }
+    $semanticPair = @(
+        [ordered]@{job_id='summary-a';company='TectSoft';title='Senior React Native Full Stack Engineer';location='Lahore, Pakistan';posted_at='2026-08-22T08:00:00Z';description='Build production mobile apps using React Native and Node.js.'},
+        [ordered]@{job_id='summary-b';company='TectSoft Ltd';title='Senior React Native Full-Stack Engineer Node.js';location='Lahore, Pakistan';posted_at='2026-08-22T10:00:00Z';description='TectSoft seeks an engineer for production-grade React Native mobile applications with Node.js and relational databases.'}
+    ) | ConvertTo-Json -Compress
+    $semanticBatch = @((& (Join-Path $PSScriptRoot 'dedupe-jobs.ps1') -CandidatesJson $semanticPair -Workspace $workspace | Select-Object -Last 1) | ConvertFrom-Json)
+    if (-not [bool](@($semanticBatch | Where-Object job_id -eq 'summary-b')[0].seen)) { throw 'Summary/full semantic duplicate pair was not detected.' }
     $duplicateCreate = & (Join-Path $PSScriptRoot 'new-workitem.ps1') -JobId 'dup-new' -Company 'Acme' -Title 'Backend Engineer' -Source 'test' -Workspace $workspace | Select-Object -Last 1
     if ([string]$duplicateCreate -notlike 'DUPLICATE:dup-new:semantic-submission:*') {
         throw "new-workitem semantic guard failed: $duplicateCreate"
@@ -248,6 +279,18 @@ try {
     if ($qualitySignal.status -ne 'acquired') { throw 'Reality evidence was incorrectly treated as an automatic rejection.' }
     & (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $qualitySignalDir -Action CancelBeforeSubmit -ReservationId $qualitySignal.reservation_id -Proof 'Self-test evidence-only cancellation' | Out-Null
 
+    $identityQuality = (& (Join-Path $PSScriptRoot 'check-job-quality.ps1') -JobJson '{"job_id":"identity-mismatch","company":"SENSYS Inc.","title":"Principal Full Stack Engineer","description":"INTECH Automation Intelligence is seeking a Principal Software Engineer for its industrial platform."}' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($identityQuality.allowed -or $identityQuality.reason_code -ne 'employer-body-mismatch') { throw 'Employer/body identity mismatch was not rejected.' }
+    $unnamedQuality = (& (Join-Path $PSScriptRoot 'check-job-quality.ps1') -JobJson '{"job_id":"unnamed","company":"Hire Feed","title":"Python Developer","description":"We are hiring for one of our clients, seeking a Python developer."}' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($unnamedQuality.allowed -or $unnamedQuality.reason_code -ne 'unnamed-client') { throw 'Unnamed-client agency was not rejected.' }
+
+    $aggregatorDir = Join-Path $workspace '.job-apply-autopilot\generated\aggregator-route'
+    New-Item -ItemType Directory -Force -Path $aggregatorDir | Out-Null
+    [ordered]@{ job_id='aggregator-route'; company='Route Co'; title='Backend Engineer'; job_url='https://en-pk.whatjobs.com/job/1'; source='freehire' } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $aggregatorDir 'job.json') -Encoding UTF8
+    $aggregatorReserve = (& (Join-Path $PSScriptRoot 'application-send-guard.ps1') -WorkItemDir $aggregatorDir -Action Reserve -Channel external-ats -Target 'https://en-pk.whatjobs.com/job/1' | Select-Object -Last 1) | ConvertFrom-Json
+    if ($aggregatorReserve.status -ne 'route-unresolved' -or $aggregatorReserve.safe_to_submit) { throw 'Legacy aggregator route reached reservation.' }
+
     # Repair concatenated legacy JSONL and enforce an active domain marker in session routing.
     $now = [DateTimeOffset]::UtcNow
     $legacyA = [ordered]@{ timestamp=$now.AddHours(-48).ToString('o'); domain='expired.example'; status='blocked-security'; reason='old' } | ConvertTo-Json -Compress
@@ -281,7 +324,17 @@ try {
     $clientSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'freehire-client.ps1') -Raw
     if ($clientSource -match '(?i)Authorization\s*=.*Write-(Output|Host)|Emit\s+.*token') { throw 'FreeHire client appears to expose credential material.' }
 
-    Write-Output 'PASS resilience: source gating, parallel throughput routing, reality-evidence quality semantics, deterministic transitions, semantic dedupe, idempotent sends, active circuit routing, unique metrics, atomic governor recovery, and zero-credit FreeHire policy passed.'
+    $rawExport = Join-Path $workspace 'session-raw.json'
+    $safeExport = Join-Path $workspace 'session-sanitized.json'
+    [ordered]@{ email='person@example.com'; phone='+923205700547'; authorization='Bearer secret.value'; url='https://example.com/confirm?token=abc123&x=1' } |
+        ConvertTo-Json | Set-Content -LiteralPath $rawExport -Encoding UTF8
+    & (Join-Path $PSScriptRoot 'sanitize-session-export.ps1') -InputPath $rawExport -OutputPath $safeExport | Out-Null
+    $safeText = Get-Content -LiteralPath $safeExport -Raw
+    $safeText | ConvertFrom-Json | Out-Null
+    if ($safeText -match 'person@example\.com|923205700547|secret\.value|token=abc123') { throw 'Session export sanitizer leaked sensitive values.' }
+    if ((Get-Content -LiteralPath $rawExport -Raw) -notmatch 'person@example\.com') { throw 'Session export sanitizer modified the raw input.' }
+
+    Write-Output 'PASS resilience: continuous discovery, completion-first answers, source identity gating, semantic dedupe, deterministic transitions, idempotent sends, route safety, redaction, and zero-credit FreeHire policy passed.'
 } finally {
     Remove-Item -LiteralPath $workspace -Recurse -Force -ErrorAction SilentlyContinue
 }

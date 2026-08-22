@@ -1,8 +1,8 @@
-# V6.3.0 Release Contract
+# V6.4.0 Release Contract
 
 This document describes the required implementation state. It does not invoke a test suite.
 
-- `VERSION.txt` and the main skill heading are `6.3.0`.
+- `VERSION.txt` and the main skill heading are `6.4.0`.
 - Every FreeHire request uses the zero-credit allowlisted client; unknown and credit-consuming endpoints are blocked before network access, and credentials never enter logs or repository files.
 - Authenticated FreeHire enrichment is cached and fail-open; deterministic match evidence prioritizes work but never passes or rejects a job.
 - Cross-source resolution accepts only public HTTP(S) vacancy URLs after local dedupe; private/authenticated/local-network URLs are never sent.
@@ -17,7 +17,7 @@ This document describes the required implementation state. It does not invoke a 
 - Assessment validation returns all schema errors together and enforces the 72 / narrow 68-71 score policy again at promotion.
 - Workers obtain exact artifact and runtime evidence locations from the deterministic work-item manifest rather than path probing.
 - Work-item creation has structured created/existing/duplicate/rejected results; only created jobs may receive new source metadata.
-- Required answer resolution never fabricates zero, No, or Not applicable; application preflight exposes protected blockers and semantic questions before browser reservation.
+- Required answer resolution uses configured facts first and otherwise exposes every unknown category for one context-aware agent-generated answer; it never emits a new protected-fact blocker.
 - Promotion and resume compilation reuse valid existing outputs under work-item locks.
 - Applicators write terminal blockers through `write-application-outcome.ps1`.
 - Terminal progress without `application-result.json` exposes `application_outcome_repair`, never `application_resume`.
@@ -28,15 +28,15 @@ This document describes the required implementation state. It does not invoke a 
 - `resolve-application-quarantine.ps1` exposes `List`, `Reverify`, `ConfirmSubmitted`, `ConfirmAbsent`, `RetryApplication`, and `Abandon`.
 - Retry refuses any submitted exact or semantic duplicate and accepts only proven pre-submit/cancelled or verified-absent state.
 - Session state reports quarantine count, outcome-repair count, per-item claim metadata, and discovery claim metadata.
-- Every worker uses exact installed script/reference paths, acquires its stage before reading, does not probe denied shell commands, and returns one canonical status line.
-- Browser workers use `run` at most once after failure, then granular tools; connection loss ends browser calls for that worker.
+- Every worker has broad PowerShell access for work-item-local reads and installed scripts, acquires its stage before acting, and returns one canonical status line.
+- Browser workers use granular tools without free-form `run`; connection loss ends browser calls for that worker.
 - When BrowserOS is unavailable, local work continues; if no useful local work remains, the active goal blocks with the concrete BrowserOS reason until restoration and `/goal resume`.
 - Package verification must use temporary campaign workspaces and must never send an application or email.
 
 ## Retained pipeline invariants
 
 - The coordinator workspace is captured once; runtime remains `<workspace>\.job-apply-autopilot`, with no sibling/home workspace discovery.
-- `session-state.ps1` preserves the established `next_action` compatibility enum while exposing all runnable cross-stage actions once, each with one dispatch target and an exact two-line `worker_prompt`.
+- `session-state.ps1` preserves the established `next_action` compatibility enum while exposing every runnable action once; four-line identity prompts resolve long work-item paths through the manifest instead of copying them.
 - Scheduler concurrency exposes `default: unbounded` and `linkedin_easy_apply: 1`; it has no non-LinkedIn skill caps or duplicate dispatch batches.
 - The assessor remains local/web-free and can request only one bounded research kind; the research finalizer commits the decision without a third reassessment worker.
 - Passed fit maps contain at most eight central requirements. Positive eligibility for the candidate's documented home jurisdiction remains mandatory before submission.
@@ -50,9 +50,9 @@ This document describes the required implementation state. It does not invoke a 
 - `application-send-guard.ps1` remains the only outbound reservation/receipt boundary and prevents parallel semantic company/title attempts.
 - `reconcile-application-result.ps1` remains the only result-to-ledger application boundary and is idempotent on repeated calls.
 - The LinkedIn governor reconstructs ledger history, parses timestamps invariantly, serializes writers, and avoids duplicate job-ID records.
-- Discovery still batch-dedupes visible identities before detail-page work, rotates lanes after dry results, and does not stop after the first plausible job.
+- Discovery is always emitted as an independent fast-wave action, semantic-dedupes before work-item creation, rotates lanes after dry results, and never waits for downstream work or queue depletion.
 - Candidate evidence remains bounded to decision-changing first-party sources; missing evidence is not proof of inability.
-- Browser automation retains task-owned tabs, fresh upload-input references, exact filename verification, one-strike `run` fallback, and immediate stop after connection loss.
+- Browser automation retains task-owned tabs, fresh upload-input references, exact filename verification, granular actions, and immediate stop after connection loss.
 - Truth boundaries still prohibit invented identity, employment, education, authorization, management, metrics, and technology-specific duration.
 - No coordinator may declare completion or a natural pause while unclaimed actions or needed discovery remain.
 

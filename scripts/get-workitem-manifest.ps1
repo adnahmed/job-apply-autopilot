@@ -1,9 +1,33 @@
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName='Directory')]
 param(
-    [Parameter(Mandatory=$true)][string]$WorkItemDir
+    [Parameter(Mandatory=$true,ParameterSetName='Directory')][string]$WorkItemDir,
+    [Parameter(Mandatory=$true,ParameterSetName='Identity')][string]$JobId,
+    [Parameter(ParameterSetName='Identity')][ValidateSet('auto','queue','generated')][string]$Kind = 'auto',
+    [Parameter(ParameterSetName='Identity')][string]$Workspace = (Get-Location).Path
 )
 
 $ErrorActionPreference = 'Stop'
+if ($PSCmdlet.ParameterSetName -eq 'Identity') {
+    $Workspace = (Resolve-Path -LiteralPath $Workspace).Path
+    $runtime = Join-Path $Workspace '.job-apply-autopilot'
+    $roots = if ($Kind -eq 'auto') { @('generated','queue') } else { @($Kind) }
+    $matches = [Collections.Generic.List[string]]::new()
+    foreach ($rootName in $roots) {
+        $rootPath = Join-Path $runtime $rootName
+        if (-not (Test-Path -LiteralPath $rootPath)) { continue }
+        foreach ($dir in Get-ChildItem -LiteralPath $rootPath -Directory -ErrorAction SilentlyContinue) {
+            $jobPath = Join-Path $dir.FullName 'job.json'
+            if (-not (Test-Path -LiteralPath $jobPath)) { continue }
+            try {
+                $candidate = Get-Content -LiteralPath $jobPath -Raw | ConvertFrom-Json
+                if ([string]$candidate.job_id -eq $JobId) { $matches.Add($dir.FullName) }
+            } catch {}
+        }
+        if ($matches.Count -gt 0 -and $Kind -eq 'auto') { break }
+    }
+    if ($matches.Count -ne 1) { throw "Expected one $Kind work item for job '$JobId', found $($matches.Count)." }
+    $WorkItemDir = $matches[0]
+}
 $WorkItemDir = (Resolve-Path -LiteralPath $WorkItemDir).Path
 
 $cursor = [IO.DirectoryInfo]$WorkItemDir
@@ -54,7 +78,7 @@ $paths = [ordered]@{
 }
 
 [ordered]@{
-    version = 1
+    version = 2
     workspace = $workspace
     runtime_root = $runtimeRoot
     work_item = $WorkItemDir

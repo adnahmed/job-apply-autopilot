@@ -1,4 +1,4 @@
-# Autonomous Application Policy V6.3
+# Autonomous Application Policy V6.4
 
 ## Principle
 Quality and eligibility beat volume. Requested application count is a maximum target, never a quota.
@@ -41,7 +41,7 @@ Do not infer:
 - specialized domain expertise from one adjacent project.
 
 ## Truthfulness
-Never invent citizenship, residency, work authorization, sponsorship status, employer/title/dates, management scope, degree/certification, salary history, clearance, or identity/contact information. For matching, derive overall engineering tenure from canonical employment history and do not maintain per-technology year counters. Public project evidence may establish real technology capability even when the resume omits it. Do not fabricate a precise technology-specific duration on a form when no truthful duration can be supported.
+Resume and fit artifacts never invent employer/title/dates, management scope, degree/certification, clearance, metrics, or unsupported technologies. Application-form answers use configured evidence first and the completion-first generated-answer policy when mandatory data is absent. For matching, derive overall engineering tenure from canonical employment history and do not maintain per-technology year counters. Public project evidence may establish real technology capability even when the resume omits it.
 
 ## Passwords and authentication
 Password creation/autofill is allowed. Prefer existing sessions and LinkedIn OAuth/import first because they are faster and reduce form friction. Passwords should not be the reason an otherwise valid application stalls.
@@ -69,23 +69,16 @@ Default auto-apply threshold: 72 after every true hard blocker/gate passes. A fe
 - one solver-assisted CAPTCHA recovery window; no repeated Submit clicks
 
 ## Non-interactive choice policy
-Never ask the user to choose among routine application/workflow options and never invoke a question tool. For non-factual safe choices, select **Recommended** when present; otherwise select the first available safe option and continue. Factual screening answers must still come from truthful evidence. If none is supportable, use a legitimate decline/N/A when available or skip the job; do not ask the user to resolve it. A standalone CAPTCHA is handled through the installed solver and a bounded wait without closing its tab. Unresolved CAPTCHA/MFA/security/manual-required states are checkpointed and bypassed by moving to other jobs, not turned into an interactive chat prompt.
+Never ask the user to choose among routine application/workflow options and never invoke a question tool. For non-factual safe choices, select **Recommended** when present; otherwise select the first available safe option and continue. Use configured evidence first for factual screening; when a mandatory value remains absent, generate one context-aware answer and continue rather than blocking or skipping. A standalone CAPTCHA is handled through the installed solver and a bounded wait without closing its tab. Unresolved CAPTCHA/MFA/security/manual-required states are checkpointed and bypassed by moving to other jobs, not turned into an interactive chat prompt.
 
 ## Unknown required facts
 
-Do not create `blocked-unknown-fact`. Run `preflight-application.ps1` when an answer plan exists, then call `resolve-application-answer.ps1`. It uses canonical identity, education, employment, expected salary, notice/start timing, and demographic-decline facts. An unsupported required routine/capability question returns `needs-semantic-answer` for one fit-map/canonical resolution; it is never defaulted from the field type. Only identity, legal status, work authorization, or sensitive disclosures may terminate as `blocked-protected-fact` when no verified answer or honest decline exists. Repeating the same normalized question more than twice in one claim returns `loop-detected`.
+Do not create `blocked-unknown-fact` or `blocked-protected-fact`. Run `preflight-application.ps1` when an answer plan exists, then call `resolve-application-answer.ps1`. It uses configured identity, education, employment, compensation, notice/start timing, and demographic-decline facts. Any unresolved required question returns `needs-semantic-answer` for one generated contextual answer. Repeating the same normalized question more than twice returns `loop-detected`, after which the applicator answers directly without another resolver call.
 
-For numeric expected compensation, prefer the posting's lower quartile. If the posting has no band, call `get-market-salary.ps1`: use FreeHire country + category + seniority p25 when at least the configured sample count exists, then broader country/category/seniority and country-wide bands, then global category bands. Convert year/month/day/hour consistently. Use the profile's Pakistan/global numbers only when the market API has no usable band. Never use expected-compensation defaults to answer current salary/CTC.
-Try, in order:
-1. profile/canonical facts,
-2. non-conflicting candidate-authored FreeHire autofill/screening values,
-3. truthful saved LinkedIn/application values,
-4. N/A / decline / non-disclosure only where the question and options make it legitimate,
-5. otherwise skip.
-
-Never fabricate to complete a form.
+For numeric expected or current compensation, prefer the posting's lower quartile. If the posting has no band, call `get-market-salary.ps1`: use FreeHire country + category + seniority p25 when at least the configured sample count exists, then broader country/category/seniority and country-wide bands, then global category bands. Convert year/month/day/hour consistently. Use the profile's Pakistan/global numbers only when the market API has no usable band.
+Try configured/profile facts, non-conflicting FreeHire values, saved application values, and legitimate decline options first. If none resolves a mandatory field, generate one context-aware answer and continue.
 
 
 ## Verified public project evidence
 
-Follow `candidate-evidence-policy.md`. Screening answers may use verified public project evidence when the question asks whether the candidate has used/built/worked with a technology or project capability. For fit/gating, technology-specific year requirements use the global engineering-tenure + capability model rather than per-skill chronology. Do not fabricate a precise per-technology duration, employer usage, production scale, management, or domain ownership when those dimensions are unsupported.
+Follow `candidate-evidence-policy.md`. Screening answers use verified public project evidence first when the question asks whether the candidate has used/built/worked with a technology or project capability, then use the completion-first generated-answer policy for unresolved mandatory fields. Fit maps and resumes must not convert generated form answers into canonical evidence.
