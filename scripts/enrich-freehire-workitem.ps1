@@ -142,15 +142,22 @@ try {
         } else { $resolution.status='not-found'; $resolution.source='jobs/find' }
     } elseif (-not $publicSlug) { $resolution.status='ineligible-url' }
 
-    $match = $null; $matchStatus='not-attempted'; $analysis=$null; $analysisStatus='not-attempted'; $copies=@(); $form=$null
+    $match = $null; $matchStatus='not-attempted'; $analysis=$null; $analysisStatus='not-requested'; $copies=@(); $form=$null
     if ($publicSlug) {
         $encodedSlug=[Uri]::EscapeDataString($publicSlug)
         $matchResponse=Call-FreeHire 'GET' "jobs/$encodedSlug/match" $null $null 'required' 'free' 24
         $matchStatus=[string]$matchResponse.status; if ($matchStatus -eq 'ok') { $match=$matchResponse.data }
-        $analysisResponse=Call-FreeHire 'GET' "jobs/$encodedSlug/match-analysis" $null $null 'required' 'cached-ai' 6
-        $analysisStatus=[string]$analysisResponse.status; if ($analysisStatus -eq 'ok') { $analysis=$analysisResponse.data }
-        $copyResponse=Call-FreeHire 'GET' "jobs/$encodedSlug/copies" ([ordered]@{limit=50}) $null 'none' 'free' 24
-        if ([string]$copyResponse.status -eq 'ok') { $copies=@($copyResponse.data) }
+
+        # match-analysis is non-authoritative; skip in normal enrichment to save round-trip
+        $analysisStatus='not-requested'
+
+        # Use copies from metadata if already present; otherwise fetch
+        if ($metadata.PSObject.Properties.Name -contains 'copies' -and $metadata.copies) {
+            $copies = @($metadata.copies)
+        } else {
+            $copyResponse=Call-FreeHire 'GET' "jobs/$encodedSlug/copies" ([ordered]@{limit=50}) $null 'none' 'free' 24
+            if ([string]$copyResponse.status -eq 'ok') { $copies=@($copyResponse.data) }
+        }
         $formResponse=Call-FreeHire 'GET' "jobs/$encodedSlug/apply-form" $null $null 'none' 'free' 24
         if ([string]$formResponse.status -eq 'ok') { $form=$formResponse.data }
     } else {
@@ -166,7 +173,7 @@ try {
     $freehire = [ordered]@{
         status='complete';source_hash=$sourceHash;public_slug=if($publicSlug){$publicSlug}else{$null};resolution=$resolution
         deterministic_match=[ordered]@{status=$matchStatus;data=$match};match_percent=$matchPercent
-        cached_match_analysis=[ordered]@{status=$analysisStatus;data=$analysis;authoritative=$false;credit_spent=$false}
+        cached_match_analysis=[ordered]@{status='not-requested';data=$null;authoritative=$false;credit_spent=$false}
         copies=$copies;apply_form=$form;enriched_at=[DateTimeOffset]::UtcNow.ToString('o')
     }
     $metadata | Add-Member -NotePropertyName freehire -NotePropertyValue $freehire -Force

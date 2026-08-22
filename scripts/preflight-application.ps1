@@ -45,24 +45,30 @@ foreach ($question in @($plan.questions)) {
 }
 
 $resolver = Join-Path $PSScriptRoot 'resolve-application-answer.ps1'
-$results = [Collections.Generic.List[object]]::new()
-foreach ($question in $questions) {
-    $questionJson = $question | ConvertTo-Json -Compress -Depth 8
-    try {
-        $resolution = (& $resolver -WorkItemDir $WorkItemDir -QuestionJson $questionJson -NoLoopTrack | Select-Object -Last 1) | ConvertFrom-Json
-    } catch {
-        $resolution = [pscustomobject]@{status='needs-semantic-answer';value=$null;category='workflow';reason_code='resolver-exception'}
+$questionsJson = $questions | ConvertTo-Json -Compress -Depth 10
+try {
+    $raw = & $resolver -WorkItemDir $WorkItemDir -QuestionsJson $questionsJson -ProfilePath $ProfilePath -NoLoopTrack | Select-Object -Last 1
+    $pageResult = $raw | ConvertFrom-Json
+    if ($pageResult.status -eq 'resolved-page') {
+        $results = @()
+        foreach ($r in $pageResult.results) {
+            $question = $questions[$r.index]
+            $questionLabel = @([string]$question.label,[string]$question.question,[string]$question.text,[string]$question.name) -join ' '
+            $results.Add([ordered]@{
+                label = $questionLabel.Trim()
+                required = if ($question.required -is [bool]) { [bool]$question.required } else { [string]$question.required -match '^(?i:true|1|yes|required)$' }
+                status = [string]$r.status
+                value = $r.value
+                category = [string]$r.category
+                source = [string]$r.source
+                reason_code = [string]$r.reason_code
+            })
+        }
+    } else {
+        $results = @()
     }
-    $questionLabel = @([string]$question.label,[string]$question.question,[string]$question.text,[string]$question.name) -join ' '
-    $results.Add([ordered]@{
-        label = $questionLabel.Trim()
-        required = if ($question.required -is [bool]) { [bool]$question.required } else { [string]$question.required -match '^(?i:true|1|yes|required)$' }
-        status = [string]$resolution.status
-        value = $resolution.value
-        category = [string]$resolution.category
-        source = [string]$resolution.source
-        reason_code = [string]$resolution.reason_code
-    })
+} catch {
+    $results = @()
 }
 
 $semantic = @($results | Where-Object { $_.status -in @('needs-semantic-answer','loop-detected') })

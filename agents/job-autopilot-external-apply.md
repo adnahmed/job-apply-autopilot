@@ -3,7 +3,7 @@ description: Claimed, idempotent end-to-end applicator for one approved external
 mode: subagent
 hidden: true
 temperature: 0.1
-steps: 120
+steps: 70
 permission:
   read: allow
   glob: deny
@@ -73,12 +73,16 @@ For every newly loaded ATS page:
 
 Never invoke `resolve-application-answer.ps1` directly for individual visible fields during normal page processing. Use `resolve-application-page.ps1` exclusively.
 
+**Preflight semantic answer reuse:**
+
+When `preflight-application.ps1` returns `needs-semantic-answer`, generate those answers once and store them in `application-answer-plan.json`. During the live page resolution, reuse any preflight-resolved semantic answers for equivalent questions. Do not regenerate a semantic answer already resolved during preflight.
+
 The desired page flow is:
 browser snapshot
     ↓
 ONE PowerShell page resolution
     ↓
-ONE semantic pass for unresolved fields
+ONE semantic pass for unresolved fields (reusing preflight answers)
     ↓
 ONE grouped browser fill
     ↓

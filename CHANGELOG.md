@@ -1,3 +1,14 @@
+# V6.7.0 — Dedupe & Enrichment Pipeline Optimization
+
+- Removed duplicate FreeHire quality evaluation: discovery now relies on single authoritative check inside `finalize-discovered-workitem.ps1` → `new-workitem.ps1` → `check-job-quality.ps1`.
+- Removed redundant new-workitem filesystem scan: exact-ID and semantic dedupe now single-sourced from `dedupe-jobs.ps1`; `existing` returned for exact matches, `duplicate` for semantic.
+- Moved FreeHire enrichment off the discovery/finalization critical path: `finalize-discovered-workitem.ps1` now creates work item + writes route synchronously, then launches `start-freehire-enrichment.ps1` asynchronously; returns `enrichment_status: started` immediately.
+- Removed non-authoritative match-analysis from normal enrichment hot path: saves one FreeHire API round-trip per job.
+- Avoided duplicate FreeHire copy lookups: enrichment now reuses `source-metadata.json.copies` when present.
+- Changed ATS answer resolution to one resolver invocation per page: `resolve-application-answer.ps1` now supports batch mode (`-QuestionsJson`); `resolve-application-page.ps1` and `preflight-application.ps1` use it; a 20-field page requires one PowerShell call instead of 20.
+- Reduced external applicator runaway step budget: `steps: 120` → `70`.
+- Preflight semantic answers generated once and reused during live page resolution.
+
 # V6.6.0 — Asynchronous Parallel Discovery & Page-Level Batch Resolution
 
 - Made FreeHire discovery asynchronous: coordinator launches `start-freehire-discovery.ps1` and immediately continues scheduling; FreeHire runs as detached background process with its own source-specific claim.

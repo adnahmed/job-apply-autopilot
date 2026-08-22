@@ -50,4 +50,4 @@ Do not:
 - repeatedly reconsider keyword choices
 - reopen files already read unless compilation reports a specific error
 
-After successful compilation return only the canonical result line: `ready <absolute_pdf_path>`, `busy <action>`, or `failed <short_reason>`.
+After successful compilation return exactly one line: `ready <absolute_pdf_path>`, `busy <action>`, or `failed <short_reason>`.

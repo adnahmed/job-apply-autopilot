@@ -159,7 +159,11 @@ The FreeHire pass performs one composite faceted request per fresh home-country,
 
 All FreeHire calls go through `freehire-client.ps1`, whose method/path allowlist excludes every AI-credit endpoint. It may read an already-cached match analysis but never create one. It never calls CV tailoring or the generic assistant. Authentication resolves from `FREEHIRE_TOKEN`, then `FREEHIRE_API_KEY`, then the official CLI credential file; no token may enter a prompt, artifact, command result, repository file, or telemetry row.
 
-For every plausible non-FreeHire job, including LinkedIn/browser-discovered jobs, with a complete public source URL, FreeHire enrichment runs as part of `finalize-discovered-workitem.ps1` immediately after local dedupe. It first checks `/jobs/find`, may send only a public HTTP(S) vacancy URL to `/jobs/resolve`, and falls back to deterministic `/me/match-text` when no catalogue slug exists. Private, authenticated, local-network, or user-info URLs are never sent. Enrichment failure is non-blocking.
+For every plausible non-FreeHire job, including LinkedIn/browser-discovered jobs, with a complete public source URL, FreeHire enrichment runs asynchronously after local dedupe. It first checks `/jobs/find`, may send only a public HTTP(S) vacancy URL to `/jobs/resolve`, and falls back to deterministic `/me/match-text` when no catalogue slug exists. Private, authenticated, local-network, or user-info URLs are never sent. Enrichment failure is non-blocking.
+
+**FreeHire persistence is split:**
+- **Create + route are synchronous** via `finalize-discovered-workitem.ps1`. This atomic finalizer performs work-item creation, `source.md`, `source-metadata.json`, and route persistence in one call. Passing a complete `-Description` writes the real JD during creation—no placeholder replacement step remains.
+- **FreeHire enrichment is asynchronous supplemental work** launched via `start-freehire-enrichment.ps1`. It must not delay assessment dispatch.
 
 Deterministic match coverage prioritizes otherwise-equal assessment actions. It is not a gate and cannot independently pass or reject a job. Assessors reuse its matched/adjacent/missing evidence while retaining full responsibility for eligibility, role identity, mandatory requirements, integrity, and truth feasibility. Daily market coverage is lane-allocation evidence only; it never changes canonical skills.
 
@@ -172,7 +176,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\dedupe-jobs.ps
   -CandidatesJson '<job_id/company/title JSON array>' -Workspace $workspace
 ```
 
-**Accepted FreeHire jobs are persisted through `finalize-discovered-workitem.ps1` only.** This atomic finalizer performs work-item creation, `source.md`, `source-metadata.json`, FreeHire enrichment, and route persistence in one call. Passing a complete `-Description` writes the real JD during creation—no placeholder replacement step remains. `existing`, `duplicate`, and `rejected` are terminal results for that discovery candidate; never overwrite their artifacts or count them as newly discovered.
+Accepted FreeHire jobs are persisted through `finalize-discovered-workitem.ps1` only. `existing`, `duplicate`, and `rejected` are terminal results for that discovery candidate; never overwrite their artifacts or count them as newly discovered.
 
 Discovery/assessment skips use only an allowed value through `log-decision.ps1`: `skipped-job-quality`, `skipped-obvious`, `skipped-duplicate`, `skipped-closed`, `skipped-ineligible`, `skipped-low-fit`, `skipped-mandatory-gate`, `skipped-stack-mismatch`, `skipped-role-family`, `skipped-location-lock`, `skipped-work-auth-gate`, `skipped-location-gate`, `skipped-agency-unknown-client`, `skipped-agency`, `skipped-aggregator`, `skipped-management-only`, or `skipped-license-clearance`. The command rejects application-route statuses and promoted jobs; application blockers use the application outcome writer.
 
@@ -199,7 +203,7 @@ Promotion and resume compilation reuse valid existing generated directories/arti
 
 Route ready work immediately using only `application-route.json`. Persist routes through `set-application-route.ps1`; never infer them from the discovery source. Direct employer-email applications go only to `job-autopilot-email-apply`; external ATS/company forms go only to `job-autopilot-external-apply`. Every applicator reservation re-runs the quality gate. LinkedIn Easy Apply remains coordinator-owned and serial under its governor.
 
-Run `preflight-application.ps1` before an external reservation whenever an answer plan exists. For required questions, call `resolve-application-answer.ps1`. It resolves configured identity/education/employment facts, optional demographic declines, availability, and compensation. Current and expected numeric compensation share the same posted-range, FreeHire market-p25, and profile-fallback strategy. Every unresolved required question—including identity, legal, authorization, and sensitive fields—returns `needs-semantic-answer`; the applicator generates one concrete context-aware answer and continues, with one correction after exact form validation. Missing facts never create a protected-fact blocker or skip.
+Run `preflight-application.ps1` before an external reservation whenever an answer plan exists. It resolves all questions in a single batch via `resolve-application-page.ps1`. For required questions, semantic answers are generated once and stored in `application-answer-plan.json`; during live page processing, `resolve-application-page.ps1` reuses those answers. Missing identity, legal, authorization, and sensitive fields return `needs-semantic-answer`; the applicator generates one concrete context-aware answer and continues, with one correction after exact form validation. Missing facts never create a protected-fact blocker or skip. Current and expected numeric compensation share the same posted-range, FreeHire market-p25, and profile-fallback strategy.
 
 ## Submission and quarantine
 

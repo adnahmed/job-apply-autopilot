@@ -44,6 +44,19 @@ if ([string]::IsNullOrWhiteSpace($Workspace)) {
     $Workspace = (Get-Location).Path
 }
 
+# Validate route parameters before creation
+$validRoutes = @('external', 'linkedin-easy-apply', 'email', 'unresolved')
+if (-not [string]::IsNullOrWhiteSpace($Route)) {
+    if ($Route -notin $validRoutes) {
+        Emit-Result 'rejected' -JobIdOut $JobId -Reason 'route-invalid'
+        exit 0
+    }
+    if ([string]::IsNullOrWhiteSpace($RouteTarget) -or [string]::IsNullOrWhiteSpace($RouteEvidence)) {
+        Emit-Result 'rejected' -JobIdOut $JobId -Reason 'route-target-evidence-required'
+        exit 0
+    }
+}
+
 # Step A: Call new-workitem.ps1 -Structured passing Description and MetadataJson
 $newWorkItemScript = Join-Path $PSScriptRoot 'new-workitem.ps1'
 $creationArgs = @{
@@ -80,66 +93,59 @@ if ($creationStatus -in @('existing', 'duplicate', 'rejected')) {
     exit 0
 }
 
-# Step C: If status is created, call enrich-freehire-workitem.ps1 when JobUrl is a public HTTP/HTTPS URL
+# Step C: If status is created, set route if provided, then launch async enrichment
 $enrichmentStatus = 'skipped'
 $enrichmentError = ''
 $sourceReady = $false
 $metadataWritten = $false
-
-if ($creationStatus -eq 'created' -and -not [string]::IsNullOrWhiteSpace($JobUrl)) {
-    $isPublicHttp = $false
-    try {
-        $uri = [Uri]$JobUrl
-        $isPublicHttp = ($uri.Scheme -eq 'http' -or $uri.Scheme -eq 'https') -and $uri.IsAbsoluteUri
-    } catch {}
-
-    if ($isPublicHttp) {
-        $enrichScript = Join-Path $PSScriptRoot 'enrich-freehire-workitem.ps1'
-        if (Test-Path -LiteralPath $enrichScript) {
-            try {
-                & $enrichScript -WorkItemDir $workItemPath -Workspace $Workspace -ProfilePath $ProfilePath | Out-Null
-                $enrichmentStatus = 'enriched'
-            } catch {
-                $enrichmentStatus = 'enrichment-error'
-                $enrichmentError = $_.Exception.Message
-            }
-        }
-    }
-}
-
-# Step D: If Route is non-empty, validate and call set-application-route.ps1
 $routeResult = $null
-if (-not [string]::IsNullOrWhiteSpace($Route)) {
-    $validRoutes = @('external', 'linkedin-easy-apply', 'email', 'unresolved')
-    if ($Route -in $validRoutes) {
-        if ([string]::IsNullOrWhiteSpace($RouteTarget) -or [string]::IsNullOrWhiteSpace($RouteEvidence)) {
-            Emit-Result 'rejected' -JobIdOut $JobId -Path $workItemPath -Reason 'route-target-evidence-required'
-            exit 0
-        } else {
-            $setRouteScript = Join-Path $PSScriptRoot 'set-application-route.ps1'
-            if (Test-Path -LiteralPath $setRouteScript) {
-                try {
-                    & $setRouteScript -WorkItemDir $workItemPath -Route $Route -Target $RouteTarget -Evidence $RouteEvidence | Out-Null
-                    $routeResult = $Route
-                } catch {
-                    Emit-Result 'rejected' -JobIdOut $JobId -Path $workItemPath -Reason "route-write-failed:$($_.Exception.Message)"
-                    exit 0
-                }
-            }
-        }
-    } else {
-        Emit-Result 'rejected' -JobIdOut $JobId -Path $workItemPath -Reason 'route-invalid'
-        exit 0
-    }
-}
 
-# Step E: Return compact JSON object
 if ($creationStatus -eq 'created') {
     # Verify source.md and source-metadata.json exist
     $sourcePath = Join-Path $workItemPath 'source.md'
     $metadataPath = Join-Path $workItemPath 'source-metadata.json'
     $sourceReady = Test-Path -LiteralPath $sourcePath
     $metadataWritten = Test-Path -LiteralPath $metadataPath
+
+    # Set route if provided (synchronous, before enrichment)
+    if (-not [string]::IsNullOrWhiteSpace($Route)) {
+        $setRouteScript = Join-Path $PSScriptRoot 'set-application-route.ps1'
+        if (Test-Path -LiteralPath $setRouteScript) {
+            try {
+                & $setRouteScript -WorkItemDir $workItemPath -Route $Route -Target $RouteTarget -Evidence $RouteEvidence | Out-Null
+                $routeResult = $Route
+            } catch {
+                Write-Warning "Failed to set application route: $($_.Exception.Message)"
+            }
+        }
+    }
+
+    # Launch async enrichment if JobUrl is a public HTTP/HTTPS URL
+    if (-not [string]::IsNullOrWhiteSpace($JobUrl)) {
+        $isPublicHttp = $false
+        try {
+            $uri = [Uri]$JobUrl
+            $isPublicHttp = ($uri.Scheme -eq 'http' -or $uri.Scheme -eq 'https') -and $uri.IsAbsoluteUri
+        } catch {}
+
+        if ($isPublicHttp) {
+            $startEnrichScript = Join-Path $PSScriptRoot 'start-freehire-enrichment.ps1'
+            if (Test-Path -LiteralPath $startEnrichScript) {
+                try {
+                    $enrichResult = & $startEnrichScript -WorkItemDir $workItemPath -Workspace $Workspace -ProfilePath $ProfilePath | Select-Object -Last 1 | ConvertFrom-Json
+                    if ($enrichResult -and [string]$enrichResult.status -eq 'started') {
+                        $enrichmentStatus = 'started'
+                    } else {
+                        $enrichmentStatus = 'launch-failed'
+                        $enrichmentError = if ($enrichResult.error) { [string]$enrichResult.error } else { 'Unknown enrichment launch failure' }
+                    }
+                } catch {
+                    $enrichmentStatus = 'launch-failed'
+                    $enrichmentError = $_.Exception.Message
+                }
+            }
+        }
+    }
 
     Emit-Result 'created' -JobIdOut $JobId -Path $workItemPath -SourceReady $sourceReady -MetadataWritten $metadataWritten -EnrichmentStatus $enrichmentStatus -EnrichmentError $enrichmentError -RouteOut $routeResult -NextStage 'assessment_pending'
 } else {

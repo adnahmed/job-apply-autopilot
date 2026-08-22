@@ -225,18 +225,8 @@ try {
             lane = $lane; reality = $item.reality; apply_url = $jobUrl; description = $description; copies = $copies; raw = $item
         }
         $jobCandidate = [ordered]@{job_id = "fh-$(Slug $publicSlug)"; company = $company; title = $title; location = $location; job_url = $jobUrl; source = 'freehire'; discovery_lane = $lane; description = $description }
-        $quality = (& (Join-Path $PSScriptRoot 'check-job-quality.ps1') -JobJson ($jobCandidate | ConvertTo-Json -Compress -Depth 8) -MetadataJson ($metadata | ConvertTo-Json -Compress -Depth 30) | Select-Object -Last 1) | ConvertFrom-Json
-        if (-not [bool]$quality.allowed) {
-            $rejected++
-            try {
-                & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $jobCandidate.job_id -Status 'skipped-job-quality' -ReasonCode ([string]$quality.reason_code) -Company $company -Title $title -Location $location -JobUrl $jobUrl -Source 'freehire' -Notes ([string]$quality.evidence) -Workspace $Workspace | Out-Null
-            }
-            catch { }
-            continue
-        }
         $postedAt = [string](Pick $item @('posted_at', 'published_at', 'created_at'))
         $externalId = [string](Pick $item @('external_id', 'id'))
-        $metadata.quality = $quality
 
         # Determine route before persistence
         $route = ''
@@ -253,7 +243,7 @@ try {
             $routeEvidence = 'Aggregator-only route requires direct employer or ATS resolution before application'
         }
 
-        # Call atomic finalizer
+        # Call atomic finalizer (quality check happens inside)
         $finalizeScript = Join-Path $PSScriptRoot 'finalize-discovered-workitem.ps1'
         $finalizeArgs = @{
             JobId = $jobCandidate.job_id

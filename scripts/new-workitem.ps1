@@ -72,36 +72,26 @@ if (-not [bool]$quality.allowed) {
     exit 0
 }
 
-# Exact-ID creation is idempotent. Never overwrite an assessment or source captured by an earlier slice.
-foreach ($base in @($queueRoot, $generatedRoot)) {
-    if (-not (Test-Path -LiteralPath $base)) { continue }
-    foreach ($existing in Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue) {
-        $existingJobPath = Join-Path $existing.FullName 'job.json'
-        if (-not (Test-Path -LiteralPath $existingJobPath)) { continue }
-        try {
-            $existingJob = Get-Content -LiteralPath $existingJobPath -Raw | ConvertFrom-Json
-            if ([string]$existingJob.job_id -eq $JobId) {
-                Emit-Result 'existing' -Path $existing.FullName -Reason 'exact-job-id' -MatchedJobId $JobId
-                exit 0
-            }
-        } catch {}
-    }
-}
-
-# Guard against reposts/region variants with a new job ID after the same company/title was
-# already submitted or is already active. Exact job-ID dedupe alone allowed duplicate applications.
+# Single persistent-state dedupe scan covers exact-ID and semantic matches.
 $dedupeScript = Join-Path $PSScriptRoot 'dedupe-jobs.ps1'
 $candidateJson = @($qualityCandidate) | ConvertTo-Json -Compress -Depth 8
 $dedupe = (& $dedupeScript -CandidatesJson $candidateJson -Workspace $Workspace | Select-Object -Last 1) | ConvertFrom-Json
-$duplicate = @($dedupe | Where-Object { $_.job_id -eq $JobId -and $_.seen }) | Select-Object -First 1
-if ($duplicate) {
-    if ([string]$duplicate.reason -notlike 'exact-*') {
-        & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $JobId -Status 'skipped-duplicate' `
-            -ReasonCode ([string]$duplicate.reason) -Company $Company -Title $Title -Location $Location `
-            -JobUrl $JobUrl -Source $Source -Notes "Matches $($duplicate.matched_job_id)." -Workspace $Workspace | Out-Null
+$match = @($dedupe | Where-Object { $_.job_id -eq $JobId }) | Select-Object -First 1
+if ($match) {
+    if ([string]$match.seen -eq $true) {
+        $reason = [string]$match.reason
+        if ($reason -like 'exact-*') {
+            Emit-Result 'existing' -Reason $reason -MatchedJobId ([string]$match.matched_job_id)
+        } else {
+            if ($reason -notlike 'exact-*') {
+                & (Join-Path $PSScriptRoot 'log-decision.ps1') -JobId $JobId -Status 'skipped-duplicate' `
+                    -ReasonCode $reason -Company $Company -Title $Title -Location $Location `
+                    -JobUrl $JobUrl -Source $Source -Notes "Matches $($match.matched_job_id)." -Workspace $Workspace | Out-Null
+            }
+            Emit-Result 'duplicate' -Reason $reason -MatchedJobId ([string]$match.matched_job_id)
+        }
+        exit 0
     }
-    Emit-Result 'duplicate' -Reason ([string]$duplicate.reason) -MatchedJobId ([string]$duplicate.matched_job_id)
-    exit 0
 }
 
 # Validate MetadataJson before creating anything so malformed JSON cannot leave
