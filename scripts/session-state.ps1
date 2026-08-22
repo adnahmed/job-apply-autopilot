@@ -247,7 +247,7 @@ if (Test-Path -LiteralPath $queueRoot) {
             elseif ($status -eq 'malformed') {
                 $stage = 'assessment_repair'; $speed = 'fast'
             }
-            elseif ($status -in @('pending', 'unassessed', 'captured-awaiting-source-and-assessment')) {
+            elseif ($status -in @('pending', 'unassessed', 'captured-awaiting-source-and-assessment', 'captured-awaiting-assessment')) {
                 $stage = 'assessment_pending'; $speed = 'fast'
             }
             elseif ($status -eq 'needs-evidence') {
@@ -410,8 +410,10 @@ $selected = @($selected | Sort-Object `
 # Keep one claimed discovery batch running alongside every downstream wave even
 # when the current pipeline is already above the historical eight-item floor.
 $pipelineBufferTarget = 8
+$linkedinDiscoveryBatchTarget = 3
 $pipelineDepth = @($generated | Where-Object { ($_.actionable -or $_.claimed -or $_.needs_reconcile) -and $_.stage -ne 'application_verification_quarantined' }).Count + @($queue | Where-Object { ($_.actionable -or $_.claimed) -and $_.stage -ne 'source_pending' }).Count
 $discoverySlots = if ($null -eq $discoveryClaim) { $pipelineBufferTarget } else { 0 }
+$linkedinTarget = [Math]::Min($discoverySlots, $linkedinDiscoveryBatchTarget)
 $nextAction = if ($reconcile.Count -gt 0) {
     'reconcile'
 }
@@ -498,14 +500,29 @@ if ($discoverySlots -gt 0) {
             wave                  = 'fast'
             dispatch              = 'job-autopilot-linkedin-discovery'
             priority              = 5
-            target_new            = $discoverySlots
+            target_new            = $linkedinTarget
             shared_claim_required = $true
-            worker_prompt         = "Workspace: $Workspace`nJob ID: discovery:continuous`nKind: campaign`nAction: discovery`nTarget New: $discoverySlots"
-            browser_instruction   = "Using BrowserOS neo in a task-owned tab, start LinkedIn Jobs discovery now and create up to $discoverySlots net-new work items. This is an independent per-source target: start it in the same assistant tool-call batch as FreeHire, and never wait for, subtract, or skip it based on FreeHire's result. Use profile-derived lanes, local dedupe, complete public source capture, FreeHire enrichment, and all warning, CAPTCHA, MFA, and rate-limit controls."
+            worker_prompt         = "Workspace: $Workspace`nJob ID: discovery:continuous`nKind: campaign`nAction: discovery`nTarget New: $linkedinTarget"
+            browser_instruction   = "Using BrowserOS neo in a task-owned tab, start LinkedIn Jobs discovery now and create up to $linkedinTarget net-new work items. This is an independent per-source target: start it in the same assistant tool-call batch as FreeHire, and never wait for, subtract, or skip it based on FreeHire's result. Use profile-derived lanes, local dedupe, complete public source capture, FreeHire enrichment, and all warning, CAPTCHA, MFA, and rate-limit controls."
         }
     )
     $actions = @($discoveryActions) + @($actions)
 }
+
+# Dispatch accounting: the coordinator must emit exactly this many action calls
+# in one assistant turn, so expose the manifest explicitly in scheduler output.
+$dispatchCount = @($actions).Count
+$workerDispatchCount = @($actions | Where-Object {
+    $_.dispatch -like 'job-autopilot-*'
+}).Count
+$coordinatorDispatchCount = $dispatchCount - $workerDispatchCount
+$dispatchManifest = [ordered]@{
+    expected_count     = $dispatchCount
+    worker_count       = $workerDispatchCount
+    coordinator_count  = $coordinatorDispatchCount
+    action_ids         = @($actions | ForEach-Object { $_.action_id })
+}
+
 if ($null -eq $nextAction) {
     $nextAction = if ($discoverySlots -gt 0 -and $null -eq $discoveryClaim) { 'discover' } else { 'await-active-claims' }
 }
@@ -551,6 +568,7 @@ $out = [ordered]@{
         discovery_slots        = $discoverySlots
         discovery_claim        = $discoveryClaim
         concurrency            = $concurrency
+        dispatch_manifest      = $dispatchManifest
     }
     summary                  = [ordered]@{
         decisions                            = $ledgerCount
@@ -586,10 +604,10 @@ $out = [ordered]@{
         'No unclaimed action is currently available. Rerun state after active claims finish or expire.'
     }
     elseif ($nextAction -eq 'discover') {
-        "Acquire one discovery claim, then in the same assistant tool-call batch execute the FreeHire command and dispatch the supplied job-autopilot-linkedin-discovery worker prompt. Each source has an independent target of $discoverySlots; release the claim only after both return, then rerun state."
+        "Acquire one discovery claim, then in the same assistant tool-call batch execute the FreeHire command and dispatch the supplied job-autopilot-linkedin-discovery worker prompt. FreeHire targets $discoverySlots new items; LinkedIn uses its bounded emitted target_new; release the claim only after both return, then rerun state."
     }
     elseif ($discoverySlots -gt 0) {
-        "Acquire one discovery claim, then in the same assistant tool-call batch execute FreeHire, dispatch the supplied job-autopilot-linkedin-discovery prompt, and launch every other independent worker action, including research. Each discovery source has an independent target of $discoverySlots; never use one source's result to reduce or skip the other, and release the claim only after both discovery operations return."
+        "Acquire one discovery claim, then in the same assistant tool-call batch execute FreeHire, dispatch the supplied job-autopilot-linkedin-discovery prompt, and launch every other independent worker action, including research. FreeHire targets $discoverySlots new items; LinkedIn uses its bounded emitted target_new; never use one source's result to reduce or skip the other, and release the claim only after both discovery operations return."
     }
     else {
         'Emit every independent non-LinkedIn worker action together up to runtime capacity, including research. LinkedIn Easy Apply remains serial.'
@@ -634,6 +652,18 @@ if ($Compact) {
             claims_active                        = $out.summary.claims_active
             reconcile                            = $out.summary.reconcile
             application_verification_quarantined = $out.summary.application_verification_quarantined
+            assessment_pending                   = @($actions | Where-Object { $_.stage -in @('assessment_pending','reassessment_pending') }).Count
+            resume_pending                       = @($actions | Where-Object { $_.stage -eq 'resume_pending' }).Count
+            application_ready                    = @($actions | Where-Object { $_.stage -in @(
+                'application_ready',
+                'application_resume',
+                'email_application_ready',
+                'linkedin_application_ready'
+            ) }).Count
+            research_pending                     = @($actions | Where-Object { $_.stage -in @(
+                'eligibility_research_pending',
+                'candidate_evidence_pending'
+            ) }).Count
         }
         linkedin                 = $out.linkedin
         instruction              = $out.instruction

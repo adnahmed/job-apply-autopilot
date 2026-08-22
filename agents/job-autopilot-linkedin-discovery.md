@@ -3,7 +3,7 @@ description: Claimed campaign worker for independent LinkedIn job discovery thro
 mode: subagent
 hidden: true
 temperature: 0.1
-steps: 120
+steps: 50
 permission:
   read: allow
   glob: deny
@@ -33,9 +33,32 @@ Run the card-first LinkedIn Jobs loop from `search-strategy.md`: rotate profile-
 
 For each plausible unseen card, open the detail once and capture the complete JD, employer, title, location/eligibility wording, posted date when visible, and stable public URL. Do not create talent pools, expert marketplaces, unnamed-client agencies, predatory funnels, unrelated role identities, closed roles, obvious country locks, or other hard-quality failures. Use only an allowed skip status through `log-decision.ps1` when a skipped candidate must be recorded.
 
-Create candidates only with `new-workitem.ps1 -Structured`, using a stable LinkedIn-derived job ID, `-Source linkedin`, the exact public URL, discovery lane/query, full description, and available metadata. `existing`, `duplicate`, and `rejected` are terminal for that candidate and never count toward `<target-new>`. Only for `created`, replace the generated source placeholder with a complete `source.md`, preserve structured source evidence in `source-metadata.json`, and call `enrich-freehire-workitem.ps1` when the source URL is complete and public. Enrichment failure is non-blocking.
+For each accepted detail page:
 
-Persist `application-route.json` only from visible application-route evidence. An explicit LinkedIn Easy Apply control permits `set-application-route.ps1 -Route linkedin-easy-apply`; a verified direct employer/ATS destination permits `-Route external`; otherwise use `-Route unresolved`. Never infer a route merely from the source or URL domain.
+1. Extract all required fields once.
+2. Construct one complete structured payload (stable LinkedIn-derived job ID, `-Source linkedin`, exact public URL, discovery lane/query, full description, and available metadata).
+3. Call `finalize-discovered-workitem.ps1` exactly once, passing the complete description and metadata in one invocation.
+4. Read its compact result.
+5. Continue to the next candidate.
+
+`finalize-discovered-workitem.ps1` performs work-item creation, `source.md`, `source-metadata.json`, FreeHire enrichment, and route persistence atomically. `existing`, `duplicate`, and `rejected` are terminal for that candidate and never count toward `<target-new>`. Enrichment failure is non-blocking.
+
+Do not separately invoke:
+- `new-workitem.ps1`
+- `enrich-freehire-workitem.ps1`
+- `set-application-route.ps1`
+- direct `source.md` writes
+- direct `source-metadata.json` writes
+
+Keep card-level candidates batched through `dedupe-jobs.ps1`.
+
+Persist application route only from visible application-route evidence through the `finalize-discovered-workitem.ps1` route parameters. An explicit LinkedIn Easy Apply control permits `-Route linkedin-easy-apply`; a verified direct employer/ATS destination permits `-Route external`; otherwise use `-Route unresolved`. Never infer a route merely from the source or URL domain.
+
+Do not inspect PowerShell source code during a normal successful run.
+
+Do not narrate candidate-by-candidate reasoning.
+
+After a candidate is deterministically rejected or persisted, immediately move to the next card.
 
 Stop after `<target-new>` new work items or after the documented lane rotation is exhausted for this batch. A dry page is not campaign completion. If LinkedIn presents an automation/unusual-activity warning, attributable 429, persistent/repeated CAPTCHA, MFA, or account restriction, call `linkedin-governor.ps1 -Action RecordSignal` with the matching signal type, stop LinkedIn browsing without bypass attempts, and return `blocked linkedin-discovery <signal>`.
 

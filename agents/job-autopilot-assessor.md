@@ -3,7 +3,7 @@ description: Fast local fit assessor for one viable queued job. No web. Claims t
 mode: subagent
 hidden: true
 temperature: 0.1
-steps: 24
+steps: 10
 permission:
   read: allow
   glob: deny
@@ -44,13 +44,57 @@ Decide for interview likelihood. Derive the candidate's home country from canoni
 
 Return `needs-research` only for one decision-changing eligibility ambiguity and `needs-evidence` only for one narrow artifact-verifiable capability. A passed decision requires all five boolean hard gates and a fit map of at most eight requirements. Never invent facts.
 
-The assessment payload must have exactly this shape; do not rename or omit fields:
+The assessment payload must have exactly this field shape; do not rename or omit fields, and derive every value from the evidence rather than any example:
 
-```json
-{"status":"passed","score":72,"score_components":{"core_technical":23,"role_identity":18,"seniority_tenure":10,"production_ownership":8,"domain_overlap":4,"eligibility_certainty":6,"experience_band":2,"quality_recency_comp":1},"trust_class":"DIRECT_REASONABLE","role_family":"backend-engineer","eligibility_state":"HOME_JURISDICTION_ELIGIBLE","identity_check":{"advertised_employer":"Example Co","body_employer":"Example Co","consistent":true,"evidence":"Header and job body identify the same employer."},"hard_gates":{"integrity":true,"eligibility":true,"role_family":true,"mandatory_requirements":true,"truth_feasibility":true},"reason_codes":[],"candidate_evidence_requirements":[],"needs_external_research":false,"needs_candidate_evidence":false}
-```
+- `status`: one of the allowed status strings
+- `score`: integer 0-100, exactly equal to the sum of `score_components`
+- `score_components`: object with exactly the eight keys `core_technical`, `role_identity`, `seniority_tenure`, `production_ownership`, `domain_overlap`, `eligibility_certainty`, `experience_band`, `quality_recency_comp`, each an integer within its limit below
+- `trust_class`: one of the allowed values below
+- `role_family`: string
+- `eligibility_state`: string
+- `identity_check`: object with string `advertised_employer`, string `body_employer`, boolean `consistent`, string `evidence`
+- `hard_gates`: object with booleans `integrity`, `eligibility`, `role_family`, `mandatory_requirements`, `truth_feasibility`
+- `reason_codes`: array of distinct non-empty strings (at most eight)
+- `candidate_evidence_requirements`: array (at most four; required non-empty for `needs-evidence`)
+- `needs_external_research` / `needs_candidate_evidence`: booleans
 
 `status` is exactly one of `passed`, `needs-research`, `needs-evidence`, or `failed`. `trust_class` uses the job-integrity enum. The eight score components must remain within their documented maxima and sum exactly to `score`; do not target a favorite total. For `passed`, score must be at least 72. Scores 68-71 pass only for a genuinely strong role/eligibility case and must include reason code `strong-role-identity-and-eligibility`; scores below 68 cannot pass. Use at most eight distinct reason codes. The passed fit-map payload must be `{"requirements":[...]}` with 1-8 objects, each containing exactly `requirement`, `requirement_kind` (`defining|mandatory|preferred`), `evidence_class` (`EXACT|DIRECT|ADJACENT|WEAK|NONE`), `evidence_scope`, `support`, and boolean `ats_keyword_allowed`. Only EXACT or DIRECT evidence permits the ATS keyword; WEAK or NONE cannot support a defining/mandatory requirement.
+
+Score component limits:
+- core_technical: 0-30
+- role_identity: 0-25
+- seniority_tenure: 0-15
+- production_ownership: 0-10
+- domain_overlap: 0-8
+- eligibility_certainty: 0-7
+- experience_band: 0-3
+- quality_recency_comp: 0-2
+
+Allowed trust_class values:
+- DIRECT_VERIFIED
+- DIRECT_REASONABLE
+- AGENCY_NAMED_CLIENT
+- AGENCY_UNKNOWN_CLIENT
+- JOB_AGGREGATOR_ONLY
+- IDENTITY_MISMATCH
+- UNVERIFIABLE
+
+After reading the required evidence, make exactly ONE assessment pass.
+
+Do not:
+- reconsider the complete score
+- perform another scoring pass
+- restate the JD
+- narrate your reasoning
+- inspect validator source code
+
+Construct the final assessment immediately and call commit-assessment.ps1.
+
+If commit-assessment returns rejected-payload, fix ALL returned errors in ONE retry.
+
+After successful commit, output only the canonical status line.
+
+Do not add another schema lookup tool call to the normal assessor workflow.
 
 Commit through this exact path and include the observed prior state:
 

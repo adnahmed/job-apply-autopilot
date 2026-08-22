@@ -104,6 +104,15 @@ if ($duplicate) {
     exit 0
 }
 
+# Validate MetadataJson before creating anything so malformed JSON cannot leave
+# a partially initialized work item behind.
+$parsedMetadata = $null
+if (-not [string]::IsNullOrWhiteSpace($MetadataJson)) {
+    try { $parsedMetadata = $MetadataJson | ConvertFrom-Json } catch {
+        throw 'metadata-json-invalid'
+    }
+}
+
 $workDir = Join-Path $queueRoot "$JobId-$slug"
 New-Item -ItemType Directory -Force -Path $workDir | Out-Null
 
@@ -120,7 +129,11 @@ $job = [ordered]@{
     posted_at = $PostedAt
     external_id = $ExternalId
     created_at = (Get-Date).ToUniversalTime().ToString('o')
-    status = 'captured-awaiting-source-and-assessment'
+    status = if ([string]::IsNullOrWhiteSpace($Description)) {
+        'captured-awaiting-source-and-assessment'
+    } else {
+        'captured-awaiting-assessment'
+    }
 }
 $job | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $workDir 'job.json') -Encoding UTF8
 
@@ -145,8 +158,30 @@ $assessment = [ordered]@{
 $assessment | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $workDir 'assessment.json') -Encoding UTF8
 
 $sourcePath = Join-Path $workDir 'source.md'
-if (-not (Test-Path -LiteralPath $sourcePath)) {
+if (-not [string]::IsNullOrWhiteSpace($Description)) {
+    $sourceContent = @"
+# $Title
+
+Company: $Company
+Location: $Location
+Source: $Source
+URL: $JobUrl
+Posted: $PostedAt
+
+## Job Description
+
+$Description
+"@
+    Set-Content -LiteralPath $sourcePath -Value $sourceContent -Encoding UTF8
+}
+elseif (-not (Test-Path -LiteralPath $sourcePath)) {
     Set-Content -LiteralPath $sourcePath -Value "# Captured job source`n`nCoordinator: replace this placeholder with the full JD and source/location evidence before invoking an assessor.`n" -Encoding UTF8
+}
+
+if ($null -ne $parsedMetadata) {
+    $parsedMetadata |
+        ConvertTo-Json -Depth 30 |
+        Set-Content -LiteralPath (Join-Path $workDir 'source-metadata.json') -Encoding UTF8
 }
 
 Emit-Result 'created' -Path $workDir

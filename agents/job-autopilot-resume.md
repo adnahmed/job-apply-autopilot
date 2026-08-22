@@ -3,7 +3,7 @@ description: Claim, minimally tailor, and idempotently compile one approved resu
 mode: subagent
 hidden: true
 temperature: 0.1
-steps: 22
+steps: 10
 permission:
   read: allow
   glob: deny
@@ -37,4 +37,17 @@ Compile once through the exact installed path:
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\compile-resume.ps1" -TexPath "<work-item>\resume.tex" -StrictOnePage -AutoCompact
 ```
 
-Return exactly one line: `ready <absolute_pdf_path>`, `busy <action>`, or `failed <short_reason>`.
+Perform one tailoring pass only.
+
+After reading authorized artifacts:
+- make all required resume edits in one pass
+- write tailoring-audit.json once
+- compile once
+
+Do not:
+- summarize the JD
+- create multiple resume drafts
+- repeatedly reconsider keyword choices
+- reopen files already read unless compilation reports a specific error
+
+After successful compilation return only the canonical result line: `ready <absolute_pdf_path>`, `busy <action>`, or `failed <short_reason>`.

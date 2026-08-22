@@ -60,3 +60,13 @@ This document describes the required implementation state. It does not invoke a 
 ## Release review boundaries
 
 Release review is static and non-sending. Any future executable verification must use a newly created temporary campaign workspace and must not authenticate, submit, send email, or mutate an existing campaign.
+
+## Throughput self-test
+
+Required validation step (run from the repository root):
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\self-test-throughput.ps1
+```
+
+This synthetic-workspace self-test exercises the assessment schema, work-item creation (with and without `MetadataJson` / `Description`), atomic discovered-job persistence through `finalize-discovered-workitem.ps1`, session-state dispatch accounting (LinkedIn bounded batch ≤ 3 vs. full FreeHire `discoverySlots`), idempotent duplicate creation, and all other throughput invariants listed above. It exits non-zero on any failure.

@@ -134,4 +134,5 @@ foreach ($kind in @('queue','generated')) {
     }
 }
 
-@($result.Values) | ConvertTo-Json -Depth 6
+$json = @($result.Values) | ConvertTo-Json -Depth 6 -Compress
+Write-Output $json

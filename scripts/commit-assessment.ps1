@@ -34,7 +34,7 @@ function Get-CurrentAssessmentStatus([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) { return 'unassessed' }
     try {
         $current = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-        if ([string]$current.status -in @('pending','captured-awaiting-source-and-assessment')) { return 'unassessed' }
+        if ([string]$current.status -in @('pending','captured-awaiting-source-and-assessment','captured-awaiting-assessment')) { return 'unassessed' }
         if ([string]$current.status -in @('passed','needs-research','needs-evidence','failed')) { return [string]$current.status }
         return 'malformed'
     } catch { return 'malformed' }
@@ -65,6 +65,18 @@ function Clear-TransitionClaims([string]$Dir, [string]$PriorStatus) {
         & $claimScript -Action ClearStage -Scope WorkItem -Stage $stage -WorkItemDir $Dir -Workspace $workspace | Out-Null
     }
 }
+
+# Single source of truth for score-component maxima, trust classes, and pass thresholds.
+$schemaPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'references\assessment-schema.json'
+$schema = Get-Content -LiteralPath $schemaPath -Raw | ConvertFrom-Json
+$scoreComponentSpec = [ordered]@{}
+foreach ($property in $schema.score_components.PSObject.Properties) {
+    $scoreComponentSpec[$property.Name] = [int]$property.Value
+}
+$allowedTrustClasses = @($schema.trust_classes | ForEach-Object { [string]$_ })
+$passScore = [int]$schema.pass_score
+$conditionalPassMin = [int]$schema.conditional_pass_min
+$conditionalPassReason = [string]$schema.conditional_pass_reason
 
 try {
     $WorkItemDir = (Resolve-Path -LiteralPath $WorkItemDir).Path
@@ -109,7 +121,7 @@ try {
             Add-ValidationError "assessment-$requiredText-empty"
         }
     }
-    if ((Has-Property $draft 'trust_class') -and [string]$draft.trust_class -notin @('DIRECT_VERIFIED','DIRECT_REASONABLE','AGENCY_NAMED_CLIENT','AGENCY_UNKNOWN_CLIENT','JOB_AGGREGATOR_ONLY','IDENTITY_MISMATCH','UNVERIFIABLE')) {
+    if ((Has-Property $draft 'trust_class') -and [string]$draft.trust_class -notin $allowedTrustClasses) {
         Add-ValidationError 'assessment-trust-class-invalid'
     }
     $identityCheckValid = $false
@@ -119,10 +131,6 @@ try {
         }
         $identityCheckValid = (Has-Property $draft.identity_check 'consistent') -and (Is-Bool $draft.identity_check.consistent)
         if (-not $identityCheckValid) { Add-ValidationError 'identity-check-consistent-invalid' }
-    }
-    $scoreComponentSpec = [ordered]@{
-        core_technical = 30; role_identity = 25; seniority_tenure = 15; production_ownership = 10
-        domain_overlap = 8; eligibility_certainty = 7; experience_band = 3; quality_recency_comp = 2
     }
     $scoreComponentSum = 0
     if (Has-Property $draft 'score_components') {
@@ -173,9 +181,9 @@ try {
     if ($statusValid -and $externalFlagValid -and $evidenceFlagValid -and $draftStatus -eq 'failed' -and ([bool]$draft.needs_external_research -or [bool]$draft.needs_candidate_evidence)) { Add-ValidationError 'failed-cannot-need-research' }
 
     if ($statusValid -and $scoreValid -and $draftStatus -eq 'passed') {
-        if ($score -lt 68) {
+        if ($score -lt $conditionalPassMin) {
             Add-ValidationError 'passed-below-minimum-score'
-        } elseif ($score -lt 72 -and $reasonCodes -notcontains 'strong-role-identity-and-eligibility') {
+        } elseif ($score -lt $passScore -and $reasonCodes -notcontains $conditionalPassReason) {
             Add-ValidationError 'passed-narrow-exception-reason-required'
         }
     }

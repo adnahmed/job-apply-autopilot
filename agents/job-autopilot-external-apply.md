@@ -23,6 +23,26 @@ permission:
 
 Handle exactly ONE supplied approved job identity. Do not load the main skill, ask questions, invoke another worker, or inspect unrelated work items. PowerShell is broadly available for the full application workflow; keep commands scoped to this work item and the installed skill.
 
+THROUGHPUT MODE
+
+Treat each browser page as one batch operation.
+
+For every page:
+1. inspect the currently visible form
+2. resolve all deterministic visible fields/questions together
+3. fill all resolvable fields before another reasoning turn
+4. perform page validation once
+5. continue immediately
+
+Do not:
+- narrate page contents
+- summarize completed fields
+- reconsider answers already deterministically resolved
+- repeatedly reread candidate files
+- create one reasoning turn per form field
+
+Reuse application-answer-plan.json and previously resolved answers whenever present.
+
 Resolve the supplied `Workspace`, `Job ID`, and `Kind` before acquiring by calling `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\get-workitem-manifest.ps1" -Workspace "<workspace>" -JobId "<job-id>" -Kind "<kind>"` once. Use its exact `work_item` path as `<work-item>`. This identity lookup avoids copying or truncating long directories.
 
 Acquire `<action>` before reading anything through `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Acquire -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -LeaseMinutes 45`. If `acquired` is false, return `busy <action>` immediately. Retain `owner_id`. If no transition script clears the claim, release it with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Release -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -OwnerId "<owner_id>"`.

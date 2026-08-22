@@ -1,0 +1,24 @@
+{
+  "score_components": {
+    "core_technical": 30,
+    "role_identity": 25,
+    "seniority_tenure": 15,
+    "production_ownership": 10,
+    "domain_overlap": 8,
+    "eligibility_certainty": 7,
+    "experience_band": 3,
+    "quality_recency_comp": 2
+  },
+  "trust_classes": [
+    "DIRECT_VERIFIED",
+    "DIRECT_REASONABLE",
+    "AGENCY_NAMED_CLIENT",
+    "AGENCY_UNKNOWN_CLIENT",
+    "JOB_AGGREGATOR_ONLY",
+    "IDENTITY_MISMATCH",
+    "UNVERIFIABLE"
+  ],
+  "pass_score": 72,
+  "conditional_pass_min": 68,
+  "conditional_pass_reason": "strong-role-identity-and-eligibility"
+}

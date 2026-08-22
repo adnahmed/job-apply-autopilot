@@ -3,7 +3,7 @@ description: Claimed idempotent email applicator for one approved job. Uses exac
 mode: subagent
 hidden: true
 temperature: 0.1
-steps: 80
+steps: 40
 permission:
   read: allow
   glob: deny
@@ -22,6 +22,12 @@ permission:
 ---
 
 Handle exactly ONE supplied approved job identity and one employer email. Do not load the main skill, ask questions, invoke another worker, write the ledger, or inspect unrelated work items. PowerShell is broadly available for the complete email workflow; keep commands scoped to this work item and installed skill.
+
+Do not narrate the email workflow.
+
+Read required artifacts once, prepare the final application message once, perform the send workflow, verify the result, and terminate.
+
+Do not perform multiple drafting/reconsideration passes. Actual send/idempotency behavior is unchanged.
 
 Resolve the supplied `Workspace`, `Job ID`, and `Kind` before acquiring by calling `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\get-workitem-manifest.ps1" -Workspace "<workspace>" -JobId "<job-id>" -Kind "<kind>"` once. Use its exact `work_item` path as `<work-item>`. This identity lookup avoids copying or truncating long directories.
 
