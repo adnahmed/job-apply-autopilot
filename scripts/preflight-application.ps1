@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true)][string]$WorkItemDir
+    [Parameter(Mandatory=$true)][string]$WorkItemDir,
+    [string]$ProfilePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'profile.yaml')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -65,10 +66,36 @@ try {
             })
         }
     } else {
-        $results = @()
+        $preflight = [ordered]@{
+            version = 2
+            status = 'unavailable'
+            reason_code = 'unexpected-answer-resolver-result'
+            error = "Resolver returned status '$($pageResult.status)' instead of 'resolved-page'"
+            questions = $questions.Count
+            answered = 0
+            semantic_required = 0
+            results = @()
+            resolved_at = [DateTimeOffset]::UtcNow.ToString('o')
+        }
+        Write-JsonAtomic $outPath $preflight 10
+        $preflight | ConvertTo-Json -Compress -Depth 10
+        exit 0
     }
 } catch {
-    $results = @()
+    $preflight = [ordered]@{
+        version = 2
+        status = 'unavailable'
+        reason_code = 'answer-resolver-error'
+        error = $_.Exception.Message
+        questions = $questions.Count
+        answered = 0
+        semantic_required = 0
+        results = @()
+        resolved_at = [DateTimeOffset]::UtcNow.ToString('o')
+    }
+    Write-JsonAtomic $outPath $preflight 10
+    $preflight | ConvertTo-Json -Compress -Depth 10
+    exit 0
 }
 
 $semantic = @($results | Where-Object { $_.status -in @('needs-semantic-answer','loop-detected') })

@@ -127,6 +127,11 @@ try {
     }
     if ($metadataChanged) { Write-JsonAtomic $generatedJobPath $generatedJob }
 
+    # Initial supplemental artifacts are copied here.
+    # Late asynchronous FreeHire enrichment is propagated by
+    # sync-generated-supplemental.ps1.
+    # Do not wait for enrichment before promotion.
+
     Copy-IfGeneratedArtifactInvalid $assessmentPath (Join-Path $generatedDir 'assessment.json') { param($p) $value = Read-JsonSafe $p; $value -and [string]$value.job_id -eq $resolvedJobId -and [string]$value.status -eq 'passed' }
     Copy-IfGeneratedArtifactInvalid $fitPath (Join-Path $generatedDir 'fit-map.json') { param($p) $value = Read-JsonSafe $p; $value -and [string]$value.job_id -eq $resolvedJobId -and [string]$value.status -in @('complete','passed') }
     Copy-IfGeneratedArtifactInvalid $sourcePath (Join-Path $generatedDir 'source.md') { param($p) $text = Get-Content -LiteralPath $p -Raw; $text.Trim().Length -ge 80 -and $text -notmatch 'Coordinator:\s*replace this placeholder' }

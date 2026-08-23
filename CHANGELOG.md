@@ -1,3 +1,13 @@
+# V6.9.0 — Semantic Answer Bank, Explicit Final Submission, Shortened Claims, Enrichment Sync
+
+- fixed undefined ProfilePath in application preflight
+- stopped preflight resolver failures from masquerading as ready
+- added persistent per-job semantic application answer bank
+- added explicit final Submit -> MarkSubmitted applicator transaction
+- shortened external application stale-claim recovery with periodic renewal
+- synchronized late asynchronous FreeHire enrichment into promoted generated items
+- hardened route resolver failure handling
+
 # V6.8.0 — Bounded Dispatch, Parallel Route Resolution, and Continuous Discovery
 
 - Fixed resume workers exhausting the 10-step ceiling before compilation by increasing steps to 40 and adding one-call resume context loading via `get-resume-context.ps1`

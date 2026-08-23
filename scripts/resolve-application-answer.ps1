@@ -23,6 +23,20 @@ while ($null -ne $cursor) {
 }
 $freehireContext = if ($runtimeRoot -and (Test-Path -LiteralPath (Join-Path $runtimeRoot 'freehire-context.json'))) { try { Get-Content -LiteralPath (Join-Path $runtimeRoot 'freehire-context.json') -Raw | ConvertFrom-Json } catch { $null } } else { $null }
 
+# Load semantic answer bank
+$semanticAnswersPath = Join-Path $WorkItemDir 'application-semantic-answers.json'
+$semanticBank = @{}
+if (Test-Path -LiteralPath $semanticAnswersPath) {
+    try {
+        $bank = Get-Content -LiteralPath $semanticAnswersPath -Raw | ConvertFrom-Json
+        if ($bank -and $bank.answers) {
+            foreach ($a in $bank.answers) {
+                $semanticBank[$a.key] = $a
+            }
+        }
+    } catch {}
+}
+
 function Scalar([string]$Name, $Default = $null) {
     $pattern = '(?m)^\s*' + [regex]::Escape($Name) + ':\s*["'']?([^\r\n"'']+)'
     if ($profile -match $pattern) { return $Matches[1].Trim() }
@@ -98,6 +112,13 @@ function Needs-Semantic([string]$Reason = 'no-deterministic-answer', [string]$Ca
 
 function Normalize-Option([string]$Value) {
     return (($Value.ToLowerInvariant() -replace '[^a-z0-9]+',' ').Trim() -replace '\s+',' ')
+}
+
+function Normalize-Key([string]$Question, [string]$Type, [array]$Options) {
+    $base = ($Question -replace '[^a-z0-9]+',' ' -replace '\s+',' ').Trim().ToLowerInvariant()
+    $typeNorm = ($Type -replace '[^a-z0-9]+','').ToLowerInvariant()
+    $optionsNorm = @($Options | ForEach-Object { ($_ -replace '[^a-z0-9]+','').ToLowerInvariant() } | Sort-Object) -join ','
+    return "$base|$typeNorm|$optionsNorm"
 }
 
 function Emit-Answer($Value, [string]$Source, [string]$Category = 'routine', $Details = $null, [object]$Options = @(), [string]$Type = '', [string]$Label = '') {
@@ -289,6 +310,28 @@ function Resolve-OneApplicationQuestion($question, $index) {
     if ($label -match '(?i)notice\s*period') { $notice=FreeHire-Screening 'notice_period_days'; return [ordered]@{ status='answered'; value=$(if($null -ne $notice){[int]$notice}else{30}); source=$(if($null -ne $notice){'freehire.candidate-screening'}else{'profile.answer_policy'}); category='availability'; index=$index } }
     if ($label -match '(?i)start\s*date|available\s*to\s*start') { return [ordered]@{ status='answered'; value='30 days after offer'; source='profile.answer_policy'; category='availability'; index=$index } }
     if (-not $required) { return [ordered]@{ status='answered'; value=''; source='optional-blank'; index=$index } }
+
+    # Check semantic answer bank for saved answer
+    $normKey = Normalize-Key $label $type $options
+    if ($semanticBank.ContainsKey($normKey)) {
+        $saved = $semanticBank[$normKey]
+        $savedValue = [string]$saved.value
+        $canReuse = $true
+        if ($type -match 'select|radio|choice|boolean|yes.no' -and $options.Count -gt 0) {
+            $target = Normalize-Option $savedValue
+            $matched = $options | Where-Object { (Normalize-Option ([string]$_)) -eq $target } | Select-Object -First 1
+            if (-not $matched) { $canReuse = $false }
+        }
+        if ($canReuse) {
+            return [ordered]@{
+                status = 'answered'
+                value = $savedValue
+                source = 'application-semantic-answer-bank'
+                category = [string]$saved.category
+                index = $index
+            }
+        }
+    }
 
     # Capability, background-check, onsite, and arbitrary required questions need evidence-aware semantics.
     return [ordered]@{ status='needs-semantic-answer'; value=$null; source='agent-generated-required'; category='agent-generated'; reason_code='no-deterministic-answer'; strategy='generate-one-context-aware-answer-and-continue'; question=$label.Trim(); options=@($options); index=$index }

@@ -45,7 +45,7 @@ Reuse application-answer-plan.json and previously resolved answers whenever pres
 
 Resolve the supplied `Workspace`, `Job ID`, and `Kind` before acquiring by calling `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\get-workitem-manifest.ps1" -Workspace "<workspace>" -JobId "<job-id>" -Kind "<kind>"` once. Use its exact `work_item` path as `<work-item>`. This identity lookup avoids copying or truncating long directories.
 
-Acquire `<action>` before reading anything through `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Acquire -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -LeaseMinutes 45`. If `acquired` is false, return `busy <action>` immediately. Retain `owner_id`. If no transition script clears the claim, release it with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Release -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -OwnerId "<owner_id>"`.
+Acquire `<action>` before reading anything through `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Acquire -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -LeaseMinutes 15`. If `acquired` is false, return `busy <action>` immediately. Retain `owner_id`. If no transition script clears the claim, release it with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Release -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -OwnerId "<owner_id>"`.
 
 Call `get-workitem-manifest.ps1 -WorkItemDir "<work-item>"` once after acquiring. Read first only the exact returned paths for job, assessment, resume artifact, application route, and existing progress/send/result. A missing, `unresolved`, or ambiguous route is a coordinator route handoff; do not enter an aggregator/paywall and never infer Easy Apply from source or domain. Read source, fit, answer plan, answer bank, and exact installed references only when the active step needs them. Require passed gates and the exact ready resume artifact.
 
@@ -75,7 +75,14 @@ Never invoke `resolve-application-answer.ps1` directly for individual visible fi
 
 **Preflight semantic answer reuse:**
 
-When `preflight-application.ps1` returns `needs-semantic-answer`, generate those answers once and store them in `application-answer-plan.json`. During the live page resolution, reuse any preflight-resolved semantic answers for equivalent questions. Do not regenerate a semantic answer already resolved during preflight.
+When `preflight-application.ps1` returns `needs-semantic-answer`:
+
+1. Resolve ALL unresolved semantic questions in ONE reasoning pass.
+2. Call `save-application-semantic-answers.ps1` ONCE with all generated answers.
+3. Fill them together.
+4. Future pages must reuse `application-semantic-answers.json` through `resolve-application-page.ps1`.
+
+Do not directly edit the answer-plan file. That file is the captured form/schema plan, not the answer bank.
 
 The desired page flow is:
 browser snapshot
@@ -87,6 +94,108 @@ ONE semantic pass for unresolved fields (reusing preflight answers)
 ONE grouped browser fill
     ↓
 ONE validation
+
+**FINAL SUBMISSION TRANSACTION**
+
+After the page-processing section:
+
+When the ATS reaches the final application/review page:
+
+1. Inspect the final page once.
+2. Confirm there are no visible required-field validation errors.
+3. Confirm the intended resume is attached.
+4. Confirm company/title still match the supplied work item.
+5. Renew the application claim.
+6. Click the FINAL Submit / Submit Application control exactly ONCE.
+7. Never click Submit a second time for the same reservation.
+
+After the click:
+
+A. EXPLICIT SUCCESS
+
+If the ATS visibly confirms submission using evidence such as:
+- application submitted
+- thank you for applying
+- confirmation/reference number
+- submitted/application received status
+
+immediately call:
+
+application-send-guard.ps1 `
+  -WorkItemDir "<work-item>" `
+  -Action MarkSubmitted `
+  -ReservationId "<reservation-id>" `
+  -Proof "<exact concise visible confirmation evidence>"
+
+If guard returns status=submitted:
+
+return:
+
+submitted external <proof>
+
+Do not perform additional browser work after MarkSubmitted succeeds.
+
+B. AMBIGUOUS OUTCOME
+
+If Submit was clicked but explicit success cannot be established:
+
+call:
+
+application-send-guard.ps1 `
+  -WorkItemDir "<work-item>" `
+  -Action MarkAmbiguous `
+  -ReservationId "<reservation-id>" `
+  -Proof "<what happened after the single submit click>"
+
+Do NOT click Submit again.
+
+Return:
+
+deferred external verification-required
+
+C. FAILURE BEFORE SUBMIT CLICK
+
+If the application cannot continue and Submit was definitely NOT clicked:
+
+call:
+
+application-send-guard.ps1 `
+  -WorkItemDir "<work-item>" `
+  -Action CancelBeforeSubmit `
+  -ReservationId "<reservation-id>" `
+  -Proof "<why submission was not attempted>"
+
+Then defer/write the appropriate outcome.
+
+The application is NOT complete merely because all form fields were filled.
+
+Success requires:
+browser Submit exactly once
+-> explicit submission confirmation
+-> application-send-guard MarkSubmitted
+-> application-result.json submitted=true
+
+This final transaction is mandatory.
+
+**Claim Renewal:**
+
+After EVERY successfully completed ATS page, renew using the same owner:
+
+claim-action.ps1 `
+  -Action Acquire `
+  -Scope WorkItem `
+  -Stage "<action>" `
+  -WorkItemDir "<work-item>" `
+  -Workspace "<workspace>" `
+  -OwnerId "<owner-id>" `
+  -LeaseMinutes 15
+
+Renew again immediately before the final Submit action.
+
+This provides:
+
+active long application -> claim stays alive
+dead worker -> stale claim disappears within 15 minutes
 
 If the authoritative employer/ATS page says the requisition is closed, filled, removed, or no longer accepting applications, write `skipped-closed` through the outcome writer. Do not relabel a closed vacancy as ineligible or technical.
 

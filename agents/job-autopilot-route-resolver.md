@@ -49,6 +49,26 @@ If not acquired (`acquired: false`), return `busy route_pending`. Retain `owner_
 
 Read job + source metadata + current application-route.
 Resolve the actual employer/ATS destination.
+
+For every `set-application-route.ps1` call:
+inspect its result/error.
+If it succeeds:
+return canonical resolved result
+If it fails because the target is an aggregator/dead-end:
+write:
+```powershell
+write-application-outcome.ps1 `
+  -Status skipped-job-quality `
+  -Blocker route-unresolvable-aggregator-only `
+  ...
+```
+If route persistence fails for another reason:
+1. call defer-workitem.ps1
+2. release route_pending with the retained owner_id
+3. return deferred route_pending <code>
+
+Never exit silently while retaining the route claim.
+
 If direct external:
 call `set-application-route.ps1 -Route external`.
 If LinkedIn Easy Apply:

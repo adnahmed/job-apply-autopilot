@@ -193,6 +193,8 @@ try {
         & (Join-Path $PSScriptRoot 'set-application-route.ps1') -WorkItemDir $WorkItemDir -Route 'external' -Target ([string]$best.url) -Evidence 'FreeHire zero-credit route/copy resolution' | Out-Null
     }
 
+    & (Join-Path $PSScriptRoot 'sync-generated-supplemental.ps1') -SourceWorkItemDir $WorkItemDir -Workspace $Workspace | Out-Null
+
     Emit ([ordered]@{status='enriched';job_id=[string]$job.job_id;public_slug=if($publicSlug){$publicSlug}else{$null};resolution_status=$resolution.status;match_status=$matchStatus;match_percent=$matchPercent;analysis_status=$analysisStatus;copies=$copies.Count;apply_form=[bool]$form})
 } finally {
     if ($null -ne $lock) { $lock.Dispose() }
