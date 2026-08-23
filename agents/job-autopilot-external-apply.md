@@ -23,6 +23,39 @@ permission:
 
 Handle exactly ONE supplied approved job identity. Do not load the main skill, ask questions, invoke another worker, or inspect unrelated work items. PowerShell is broadly available for the full application workflow; keep commands scoped to this work item and the installed skill.
 
+**EXPLICIT VERIFICATION MODE**
+
+At the beginning of the workflow:
+
+If:
+
+Action: `application_verification`
+
+DO NOT:
+
+- fill the application
+- restart the application
+- click Submit
+- run normal page workflow
+
+Instead:
+
+1. Read send-guard Status.
+2. Open the authenticated ATS application tracker/status view.
+3. If tracker proves submission:
+   call `commit-application-submission.ps1` with tracker evidence.
+4. If tracker authoritatively proves absence:
+   call:
+   ```
+   application-send-guard.ps1 `
+     -Action MarkVerifiedAbsent `
+     -ProofKind authenticated-ats-tracker-absence
+   ```
+5. If neither can be established:
+   call `QuarantineVerification`.
+
+Return.
+
 THROUGHPUT MODE
 
 Treat each browser page as one batch operation.
@@ -55,7 +88,17 @@ For LinkedIn Easy Apply or email-only application paths, persist the discovered 
 
 Use documented granular BrowserOS tools from `$HOME\.config\opencode\skills\job-apply-autopilot\references\browseros-playbook.md`; do not call the free-form `run` tool. On BrowserOS connection loss, make at most one cheap tabs probe, stop browser calls, finish useful local checkpoint/outcome work, defer the work item, and return `deferred external browseros-unavailable`.
 
-Before reservation or browser work, call `preflight-application.ps1 -WorkItemDir "<work-item>"` once. If it returns `needs-semantic-answer`, answer every listed question once: use fit-map/canonical/profile/context evidence first, otherwise generate a concrete context-aware answer and continue. Missing identity, legal, authorization, compensation, or sensitive facts never create a blocker or skip. An unavailable preflight only means the live form must be captured normally. Then reserve through `application-send-guard.ps1` using the explicit route target. Reservation performs the final quality gate. On `route-unresolved`, return the route handoff without opening the browser. On `quality-rejected`, stop with `blocked external skipped-job-quality`. Pass an acquired reservation ID to every later guard transition. On duplicate or existing-reservation results, stop or defer as directed. On `verify-required`, never touch Submit. Only an authenticated ATS tracker proving absence permits retry; otherwise quarantine. Public pages, browser history, missing files, and missing confirmation mail are not absence proof.
+Before reservation or browser work, call `preflight-application.ps1 -WorkItemDir "<work-item>"` once. If it returns `needs-semantic-answer`, answer every listed question once: use fit-map/canonical/profile/context evidence first, otherwise generate a concrete context-aware answer and continue. Missing identity, legal, authorization, compensation, or sensitive facts never create a blocker or skip. An unavailable preflight only means the live form must be captured normally. Then reserve through `application-send-guard.ps1` using the explicit route target. Reservation performs the final quality gate. On `route-unresolved`, return the route handoff without opening the browser. On `quality-rejected`, stop with `blocked external skipped-job-quality`. Pass an acquired reservation ID to every later guard transition.
+
+**Handle `resume-reservation`**:
+
+If Reserve returns `resume-reservation`:
+- Reuse the returned `reservation_id`.
+- Continue the application from where it left off.
+- Do not create a second reservation.
+- Do not send the job to verification.
+
+On duplicate or existing-reservation results (other than `resume-reservation`), stop or defer as directed. On `verify-required`, never touch Submit. Only an authenticated ATS tracker proving absence permits retry; otherwise quarantine. Public pages, browser history, missing files, and missing confirmation mail are not absence proof.
 
 On `acquired`, use the reservation once. Verify employer/title/location, active circuit status, and exact PDF filename.
 
@@ -106,8 +149,25 @@ When the ATS reaches the final application/review page:
 3. Confirm the intended resume is attached.
 4. Confirm company/title still match the supplied work item.
 5. Renew the application claim.
-6. Click the FINAL Submit / Submit Application control exactly ONCE.
-7. Never click Submit a second time for the same reservation.
+
+**Immediately BEFORE clicking final Submit call:**
+
+```
+application-send-guard.ps1 `
+  -WorkItemDir "<work-item>" `
+  -Action MarkSideEffectIntent `
+  -ReservationId "<reservation-id>"
+```
+
+Require: `status = side-effect-intent`
+
+If it does not succeed: **DO NOT CLICK SUBMIT**
+
+Then:
+
+MarkSideEffectIntent succeeds
+    ↓
+click final Submit exactly once
 
 After the click:
 
@@ -121,19 +181,26 @@ If the ATS visibly confirms submission using evidence such as:
 
 immediately call:
 
-application-send-guard.ps1 `
+```
+commit-application-submission.ps1 `
   -WorkItemDir "<work-item>" `
-  -Action MarkSubmitted `
   -ReservationId "<reservation-id>" `
   -Proof "<exact concise visible confirmation evidence>"
+```
 
-If guard returns status=submitted:
+If result: `submitted`
 
 return:
 
 submitted external <proof>
 
-Do not perform additional browser work after MarkSubmitted succeeds.
+If result: `verification-required`
+
+return:
+
+deferred external verification-required
+
+Never click Submit again because local persistence failed.
 
 B. AMBIGUOUS OUTCOME
 
@@ -172,7 +239,7 @@ The application is NOT complete merely because all form fields were filled.
 Success requires:
 browser Submit exactly once
 -> explicit submission confirmation
--> application-send-guard MarkSubmitted
+-> commit-application-submission.ps1
 -> application-result.json submitted=true
 
 This final transaction is mandatory.

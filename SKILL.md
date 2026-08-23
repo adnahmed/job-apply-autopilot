@@ -212,7 +212,7 @@ Promotion and resume compilation reuse valid existing generated directories/arti
 
 Route ready work immediately using only `application-route.json`. Persist routes through `set-application-route.ps1`; never infer them from the discovery source. Direct employer-email applications go only to `job-autopilot-email-apply`; external ATS/company forms go only to `job-autopilot-external-apply`. Every applicator reservation re-runs the quality gate. LinkedIn Easy Apply remains coordinator-owned and serial under its governor.
 
-Run `preflight-application.ps1` before an external reservation whenever an answer plan exists. It resolves all questions in a single batch via `resolve-application-page.ps1`. For required questions, semantic answers are generated once and stored in `application-answer-plan.json`; during live page processing, `resolve-application-page.ps1` reuses those answers. Missing identity, legal, authorization, and sensitive fields return `needs-semantic-answer`; the applicator generates one concrete context-aware answer and continues, with one correction after exact form validation. Missing facts never create a protected-fact blocker or skip. Current and expected numeric compensation share the same posted-range, FreeHire market-p25, and profile-fallback strategy.
+Run `preflight-application.ps1` before an external reservation whenever an answer plan exists. It resolves all questions in a single batch via `resolve-application-page.ps1`. For required questions, semantic answers are generated once and stored in `application-semantic-answers.json`; during live page processing, `resolve-application-page.ps1` reuses those answers. Missing identity, legal, authorization, and sensitive fields return `needs-semantic-answer`; the applicator generates one concrete context-aware answer and continues, with one correction after exact form validation. Missing facts never create a protected-fact blocker or skip. Current and expected numeric compensation share the same posted-range, FreeHire market-p25, and profile-fallback strategy.
 
 ## Submission and quarantine
 
@@ -230,7 +230,15 @@ If authoritative verification is unavailable, the applicator calls `QuarantineVe
 
 Terminal blockers are written only through `write-application-outcome.ps1`, then reconciled. Terminal progress without a result routes only to `application_outcome_repair`.
 
-Coordinator-owned LinkedIn Easy Apply follows the same claim and send guard: reserve with `-Channel linkedin-easy-apply` before opening the modal, mark only explicit tracker/success confirmation as submitted, then record the governor event. It never writes the ledger or uses `log-decision.ps1` for an application outcome.
+Coordinator-owned LinkedIn Easy Apply follows the same claim and send guard: reserve with `-Channel linkedin-easy-apply` before opening the modal. Before the final Apply/Submit click require:
+
+```
+application-send-guard.ps1 `
+    -Action MarkSideEffectIntent `
+    -ReservationId "<reservation>"
+```
+
+Only click when it returns `side-effect-intent`. After visible/tracker confirmation use `commit-application-submission.ps1`. Do not directly call MarkSubmitted from the coordinator. Mark only explicit tracker/success confirmation as submitted, then record the governor event. It never writes the ledger or uses `log-decision.ps1` for an application outcome.
 
 Users resolve quarantine without editing JSON:
 

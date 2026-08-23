@@ -85,12 +85,17 @@ function Parse-Utc($Value) {
     catch { return $null }
 }
 
-function Get-ActiveClaim([string]$Directory, [string]$Stage) {
-    if ([string]::IsNullOrWhiteSpace($Stage)) { return $null }
+function Get-ActiveClaim([string]$Directory) {
     $claim = Read-JsonSafe (Join-Path $Directory 'action-claim.json')
-    if (-not $claim -or [string]$claim.stage -ne $Stage) { return $null }
+    if (-not $claim) {
+        return $null
+    }
+
     $expiresAt = Parse-Utc $claim.expires_at
-    if ($null -eq $expiresAt -or $expiresAt -le [DateTimeOffset]::UtcNow) { return $null }
+    if ($null -eq $expiresAt -or $expiresAt -le [DateTimeOffset]::UtcNow) {
+        return $null
+    }
+
     return [ordered]@{
         stage       = [string]$claim.stage
         owner_id    = [string]$claim.owner_id
@@ -263,7 +268,7 @@ if (Test-Path -LiteralPath $queueRoot) {
                 $stage = 'assessment_pending'; $speed = 'fast'
             }
         }
-        $claim = if ($actionable) { Get-ActiveClaim $dir.FullName $stage } else { $null }
+        $claim = if ($actionable) { Get-ActiveClaim $dir.FullName } else { $null }
         $claimed = ($null -ne $claim)
         if ($claimed) { $actionable = $false; $speed = 'deferred' }
         $queue += [ordered]@{
@@ -315,7 +320,26 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $domainCircuit = Get-ActiveCircuitForDomain $jobDomain
         $circuitBlocked = ($null -ne $domainCircuit)
         $sendStatus = if ($sendState -and $sendState.status) { [string]$sendState.status } else { $null }
-        $needsSendVerification = $sendStatus -in @('reserved', 'verification-required')
+        $sendVersion =
+            if ($sendState -and $sendState.version) {
+                [int]$sendState.version
+            } else {
+                1
+            }
+
+        $legacyReserved =
+            ($sendStatus -eq 'reserved' -and $sendVersion -lt 2)
+
+        $resumableReservation =
+            ($sendStatus -eq 'reserved' -and $sendVersion -ge 2)
+
+        $needsSendVerification =
+            (
+                $sendStatus -in @(
+                    'side-effect-intent',
+                    'verification-required'
+                )
+            ) -or $legacyReserved
         $verificationQuarantined = ($sendStatus -eq 'verification-quarantined')
         $terminalProgressWithoutResult = ($null -eq $result -and (Test-TerminalProgress $progress))
         $needsOutcomeRepair = ($null -eq $result -and ($terminalProgressWithoutResult -or $sendStatus -in @('submitted', 'abandoned-unknown-outcome')))
@@ -336,8 +360,9 @@ if (Test-Path -LiteralPath $generatedRoot) {
         elseif ($actionable -and ($linkedinHandoff -or $linkedinRoute)) { $stage = 'linkedin_application_ready' }
         elseif ($actionable -and $emailRoute) { $stage = 'email_application_ready' }
         elseif ($actionable -and $null -ne $progress) { $stage = 'application_resume' }
+        elseif ($actionable -and $resumableReservation -and $resumeReady) { $stage = 'application_resume' }
         elseif ($actionable -and $resumeReady) { $stage = 'application_ready' }
-        $claim = if ($actionable -or $needsReconcile) { Get-ActiveClaim $dir.FullName $stage } else { $null }
+        $claim = if ($actionable -or $needsReconcile) { Get-ActiveClaim $dir.FullName } else { $null }
         $claimed = ($null -ne $claim)
         if ($claimed) { $actionable = $false }
         $generated += [ordered]@{

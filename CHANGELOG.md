@@ -1,3 +1,16 @@
+# V6.10.0 — Durable Pre-Submit Intent, Resumable Reservations, and Idempotent Submission Commit
+
+- fixed work-item claims being ignored when scheduler stage changed mid-worker
+- separated safe in-progress reservations from possible-submit states
+- added durable pre-submit/send intent state (`side-effect-intent`)
+- made crashed pre-submit applications safely resumable (`resume-reservation`)
+- added idempotent local submission-result commit retry (`commit-application-submission.ps1`)
+- prevented persistence failures from causing a second browser Submit
+- added explicit external verification-only workflow (`application_verification` action)
+- applied side-effect-intent protocol to email and LinkedIn submission paths
+- shortened email application claim lease from 45 to 15 minutes
+- fixed semantic answer bank documentation: `application-semantic-answers.json` vs `application-answer-plan.json`
+
 # V6.9.0 — Semantic Answer Bank, Explicit Final Submission, Shortened Claims, Enrichment Sync
 
 - fixed undefined ProfilePath in application preflight

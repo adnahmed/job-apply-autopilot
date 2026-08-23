@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$WorkItemDir,
-    [Parameter(Mandatory=$true)][ValidateSet('Status','Reserve','MarkSubmitted','MarkAmbiguous','MarkVerifiedAbsent','CancelBeforeSubmit','QuarantineVerification','ReopenVerification','AbandonVerification')][string]$Action,
+    [Parameter(Mandatory=$true)][ValidateSet('Status','Reserve','MarkSubmitted','MarkAmbiguous','MarkVerifiedAbsent','CancelBeforeSubmit','QuarantineVerification','ReopenVerification','AbandonVerification','MarkSideEffectIntent')][string]$Action,
     [ValidateSet('','external-ats','email','linkedin-easy-apply')][string]$Channel = '',
     [string]$Target = '',
     [string]$Subject = '',
@@ -58,7 +58,7 @@ function Clear-ApplicationClaims {
     if (-not $runtimeRoot) { return }
     $workspace = Split-Path -Parent $runtimeRoot
     $claimScript = Join-Path $PSScriptRoot 'claim-action.ps1'
-    foreach ($stage in @('application_ready','application_resume','application_verification','email_application_ready','application_outcome_repair')) {
+    foreach ($stage in @('application_ready','application_resume','application_verification','email_application_ready','application_outcome_repair','linkedin_application_ready')) {
         & $claimScript -Action ClearStage -Scope WorkItem -Stage $stage -WorkItemDir $WorkItemDir -Workspace $workspace | Out-Null
     }
 }
@@ -226,7 +226,20 @@ try {
                 })
                 exit 0
             }
-            if ($state -and [string]$state.status -in @('reserved','verification-required')) {
+            if ($state -and [string]$state.status -in @('reserved','verification-required','side-effect-intent')) {
+                $existingVersion = if ($state.version) { [int]$state.version } else { 1 }
+                if ([string]$state.status -eq 'reserved' -and $existingVersion -ge 2) {
+                    Write-Result ([ordered]@{
+                        status = 'resume-reservation'
+                        safe_to_submit = $true
+                        reservation_id = $state.reservation_id
+                        reserved_at = $state.reserved_at
+                        channel = $state.channel
+                        target = $state.target
+                        subject = $state.subject
+                    })
+                    exit 0
+                }
                 Write-Result ([ordered]@{
                     status = 'verify-required'
                     safe_to_submit = $false
@@ -272,7 +285,7 @@ try {
             $attempt = if ($state -and $state.attempt) { [int]$state.attempt + 1 } else { 1 }
             $reservation = [Guid]::NewGuid().ToString('N')
             $newState = [ordered]@{
-                version = 1
+                version = 2
                 status = 'reserved'
                 reservation_id = $reservation
                 attempt = $attempt
@@ -286,12 +299,44 @@ try {
             Write-JsonAtomic $statePath $newState
             Write-Result ([ordered]@{ status='acquired'; safe_to_submit=$true; reservation_id=$reservation; attempt=$attempt; reserved_at=$newState.reserved_at })
         }
+        'MarkSideEffectIntent' {
+            if (-not (Test-Reservation $state $ReservationId)) { exit 0 }
+            $currentVersion = if ($state.version) { [int]$state.version } else { 1 }
+            if ($currentVersion -lt 2) {
+                Write-Result ([ordered]@{ status='version-mismatch'; safe_to_submit=$false; reservation_id=$state.reservation_id; required_version=2 })
+                exit 0
+            }
+            if ([string]$state.status -eq 'side-effect-intent') {
+                Write-Result ([ordered]@{ status='side-effect-intent'; safe_to_submit=$true; reservation_id=$state.reservation_id; side_effect_intent_at=$state.side_effect_intent_at })
+                exit 0
+            }
+            if ([string]$state.status -ne 'reserved') {
+                Write-Result ([ordered]@{ status='invalid-state-for-intent'; safe_to_submit=$false; reservation_id=$state.reservation_id; current_status=$state.status })
+                exit 0
+            }
+            $state.status = 'side-effect-intent'
+            Set-StateProperty $state 'side_effect_intent_at' $now.ToString('o')
+            $state.updated_at = $now.ToString('o')
+            Write-JsonAtomic $statePath $state
+            Write-Result ([ordered]@{ status='side-effect-intent'; safe_to_submit=$true; reservation_id=$state.reservation_id; side_effect_intent_at=$state.side_effect_intent_at })
+        }
         'MarkSubmitted' {
             if (-not (Test-Reservation $state $ReservationId)) { exit 0 }
             if ([string]::IsNullOrWhiteSpace($Proof)) { throw 'MarkSubmitted requires -Proof.' }
             if ($ProofKind -eq 'freehire-exact-linked-mail' -and -not $freehireMailAuthorized) {
                 Write-Result ([ordered]@{ status='rejected-proof'; safe_to_submit=$false; reservation_id=$state.reservation_id; proof_kind=$ProofKind; required_caller='sync-freehire-context.ps1' })
                 exit 0
+            }
+            $currentVersion = if ($state.version) { [int]$state.version } else { 1 }
+            if ($currentVersion -ge 2) {
+                if ([string]$state.status -eq 'reserved') {
+                    Write-Result ([ordered]@{ status='side-effect-intent-required'; safe_to_submit=$false; reservation_id=$state.reservation_id })
+                    exit 0
+                }
+                if ([string]$state.status -notin @('side-effect-intent','verification-required')) {
+                    Write-Result ([ordered]@{ status='invalid-state-for-submit'; safe_to_submit=$false; reservation_id=$state.reservation_id; current_status=$state.status })
+                    exit 0
+                }
             }
             $job = Read-JsonSafe $jobPath
             $artifact = Read-JsonSafe $artifactPath
@@ -326,6 +371,13 @@ try {
         'MarkAmbiguous' {
             if (-not (Test-Reservation $state $ReservationId)) { exit 0 }
             if ([string]::IsNullOrWhiteSpace($Proof)) { throw 'MarkAmbiguous requires -Proof describing the uncertain outcome.' }
+            $currentVersion = if ($state.version) { [int]$state.version } else { 1 }
+            if ($currentVersion -ge 2) {
+                if ([string]$state.status -ne 'side-effect-intent') {
+                    Write-Result ([ordered]@{ status='side-effect-intent-required'; safe_to_submit=$false; reservation_id=$state.reservation_id; current_status=$state.status })
+                    exit 0
+                }
+            }
             $state.status = 'verification-required'
             Set-StateProperty $state 'proof' $Proof.Trim()
             Set-StateProperty $state 'verification_retry_after' $null
@@ -369,6 +421,17 @@ try {
         'CancelBeforeSubmit' {
             if (-not (Test-Reservation $state $ReservationId)) { exit 0 }
             if ([string]::IsNullOrWhiteSpace($Proof)) { throw 'CancelBeforeSubmit requires -Proof.' }
+            $currentVersion = if ($state.version) { [int]$state.version } else { 1 }
+            if ($currentVersion -ge 2) {
+                if ([string]$state.status -eq 'side-effect-intent') {
+                    Write-Result ([ordered]@{ status='cannot-cancel-after-side-effect-intent'; safe_to_submit=$false; reservation_id=$state.reservation_id })
+                    exit 0
+                }
+                if ([string]$state.status -ne 'reserved') {
+                    Write-Result ([ordered]@{ status='invalid-state-for-cancel'; safe_to_submit=$false; reservation_id=$state.reservation_id; current_status=$state.status })
+                    exit 0
+                }
+            }
             $state.status = 'cancelled-before-submit'
             Set-StateProperty $state 'cancellation_proof' $Proof.Trim()
             Set-StateProperty $state 'cancelled_at' $now.ToString('o')
