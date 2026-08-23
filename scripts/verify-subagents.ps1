@@ -170,8 +170,6 @@ foreach ($name in $names) {
             @{ Pattern = 'AcquireApply'; Message = 'ACQUIREAPPLY MISSING' },
             @{ Pattern = 'RenewApply'; Message = 'RENEWAPPLY MISSING' },
             @{ Pattern = 'ReleaseApply'; Message = 'RELEASEAPPLY MISSING' },
-            @{ Pattern = '-Purpose\s+submit'; Message = 'PURPOSE SUBMIT MISSING' },
-            @{ Pattern = '-Purpose\s+maintenance'; Message = 'PURPOSE MAINTENANCE MISSING' },
             @{ Pattern = 'application-send-guard\.ps1'; Message = 'SEND GUARD MISSING' },
             @{ Pattern = '-Action\s+Reserve'; Message = 'RESERVE MISSING' },
             @{ Pattern = '-Channel\s+linkedin-easy-apply'; Message = 'CHANNEL LINKEDIN-EASY-APPLY MISSING' },
@@ -180,10 +178,14 @@ foreach ($name in $names) {
             @{ Pattern = 'commit-application-submission\.ps1'; Message = 'COMMIT SUBMISSION MISSING' },
             @{ Pattern = 'RecordEasyApply'; Message = 'RECORD EASY APPLY MISSING' },
             @{ Pattern = 'application_verification'; Message = 'APPLICATION VERIFICATION HANDLING MISSING' },
-            @{ Pattern = 'application_outcome_repair'; Message = 'APPLICATION OUTCOME REPAIR HANDLING MISSING' },
+            @{ Pattern = 'application_outcome_repair'; Message = 'APPLICATION OUTCOME REPAIR HANDLING MISSING' }
         )) {
             $ok = (Require-Pattern -Content $content -Pattern $requirement.Pattern -Message "$($requirement.Message) in $path") -and $ok
         }
+
+        $ok = (Require-Pattern -Content $content -Pattern "'maintenance'" -Message "MAINTENANCE PURPOSE BRANCH MISSING in $path") -and $ok
+        $ok = (Require-Pattern -Content $content -Pattern "'submit'" -Message "SUBMIT PURPOSE BRANCH MISSING in $path") -and $ok
+        $ok = (Require-Pattern -Content $content -Pattern '-Purpose\s+\$purpose' -Message "LINKEDIN GOVERNOR PURPOSE VARIABLE MISSING in $path") -and $ok
 
         $ok = (Reject-Pattern -Content $content -Pattern 'Start-Sleep' -Message "START-SLEEP MUST NOT BE USED in $path") -and $ok
         $ok = (Reject-Pattern -Content $content -Pattern 'coordinator-owned' -Message "COORDINATOR-OWNED MUST NOT BE PRESENT in $path") -and $ok
@@ -212,7 +214,7 @@ foreach ($name in $names) {
             @{ Pattern = 'defer-workitem\.ps1'; Message = 'DEFER WORKITEM MISSING' },
             @{ Pattern = '-Class\s+transient'; Message = 'TRANSIENT CLASS MISSING' },
             @{ Pattern = 'browseros-unavailable'; Message = 'BROWSEROS UNAVAILABLE CODE MISSING' },
-            @{ Pattern = 'captured-source'; Message = 'CAPTURED SOURCE RETURN MISSING' },
+            @{ Pattern = 'captured-source'; Message = 'CAPTURED SOURCE RETURN MISSING' }
         )) {
             $ok = (Require-Pattern -Content $content -Pattern $requirement.Pattern -Message "$($requirement.Message) in $path") -and $ok
         }
@@ -221,6 +223,16 @@ foreach ($name in $names) {
         $ok = (Reject-Pattern -Content $content -Pattern 'application-send-guard\.ps1' -Message "SEND GUARD MUST NOT BE USED in $path") -and $ok
         $ok = (Reject-Pattern -Content $content -Pattern 'commit-application-submission\.ps1' -Message "COMMIT SUBMISSION MUST NOT BE USED in $path") -and $ok
         $ok = (Reject-Pattern -Content $content -Pattern 'MarkSideEffectIntent' -Message "MARK SIDE EFFECT INTENT MUST NOT BE USED in $path") -and $ok
+
+        $ok = (Require-Pattern `
+            -Content $content `
+            -Pattern 'claim-action\.ps1[\s\S]{0,400}-Action\s+Acquire[\s\S]{0,300}-Scope\s+WorkItem[\s\S]{0,300}-Stage\s+source_pending' `
+            -Message "SOURCE CAPTURE ACQUIRE COMMAND MUST USE Scope WorkItem AND source_pending in $path") -and $ok
+
+        $ok = (Require-Pattern `
+            -Content $content `
+            -Pattern 'claim-action\.ps1[\s\S]{0,400}-Action\s+Release[\s\S]{0,300}-Scope\s+WorkItem[\s\S]{0,300}-Stage\s+source_pending[\s\S]{0,300}-OwnerId' `
+            -Message "SOURCE CAPTURE RELEASE COMMAND MUST USE Scope WorkItem, source_pending, AND OwnerId in $path") -and $ok
 
     }
 

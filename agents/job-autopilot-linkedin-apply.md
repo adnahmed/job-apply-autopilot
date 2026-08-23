@@ -63,25 +63,31 @@ Require:
 
 4. Determine lease purpose:
 
-If Action is:
-- `application_verification`
-- `application_outcome_repair`
-
-Purpose = `maintenance`
-
-Otherwise:
-Purpose = `submit`
+```powershell
+$purpose =
+    if (
+        '<action>' -in @(
+            'application_verification',
+            'application_outcome_repair'
+        )
+    ) {
+        'maintenance'
+    }
+    else {
+        'submit'
+    }
+```
 
 5. Acquire global lease:
 
 ```powershell
-linkedin-governor.ps1 `
+$governor = linkedin-governor.ps1 `
     -Action AcquireApply `
     -Workspace "<workspace>" `
     -JobId "<job-id>" `
     -OwnerId "<owner_id>" `
     -LeaseMinutes 15 `
-    -Purpose "<submit|maintenance>"
+    -Purpose $purpose
 ```
 
 Parse its JSON.

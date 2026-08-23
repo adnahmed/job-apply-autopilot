@@ -161,6 +161,7 @@ function Get-LinkedInGovernorStatus {
             active_apply_job_id              = $null
             active_apply_owner_id            = $null
             active_apply_expires_at          = $null
+            active_apply_purpose             = $null
         }
     }
 }
@@ -356,50 +357,140 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $emailRoute = ($routeName -eq 'email' -and (($route -and $route.target) -or ($sendState -and $sendState.target)))
         $linkedinRoute = ($routeName -eq 'linkedin-easy-apply')
         $knownRoute = ($routeName -in @('external', 'linkedin-easy-apply', 'email'))
-        $actionable = (-not $already -and -not $needsReconcile -and -not $terminalResult -and -not $verificationQuarantined -and -not $recoverableDeferred -and -not $verificationGraceDeferred -and -not $circuitBlocked)
+        $actionable = (
+            -not $already -and
+            -not $needsReconcile -and
+            -not $terminalResult -and
+            -not $verificationQuarantined -and
+            -not $recoverableDeferred -and
+            -not $verificationGraceDeferred -and
+            -not $circuitBlocked
+        )
 
-        # Gate LinkedIn application actions based on governor state BEFORE setting actionable
+        # ------------------------------------------------------------
+        # FIRST determine the current work item's actual stage.
+        # Do not inspect a stale $stage from a previous loop iteration.
+        # ------------------------------------------------------------
+
+        $stage =
+            if ($verificationQuarantined) {
+                'application_verification_quarantined'
+            }
+            elseif ($circuitBlocked) {
+                'domain_circuit_breaker'
+            }
+            elseif ($recoverableDeferred) {
+                'recoverable_cooldown'
+            }
+            elseif ($verificationGraceDeferred) {
+                'verification_grace'
+            }
+            else {
+                $null
+            }
+
+        if ($needsReconcile) {
+            $stage = 'reconcile_result'
+        }
+        elseif ($verificationQuarantined) {
+            $stage = 'application_verification_quarantined'
+        }
+        elseif ($actionable -and $needsOutcomeRepair) {
+            $stage = 'application_outcome_repair'
+        }
+        elseif ($actionable -and $needsSendVerification) {
+            $stage = 'application_verification'
+        }
+        elseif ($actionable -and -not $knownRoute) {
+            $stage = 'route_pending'
+        }
+        elseif ($actionable -and -not $resumeReady) {
+            $stage = 'resume_pending'
+        }
+        elseif ($actionable -and ($linkedinHandoff -or $linkedinRoute)) {
+            $stage = 'linkedin_application_ready'
+        }
+        elseif ($actionable -and $emailRoute) {
+            $stage = 'email_application_ready'
+        }
+        elseif ($actionable -and $null -ne $progress) {
+            $stage = 'application_resume'
+        }
+        elseif ($actionable -and $resumableReservation -and $resumeReady) {
+            $stage = 'application_resume'
+        }
+        elseif ($actionable -and $resumeReady) {
+            $stage = 'application_ready'
+        }
+
+        # ------------------------------------------------------------
+        # THEN apply LinkedIn governor gating to the actual current stage.
+        # ------------------------------------------------------------
+
         $linkedinGovernorDeferred = $false
         $linkedinGovernorRetryAfter = $null
-        if ($actionable -and $linkedinRoute) {
-            $stage = [string]$stage
-            $isSubmitStage = $stage -in @('linkedin_application_ready', 'application_ready', 'application_resume')
-            $isMaintenanceStage = $stage -in @('application_verification', 'application_outcome_repair')
 
-            if ($isSubmitStage) {
-                if ($linkedinStatus.apply_in_progress -eq $true) {
-                    $linkedinGovernorDeferred = $true
-                    $linkedinGovernorRetryAfter = $linkedinStatus.active_apply_expires_at
-                } elseif ($linkedinStatus.easy_apply_allowed -eq $false) {
-                    $linkedinGovernorDeferred = $true
-                    $linkedinGovernorRetryAfter = $linkedinStatus.next_easy_apply_at
-                }
-            } elseif ($isMaintenanceStage) {
-                if ($linkedinStatus.apply_in_progress -eq $true) {
-                    $linkedinGovernorDeferred = $true
-                    $linkedinGovernorRetryAfter = $linkedinStatus.active_apply_expires_at
-                }
+        $isLinkedInSubmitStage = (
+            $stage -eq 'linkedin_application_ready' -or
+            (
+                $linkedinRoute -and
+                $stage -in @(
+                    'application_ready',
+                    'application_resume'
+                )
+            )
+        )
+
+        $isLinkedInMaintenanceStage = (
+            $linkedinRoute -and
+            $stage -in @(
+                'application_verification',
+                'application_outcome_repair'
+            )
+        )
+
+        if ($actionable -and $isLinkedInSubmitStage) {
+
+            if ($linkedinStatus.apply_in_progress -eq $true) {
+                $linkedinGovernorDeferred = $true
+                $linkedinGovernorRetryAfter =
+                    $linkedinStatus.active_apply_expires_at
             }
-
-            if ($linkedinGovernorDeferred) {
-                $actionable = $false
+            elseif ($linkedinStatus.easy_apply_allowed -eq $false) {
+                $linkedinGovernorDeferred = $true
+                $linkedinGovernorRetryAfter =
+                    $linkedinStatus.next_easy_apply_at
             }
         }
-        $stage = if ($verificationQuarantined) { 'application_verification_quarantined' } elseif ($circuitBlocked) { 'domain_circuit_breaker' } elseif ($recoverableDeferred) { 'recoverable_cooldown' } elseif ($verificationGraceDeferred) { 'verification_grace' } else { $null }
-        if ($needsReconcile) { $stage = 'reconcile_result' }
-        elseif ($verificationQuarantined) { $stage = 'application_verification_quarantined' }
-        elseif ($actionable -and $needsOutcomeRepair) { $stage = 'application_outcome_repair' }
-        elseif ($actionable -and $needsSendVerification) { $stage = 'application_verification' }
-        elseif ($actionable -and -not $knownRoute) { $stage = 'route_pending' }
-        elseif ($actionable -and -not $resumeReady) { $stage = 'resume_pending' }
-        elseif ($actionable -and ($linkedinHandoff -or $linkedinRoute)) { $stage = 'linkedin_application_ready' }
-        elseif ($actionable -and $emailRoute) { $stage = 'email_application_ready' }
-        elseif ($actionable -and $null -ne $progress) { $stage = 'application_resume' }
-        elseif ($actionable -and $resumableReservation -and $resumeReady) { $stage = 'application_resume' }
-        elseif ($actionable -and $resumeReady) { $stage = 'application_ready' }
-        $claim = if ($actionable -or $needsReconcile) { Get-ActiveClaim $dir.FullName } else { $null }
+        elseif ($actionable -and $isLinkedInMaintenanceStage) {
+
+            # Maintenance is not blocked by submission spacing,
+            # only by another active LinkedIn worker.
+            if ($linkedinStatus.apply_in_progress -eq $true) {
+                $linkedinGovernorDeferred = $true
+                $linkedinGovernorRetryAfter =
+                    $linkedinStatus.active_apply_expires_at
+            }
+        }
+
+        if ($linkedinGovernorDeferred) {
+            $actionable = $false
+        }
+
+        # Claim only AFTER stage and governor actionability are settled.
+        $claim =
+            if ($actionable -or $needsReconcile) {
+                Get-ActiveClaim $dir.FullName
+            }
+            else {
+                $null
+            }
+
         $claimed = ($null -ne $claim)
-        if ($claimed) { $actionable = $false }
+
+        if ($claimed) {
+            $actionable = $false
+        }
         $generated += [ordered]@{
             job_id                 = $id
             company                = if ($job) { $job.company } else { $null }
@@ -454,9 +545,6 @@ $activeDiscoveryClaimCount =
 
 $claimedWorkCount = @($queue | Where-Object { $_.claimed }).Count + @($generated | Where-Object { $_.claimed }).Count
 $claimsActiveTotal = $claimedWorkCount + $activeDiscoveryClaimCount
-
-# Get LinkedIn governor status BEFORE action selection is finalized
-$linkedinStatus = Get-LinkedInGovernorStatus
 
 # V6 throughput contract: expose the whole runnable pipeline, not only the first
 # non-empty bucket.  The coordinator cannot dispatch concurrent workers for work it
