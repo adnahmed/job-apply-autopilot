@@ -1,11 +1,13 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Status','RecordEasyApply','RecordSignal','ClearManualBlock')]
+    [ValidateSet('Status','RecordEasyApply','RecordSignal','ClearManualBlock','AcquireApply','RenewApply','ReleaseApply')]
     [string]$Action = 'Status',
     [string]$Workspace = (Get-Location).Path,
     [string]$JobId = '',
     [ValidateSet('rate-limit','security-warning','captcha','mfa','account-restriction','other')]
     [string]$SignalType = 'other',
+    [string]$OwnerId = '',
+    [int]$LeaseMinutes = 15,
     [int]$MaxPerHour = 4,
     [int]$MaxPer24Hours = 20,
     [int]$MinIntervalSeconds = 600
@@ -70,6 +72,7 @@ function New-State {
         manual_block = $false
         last_signal_at = $null
         last_signal_type = $null
+        active_apply = $null
         updated_at = (Get-Date).ToUniversalTime().ToString('o')
     }
 }
@@ -86,6 +89,7 @@ function Read-State {
             if ($null -ne $raw.manual_block) { $state.manual_block = [bool]$raw.manual_block }
             if ($raw.last_signal_at) { $state.last_signal_at = [string]$raw.last_signal_at }
             if ($raw.last_signal_type) { $state.last_signal_type = [string]$raw.last_signal_type }
+            if ($raw.active_apply) { $state.active_apply = $raw.active_apply }
         } catch {
             # The ledger seed is authoritative. A partial/corrupt state file must never erase pacing history.
         }
@@ -97,6 +101,14 @@ function Read-State {
     }
     $state.easy_apply_submissions = @($parsed | Sort-Object -Unique)
     $state.easy_apply_job_ids = @($state.easy_apply_job_ids | Where-Object { $_ } | Sort-Object -Unique)
+
+    # Clear expired active_apply
+    if ($state.active_apply -and $state.active_apply.expires_at) {
+        $expiresAt = Parse-Utc $state.active_apply.expires_at
+        if ($expiresAt -and $expiresAt -le [DateTimeOffset]::UtcNow) {
+            $state.active_apply = $null
+        }
+    }
     return $state
 }
 
@@ -142,6 +154,24 @@ function Get-Status($State) {
 
     $next = ($candidates | Sort-Object)[-1]
     $allowed = (-not $State.manual_block -and $next -le $now)
+
+    $applyInProgress = $false
+    $activeApplyJobId = $null
+    $activeApplyOwnerId = $null
+    $activeApplyExpiresAt = $null
+    if ($State.active_apply -and $State.active_apply.expires_at) {
+        $expiresAt = Parse-Utc $State.active_apply.expires_at
+        if ($expiresAt -and $expiresAt -gt $now) {
+            $applyInProgress = $true
+            $activeApplyJobId = $State.active_apply.job_id
+            $activeApplyOwnerId = $State.active_apply.owner_id
+            $activeApplyExpiresAt = $State.active_apply.expires_at
+            # If there's an active apply, easy_apply is not allowed for other jobs
+            $allowed = $false
+            if (-not ($reasons -contains 'apply-in-progress')) { $reasons += 'apply-in-progress' }
+        }
+    }
+
     return [ordered]@{
         workspace = $Workspace
         state_path = $statePath
@@ -158,6 +188,10 @@ function Get-Status($State) {
         last_signal_at = $State.last_signal_at
         last_signal_type = $State.last_signal_type
         external_applications_restricted = $false
+        apply_in_progress = $applyInProgress
+        active_apply_job_id = $activeApplyJobId
+        active_apply_owner_id = $activeApplyOwnerId
+        active_apply_expires_at = $activeApplyExpiresAt
     }
 }
 
@@ -194,6 +228,67 @@ try {
             $state.manual_block = $false
             $state.pause_until = $null
             $state.pause_reason = $null
+        }
+        'AcquireApply' {
+            if ([string]::IsNullOrWhiteSpace($OwnerId)) {
+                $status = [ordered]@{ status = 'error'; message = 'OwnerId required for AcquireApply' }
+            } elseif ($state.active_apply -and $state.active_apply.expires_at) {
+                $expiresAt = Parse-Utc $state.active_apply.expires_at
+                if ($expiresAt -and $expiresAt -gt [DateTimeOffset]::UtcNow) {
+                    if ($state.active_apply.owner_id -eq $OwnerId) {
+                        # Same owner already owns it - extend expiry
+                        $state.active_apply.expires_at = [DateTimeOffset]::UtcNow.AddMinutes($LeaseMinutes).ToString('o')
+                        $status = [ordered]@{ status = 'renewed'; owner_id = $OwnerId; job_id = $state.active_apply.job_id; expires_at = $state.active_apply.expires_at }
+                    } else {
+                        # Another live owner exists
+                        $status = [ordered]@{ status = 'busy'; message = 'Another LinkedIn application in progress'; active_apply_job_id = $state.active_apply.job_id; active_apply_owner_id = $state.active_apply.owner_id; active_apply_expires_at = $state.active_apply.expires_at }
+                    }
+                } else {
+                    # Expired - clear and acquire
+                    $state.active_apply = @{
+                        owner_id = $OwnerId
+                        job_id = $JobId
+                        acquired_at = $nowText
+                        expires_at = [DateTimeOffset]::UtcNow.AddMinutes($LeaseMinutes).ToString('o')
+                    }
+                    $status = [ordered]@{ status = 'acquired'; owner_id = $OwnerId; job_id = $JobId; expires_at = $state.active_apply.expires_at }
+                }
+            } else {
+                # No live owner - check timing/count rules
+                $tempStatus = Get-Status $state
+                if ($tempStatus.easy_apply_allowed -eq $true) {
+                    $state.active_apply = @{
+                        owner_id = $OwnerId
+                        job_id = $JobId
+                        acquired_at = $nowText
+                        expires_at = [DateTimeOffset]::UtcNow.AddMinutes($LeaseMinutes).ToString('o')
+                    }
+                    $status = [ordered]@{ status = 'acquired'; owner_id = $OwnerId; job_id = $JobId; expires_at = $state.active_apply.expires_at }
+                } else {
+                    $status = [ordered]@{ status = 'blocked'; block_reasons = $tempStatus.block_reasons; next_easy_apply_at = $tempStatus.next_easy_apply_at }
+                }
+            }
+        }
+        'RenewApply' {
+            if ([string]::IsNullOrWhiteSpace($OwnerId)) {
+                $status = [ordered]@{ status = 'error'; message = 'OwnerId required for RenewApply' }
+            } elseif ($state.active_apply -and $state.active_apply.owner_id -eq $OwnerId) {
+                $state.active_apply.expires_at = [DateTimeOffset]::UtcNow.AddMinutes($LeaseMinutes).ToString('o')
+                $status = [ordered]@{ status = 'renewed'; owner_id = $OwnerId; job_id = $state.active_apply.job_id; expires_at = $state.active_apply.expires_at }
+            } else {
+                $status = [ordered]@{ status = 'not-owner'; message = 'Lease owned by different owner' }
+            }
+        }
+        'ReleaseApply' {
+            if ([string]::IsNullOrWhiteSpace($OwnerId)) {
+                $status = [ordered]@{ status = 'error'; message = 'OwnerId required for ReleaseApply' }
+            } elseif ($state.active_apply -and $state.active_apply.owner_id -eq $OwnerId) {
+                $state.active_apply = $null
+                $status = [ordered]@{ status = 'released'; owner_id = $OwnerId }
+            } else {
+                # Non-matching OwnerId - leave state untouched
+                $status = [ordered]@{ status = 'not-owner'; message = 'Lease owned by different owner; state unchanged' }
+            }
         }
     }
 

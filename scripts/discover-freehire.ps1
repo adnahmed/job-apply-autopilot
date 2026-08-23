@@ -113,7 +113,7 @@ $apiWarnings = [Collections.Generic.List[object]]::new()
 $laneStats = [Collections.Generic.List[object]]::new()
 
 # Parallel lane fetches
-$laneResults = $lanes | ForEach-Object -Parallel -ThrottleLimit 3 {
+$laneResults = $lanes | ForEach-Object -Parallel {
     $lane = $_
     $query = @{
         limit                = 100
@@ -148,7 +148,7 @@ $laneResults = $lanes | ForEach-Object -Parallel -ThrottleLimit 3 {
             error = $_.Exception.Message
         }
     }
-}
+} -ThrottleLimit 3
 
 # Merge results sequentially after all parallel fetches complete
 foreach ($laneResult in $laneResults) {

@@ -23,17 +23,30 @@ $lockPath = Join-Path $root 'applications.lock'
 
 # Discovery/assessment decisions cannot terminate a promoted application.
 $generatedRoot = Join-Path $root 'generated'
+$alreadyPromoted = $false
 if (Test-Path -LiteralPath $generatedRoot) {
     foreach ($dir in Get-ChildItem -LiteralPath $generatedRoot -Directory -ErrorAction SilentlyContinue) {
         $jobPath = Join-Path $dir.FullName 'job.json'
         if (-not (Test-Path -LiteralPath $jobPath)) { continue }
         try {
             $job = Get-Content -LiteralPath $jobPath -Raw | ConvertFrom-Json
-            if ([string]$job.job_id -eq $JobId) { throw "Job $JobId is promoted; application outcomes must be written through write-application-outcome.ps1 or application-send-guard.ps1." }
+            if ([string]$job.job_id -eq $JobId) {
+                $alreadyPromoted = $true
+                break
+            }
         } catch {
             if ($_.Exception.Message -like 'Job * is promoted;*') { throw }
         }
     }
+}
+
+if ($alreadyPromoted) {
+    [ordered]@{
+        status = 'already-promoted'
+        job_id = $JobId
+        logged = $false
+    } | ConvertTo-Json -Compress
+    exit 0
 }
 
 if ($Notes.Length -gt 300) { $Notes = $Notes.Substring(0,300) }

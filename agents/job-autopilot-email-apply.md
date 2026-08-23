@@ -46,6 +46,43 @@ Use the exact command prefix `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HO
 4. If Sent cannot be authoritatively searched, call `QuarantineVerification` and return `quarantined email <reason>`. Missing local files or missing incoming confirmation mail are not proof.
 5. Only `acquired` authorizes one new Compose/Send.
 
+**ATTACHMENT RETRY SEQUENCE**
+
+New exact sequence:
+1. open one Compose
+2. fill recipient/subject/body
+3. obtain fresh attachment input
+4. attach intended resume
+5. verify intended filename
+6. if failed, reacquire fresh attachment input once
+7. retry attachment once
+8. verify filename again
+
+If still not attached:
+```
+application-send-guard.ps1 -Action CancelBeforeSubmit ...
+```
+then:
+```
+defer-workitem.ps1 `
+  -Class deterministic `
+  -Code gmail-attachment-upload-unavailable
+```
+Return immediately.
+
+Do not:
+- open repeated compose windows
+- retry attachment more than twice per worker
+- use another file
+- send without resume
+
+BrowserOS/service outage:
+```
+defer-workitem.ps1 `
+  -Class transient `
+  -Code browseros-unavailable
+```
+
 **Immediately before clicking Gmail Send:**
 
 ```

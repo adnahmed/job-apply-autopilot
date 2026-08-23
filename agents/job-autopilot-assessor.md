@@ -3,7 +3,7 @@ description: Fast local fit assessor for one viable queued job. No web. Claims t
 mode: subagent
 hidden: true
 temperature: 0.1
-steps: 10
+steps: 16
 permission:
   read: allow
   glob: deny
@@ -38,7 +38,16 @@ If it does not return `acquired: true`, exit immediately with `busy <action>`. R
 pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\claim-action.ps1" -Action Release -Scope WorkItem -Stage "<action>" -WorkItemDir "<work-item>" -OwnerId "<owner_id>"
 ```
 
-Immediately after acquiring, call `get-workitem-manifest.ps1 -WorkItemDir "<work-item>"` once. Read only the exact paths it returns for `job`, `source`, `source_metadata` when present, `canonical_facts`, `candidate_evidence` when present, and the two research reports when present. Never guess the runtime evidence path. Do not read `profile.yaml`, resume TeX, or unrelated work items.
+Immediately after acquiring, retain all returned paths from the first manifest lookup:
+- `work_item`
+- `job`
+- `source`
+- `source_metadata`
+- `canonical_facts`
+- `candidate_evidence`
+- research report paths
+
+Do not call `get-workitem-manifest.ps1 -WorkItemDir` a second time. Batch local reads into one PowerShell invocation where practical. Never guess the runtime evidence path. Do not read `profile.yaml`, resume TeX, or unrelated work items.
 
 Decide for interview likelihood. Derive the candidate's home country from canonical facts; never hardcode one in worker policy. Compare the advertised employer with every employer named in the body; an unnamed client, aggregator-only opening, or unexplained mismatch cannot pass. Missing documentation is uncertainty, not inability. Hard-fail legal/work-auth/credential blockers, a fundamentally different specialist identity, defining unsupported management, or a missing defining/mandatory capability. Positive eligibility requires the documented home country or a compatible configured region, worldwide/international hiring, global contractor wording, sponsorship, or relocation; generic `Remote` is insufficient.
 

@@ -157,6 +157,10 @@ function Get-LinkedInGovernorStatus {
             easy_apply_submissions_last_24h  = 0
             next_easy_apply_at               = $null
             block_reasons                    = @('governor-unavailable')
+            apply_in_progress                = $false
+            active_apply_job_id              = $null
+            active_apply_owner_id            = $null
+            active_apply_expires_at          = $null
         }
     }
 }
@@ -214,7 +218,7 @@ if (Test-Path -LiteralPath $generatedRoot) {
     }
 }
 
-$queue = @{}
+$queue = @()
 $queueRoot = Join-Path $root 'queue'
 if (Test-Path -LiteralPath $queueRoot) {
     foreach ($dir in Get-ChildItem -LiteralPath $queueRoot -Directory) {
@@ -291,7 +295,7 @@ if (Test-Path -LiteralPath $queueRoot) {
     }
 }
 
-$generated = @{}
+$generated = @()
 if (Test-Path -LiteralPath $generatedRoot) {
     foreach ($dir in Get-ChildItem -LiteralPath $generatedRoot -Directory) {
         $job = Read-JsonSafe (Join-Path $dir.FullName 'job.json')
@@ -420,6 +424,9 @@ $activeDiscoveryClaimCount =
 $claimedWorkCount = @($queue | Where-Object { $_.claimed }).Count + @($generated | Where-Object { $_.claimed }).Count
 $claimsActiveTotal = $claimedWorkCount + $activeDiscoveryClaimCount
 
+# Get LinkedIn governor status BEFORE action selection is finalized
+$linkedinStatus = Get-LinkedInGovernorStatus
+
 # V6 throughput contract: expose the whole runnable pipeline, not only the first
 # non-empty bucket.  The coordinator cannot dispatch concurrent workers for work it
 # cannot see, and the former generated > queue > discover selection starved both
@@ -467,14 +474,14 @@ function Get-DispatchTarget($Item) {
     if ($stage -eq 'resume_pending') { return 'job-autopilot-resume' }
     if ($stage -in @('assessment_pending', 'reassessment_pending')) { return 'job-autopilot-assessor' }
     if ($stage -in @('eligibility_research_pending', 'candidate_evidence_pending')) { return 'job-autopilot-research' }
-    if ($stage -eq 'source_pending') { return 'coordinator-browser' }
+    if ($stage -eq 'source_pending') { return 'job-autopilot-source-capture' }
     if ($stage -eq 'route_pending') { return 'job-autopilot-route-resolver' }
     if ($stage -eq 'email_application_ready') { return 'job-autopilot-email-apply' }
-    if ($stage -eq 'linkedin_application_ready') { return 'coordinator-linkedin' }
+    if ($stage -eq 'linkedin_application_ready') { return 'job-autopilot-linkedin-apply' }
     if ($stage -in @('application_ready', 'application_resume', 'application_verification', 'application_outcome_repair')) {
         if ([string]$Item.route -eq 'email') { return 'job-autopilot-email-apply' }
-        if ([string]$Item.route -eq 'linkedin-easy-apply') { return 'coordinator-linkedin' }
-        if ([string]$Item.route -eq 'pending') { return 'coordinator-browser' }
+        if ([string]$Item.route -eq 'linkedin-easy-apply') { return 'job-autopilot-linkedin-apply' }
+        if ([string]$Item.route -eq 'pending') { return 'job-autopilot-route-resolver' }
         return 'job-autopilot-external-apply'
     }
     return 'coordinator'
@@ -482,6 +489,26 @@ function Get-DispatchTarget($Item) {
 
 $actions = @($selected | ForEach-Object {
         $dispatch = Get-DispatchTarget $_
+
+        # Gate LinkedIn application actions based on governor status
+        $stage = [string]$_.stage
+        $route = if ($_.route) { [string]$_.route } else { '' }
+        $isLinkedInApplyStage = $stage -in @('linkedin_application_ready', 'application_ready', 'application_resume')
+        $isLinkedInRoute = $route -eq 'linkedin-easy-apply'
+
+        if ($isLinkedInApplyStage -and $isLinkedInRoute) {
+            if ($linkedinStatus.easy_apply_allowed -eq $false) {
+                # Not actionable - will be retried when governor allows
+                $dispatch = 'coordinator'
+                $actionable = $false
+            }
+            if ($linkedinStatus.apply_in_progress -eq $true) {
+                # Another LinkedIn application is in progress - do not emit another
+                $dispatch = 'coordinator'
+                $actionable = $false
+            }
+        }
+
         $action = [ordered]@{
             action_id              = "$($_.stage):$($_.job_id)"
             job_id                 = $_.job_id
@@ -504,6 +531,9 @@ $actions = @($selected | ForEach-Object {
         }
         $action
     })
+
+# Filter out non-actionable items (gated by LinkedIn governor)
+$actions = @($actions | Where-Object { $_.dispatch -ne 'coordinator' -or $_.dispatch -eq 'coordinator-local' })
 
 # Discovery actions - independent per source
 $discoveryGroup = 'discovery:continuous'
@@ -553,8 +583,27 @@ if ($linkedinDiscoveryAvailable) {
 $allActions = @($discoveryActions) + @($actions)
 
 # Bounded dispatch wave: emit at most $maxDispatchActionsPerSnapshot actions per turn
+# Only one LinkedIn apply action per snapshot
 $maxDispatchActionsPerSnapshot = 8
-$actions = @($allActions | Select-Object -First $maxDispatchActionsPerSnapshot)
+$actionsList = [System.Collections.Generic.List[object]]::new()
+$linkedinApplyEmitted = $false
+
+foreach ($candidate in $allActions) {
+    if ($actionsList.Count -ge $maxDispatchActionsPerSnapshot) {
+        break
+    }
+
+    if ($candidate.dispatch -eq 'job-autopilot-linkedin-apply') {
+        if ($linkedinApplyEmitted) {
+            continue
+        }
+        $linkedinApplyEmitted = $true
+    }
+
+    $actionsList.Add($candidate)
+}
+
+$actions = @($actionsList)
 
 # Dispatch accounting: expose the bounded wave manifest explicitly in scheduler output
 $dispatchCount = @($actions).Count
@@ -595,7 +644,6 @@ if (Test-Path -LiteralPath $circuitPath) {
         try { $line | ConvertFrom-Json | Out-Null; $circuitCount++ } catch {}
     }
 }
-$linkedinStatus = Get-LinkedInGovernorStatus
 $claimMetadata = @(
     @($queue | Where-Object { $_.claimed } | ForEach-Object { [ordered]@{ scope = 'work-item'; job_id = $_.job_id; stage = $_.stage; path = $_.path; owner_id = $_.claim.owner_id; acquired_at = $_.claim.acquired_at; expires_at = $_.claim.expires_at } }) +
     @($generated | Where-Object { $_.claimed } | ForEach-Object { [ordered]@{ scope = 'work-item'; job_id = $_.job_id; stage = $_.stage; path = $_.path; owner_id = $_.claim.owner_id; acquired_at = $_.claim.acquired_at; expires_at = $_.claim.expires_at } })

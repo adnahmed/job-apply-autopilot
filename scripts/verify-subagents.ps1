@@ -40,6 +40,8 @@ $names = @(
     'job-autopilot-resume.md',
     'job-autopilot-external-apply.md',
     'job-autopilot-email-apply.md',
+    'job-autopilot-linkedin-apply.md',
+    'job-autopilot-source-capture.md',
     'job-autopilot-linkedin-discovery.md'
 )
 
@@ -121,7 +123,61 @@ foreach ($name in $names) {
             Write-Error "LINKEDIN DISCOVERY WORKER CONTRACT MISSING in $path"
             $ok = $false
         }
-    }
+    } elseif ($name -eq 'job-autopilot-linkedin-apply.md') {
+        foreach ($requirement in @(
+            @{ Pattern = 'mode:\s*subagent'; Message = 'MODE SUBAGENT MISSING' },
+            @{ Pattern = 'hidden:\s*true'; Message = 'HIDDEN TRUE MISSING' },
+            @{ Pattern = 'steps:\s*70'; Message = 'STEPS 70 MISSING' },
+            @{ Pattern = 'browseros-neo_\*'; Message = 'BROWSEROS ALLOW MISSING' },
+            @{ Pattern = 'get-workitem-manifest\.ps1'; Message = 'MANIFEST SCRIPT MISSING' },
+            @{ Pattern = 'claim-action\.ps1'; Message = 'CLAIM SCRIPT MISSING' },
+            @{ Pattern = '-Action\s+Acquire'; Message = 'CLAIM ACQUIRE MISSING' },
+            @{ Pattern = '-Action\s+Release'; Message = 'CLAIM RELEASE MISSING' },
+            @{ Pattern = '-LeaseMinutes\s+15\b'; Message = 'LINKEDIN APPLY LEASE MUST BE 15 MINUTES' },
+            @{ Pattern = '-OwnerId'; Message = 'CLAIM OWNER REUSE MISSING' },
+            @{ Pattern = 'linkedin-governor\.ps1'; Message = 'LINKEDIN GOVERNOR MISSING' },
+            @{ Pattern = 'AcquireApply'; Message = 'ACQUIREAPPLY MISSING' },
+            @{ Pattern = 'RenewApply'; Message = 'RENEWAPPLY MISSING' },
+            @{ Pattern = 'ReleaseApply'; Message = 'RELEASEAPPLY MISSING' },
+            @{ Pattern = 'application-send-guard\.ps1'; Message = 'SEND GUARD MISSING' },
+            @{ Pattern = 'Reserve'; Message = 'RESERVE MISSING' },
+            @{ Pattern = 'MarkSideEffectIntent'; Message = 'MARK SIDE EFFECT INTENT MISSING' },
+            @{ Pattern = 'CancelBeforeSubmit'; Message = 'CANCEL BEFORE SUBMIT MISSING' },
+            @{ Pattern = 'commit-application-submission\.ps1'; Message = 'COMMIT SUBMISSION MISSING' },
+            @{ Pattern = 'RecordEasyApply'; Message = 'RECORD EASY APPLY MISSING' },
+            @{ Pattern = 'application_verification'; Message = 'APPLICATION VERIFICATION HANDLING MISSING' },
+            @{ Pattern = 'application_outcome_repair'; Message = 'APPLICATION OUTCOME REPAIR HANDLING MISSING' },
+        )) {
+            $ok = (Require-Pattern -Content $content -Pattern $requirement.Pattern -Message "$($requirement.Message) in $path") -and $ok
+        }
+
+        $ok = (Reject-Pattern -Content $content -Pattern 'Start-Sleep' -Message "START-SLEEP MUST NOT BE USED in $path") -and $ok
+        $ok = (Reject-Pattern -Content $content -Pattern 'coordinator-owned' -Message "COORDINATOR-OWNED MUST NOT BE PRESENT in $path") -and $ok
+        $ok = (Reject-Pattern -Content $content -Pattern 'coordinator takeover' -Message "COORDINATOR TAKEOVER MUST NOT BE PRESENT in $path") -and $ok
+
+    } elseif ($name -eq 'job-autopilot-source-capture.md') {
+        foreach ($requirement in @(
+            @{ Pattern = 'mode:\s*subagent'; Message = 'MODE SUBAGENT MISSING' },
+            @{ Pattern = 'hidden:\s*true'; Message = 'HIDDEN TRUE MISSING' },
+            @{ Pattern = 'browseros-neo_\*'; Message = 'BROWSEROS ALLOW MISSING' },
+            @{ Pattern = 'get-workitem-manifest\.ps1'; Message = 'MANIFEST SCRIPT MISSING' },
+            @{ Pattern = 'claim-action\.ps1'; Message = 'CLAIM SCRIPT MISSING' },
+            @{ Pattern = 'Acquire'; Message = 'CLAIM ACQUIRE MISSING' },
+            @{ Pattern = 'Release'; Message = 'CLAIM RELEASE MISSING' },
+            @{ Pattern = 'source_pending'; Message = 'SOURCE_PENDING STAGE MISSING' },
+            @{ Pattern = '-LeaseMinutes\s+20\b'; Message = 'SOURCE CAPTURE LEASE MUST BE 20 MINUTES' },
+            @{ Pattern = 'defer-workitem\.ps1'; Message = 'DEFER WORKITEM MISSING' },
+            @{ Pattern = '-Class\s+transient'; Message = 'TRANSIENT CLASS MISSING' },
+            @{ Pattern = 'browseros-unavailable'; Message = 'BROWSEROS UNAVAILABLE CODE MISSING' },
+            @{ Pattern = 'captured-source'; Message = 'CAPTURED SOURCE RETURN MISSING' },
+        )) {
+            $ok = (Require-Pattern -Content $content -Pattern $requirement.Pattern -Message "$($requirement.Message) in $path") -and $ok
+        }
+
+        $ok = (Reject-Pattern -Content $content -Pattern 'Start-Sleep' -Message "START-SLEEP MUST NOT BE USED in $path") -and $ok
+        $ok = (Reject-Pattern -Content $content -Pattern 'application-send-guard\.ps1' -Message "SEND GUARD MUST NOT BE USED in $path") -and $ok
+        $ok = (Reject-Pattern -Content $content -Pattern 'commit-application-submission\.ps1' -Message "COMMIT SUBMISSION MUST NOT BE USED in $path") -and $ok
+        $ok = (Reject-Pattern -Content $content -Pattern 'MarkSideEffectIntent' -Message "MARK SIDE EFFECT INTENT MUST NOT BE USED in $path") -and $ok
 
     if ($ok -and $content -notmatch 'Return exactly one') {
         Write-Error "WORKER PATH/RELEASE/RETURN CONTRACT INVALID in $path"
@@ -135,12 +191,26 @@ foreach ($name in $names) {
         }
     }
 
-    if ($name -in @('job-autopilot-external-apply.md','job-autopilot-email-apply.md','job-autopilot-linkedin-discovery.md')) {
+    $applicators = @(
+        'job-autopilot-external-apply.md',
+        'job-autopilot-email-apply.md',
+        'job-autopilot-linkedin-apply.md'
+    )
+
+    $browserWorkers = @(
+        'job-autopilot-external-apply.md',
+        'job-autopilot-email-apply.md',
+        'job-autopilot-linkedin-apply.md',
+        'job-autopilot-source-capture.md',
+        'job-autopilot-linkedin-discovery.md'
+    )
+
+    if ($name -in $browserWorkers) {
         if ($content -notmatch '(?m)^\s{2}"browseros-neo_\*":\s*allow\s*$') {
             Write-Error "BROWSER WORKER BROWSEROS ALLOW MISSING in $path"
             $ok = $false
         }
-        if ($name -ne 'job-autopilot-linkedin-discovery.md' -and $content -notmatch 'reservation performs the final quality gate') {
+        if ($name -in $applicators -and $content -notmatch 'reservation performs the final quality gate') {
             Write-Error "APPLICATOR QUALITY GATE CONTRACT MISSING in $path"
             $ok = $false
         }
@@ -148,7 +218,7 @@ foreach ($name in $names) {
             Write-Error "EXTERNAL APPLICATOR ANSWER/ROUTE CONTRACT MISSING in $path"
             $ok = $false
         }
-        if ($name -ne 'job-autopilot-linkedin-discovery.md' -and ($content -notmatch 'write-application-outcome\.ps1' -or
+        if ($name -in $applicators -and ($content -notmatch 'write-application-outcome\.ps1' -or
             $content -notmatch 'do not call the free-form `run` tool' -or $content -notmatch 'quarantined' -or
             $content -notmatch [regex]::Escape('$HOME\.config\opencode\skills\job-apply-autopilot\scripts\write-application-outcome.ps1') -or
             $content -notmatch [regex]::Escape('$HOME\.config\opencode\skills\job-apply-autopilot\references\browseros-playbook.md'))) {

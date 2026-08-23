@@ -38,16 +38,28 @@ Trust `actions`, `scheduler`, claim metadata, and these stages:
 4. `application_verification_quarantined`: do nothing automatically. It is isolated from the ledger and unrelated work.
 5. `route_pending`: dispatch `job-autopilot-route-resolver` background worker.
 6. `email_application_ready`: dispatch `job-autopilot-email-apply`.
-7. `linkedin_application_ready`: handle LinkedIn Easy Apply serially under its governor.
-8. `application_ready` / `application_resume`: route to the matching applicator immediately.
+7. `linkedin_application_ready`: dispatch `job-autopilot-linkedin-apply`.
+8. `application_ready` / `application_resume`: route using persisted `application-route.json`:
+   - `email` -> `job-autopilot-email-apply`
+   - `linkedin-easy-apply` -> `job-autopilot-linkedin-apply`
+   - `pending` -> `job-autopilot-route-resolver`
+   - anything external -> `job-autopilot-external-apply`
 9. `resume_pending`: dispatch `job-autopilot-resume`.
 10. `promotion_pending`: assessor immediately calls `advance-workitem.ps1` after passed commit; coordinator fallback only.
 11. `assessment_repair`: claim and repair deterministically, then rerun state.
 12. `assessment_pending` / `reassessment_pending`: dispatch `job-autopilot-assessor`.
-13. `source_pending`: claim, capture the complete source, release the claim, rerun state.
+13. `source_pending`: dispatch `job-autopilot-source-capture`.
 14. `eligibility_research_pending` / `candidate_evidence_pending`: dispatch `job-autopilot-research` in a separate web-heavy wave.
 
+For `application_verification`, `application_outcome_repair`, `application_ready`, `application_resume`: route using persisted `application-route.json`:
+- `email` -> `job-autopilot-email-apply`
+- `linkedin-easy-apply` -> `job-autopilot-linkedin-apply`
+- `pending` -> `job-autopilot-route-resolver`
+- anything external -> `job-autopilot-external-apply`
+
 Cooldown, verification grace, domain circuit breaker, and actively claimed items are non-actionable until their timestamps expire. Never wait for them while other work or discovery exists.
+
+**Cooldown rule:** Future LinkedIn availability suppresses only that LinkedIn action. It must never block scheduling unrelated work.
 
 ## Action claims
 
@@ -210,7 +222,7 @@ The `-Canonical` parameter is now optional; the assessor stores `canonical_resum
 
 Promotion and resume compilation reuse valid existing generated directories/artifacts under work-item locks.
 
-Route ready work immediately using only `application-route.json`. Persist routes through `set-application-route.ps1`; never infer them from the discovery source. Direct employer-email applications go only to `job-autopilot-email-apply`; external ATS/company forms go only to `job-autopilot-external-apply`. Every applicator reservation re-runs the quality gate. LinkedIn Easy Apply remains coordinator-owned and serial under its governor.
+Route ready work immediately using only `application-route.json`. Persist routes through `set-application-route.ps1`; never infer them from the discovery source. Direct employer-email applications go only to `job-autopilot-email-apply`; external ATS/company forms go only to `job-autopilot-external-apply`. Every applicator reservation re-runs the quality gate. LinkedIn Easy Apply is worker-owned and globally serialized by `linkedin-governor.ps1`.
 
 Run `preflight-application.ps1` before an external reservation whenever an answer plan exists. It resolves all questions in a single batch via `resolve-application-page.ps1`. For required questions, semantic answers are generated once and stored in `application-semantic-answers.json`; during live page processing, `resolve-application-page.ps1` reuses those answers. Missing identity, legal, authorization, and sensitive fields return `needs-semantic-answer`; the applicator generates one concrete context-aware answer and continues, with one correction after exact form validation. Missing facts never create a protected-fact blocker or skip. Current and expected numeric compensation share the same posted-range, FreeHire market-p25, and profile-fallback strategy.
 
@@ -230,15 +242,24 @@ If authoritative verification is unavailable, the applicator calls `QuarantineVe
 
 Terminal blockers are written only through `write-application-outcome.ps1`, then reconciled. Terminal progress without a result routes only to `application_outcome_repair`.
 
-Coordinator-owned LinkedIn Easy Apply follows the same claim and send guard: reserve with `-Channel linkedin-easy-apply` before opening the modal. Before the final Apply/Submit click require:
+**Explicit coordinator rules:**
 
-```
-application-send-guard.ps1 `
-    -Action MarkSideEffectIntent `
-    -ReservationId "<reservation>"
-```
+Coordinator may:
+- call `session-state.ps1`
+- perform deterministic local reconciliation
+- dispatch workers
+- launch discovery
+- rerun state
 
-Only click when it returns `side-effect-intent`. After visible/tracker confirmation use `commit-application-submission.ps1`. Do not directly call MarkSubmitted from the coordinator. Mark only explicit tracker/success confirmation as submitted, then record the governor event. It never writes the ledger or uses `log-decision.ps1` for an application outcome.
+Coordinator may not:
+- perform ordinary BrowserOS job work
+- fill applications
+- capture source pages
+- compose application emails
+- wait for future retry/cooldown timestamps
+- call `Start-Sleep` for campaign scheduling
+
+**LinkedIn Easy Apply is worker-owned and globally serialized by `linkedin-governor.ps1`.**
 
 Users resolve quarantine without editing JSON:
 
@@ -263,7 +284,21 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File "$skillRoot\scripts\defer-workitem
   -WorkItemDir '<absolute-path>' -Stage '<checkpoint-stage>' -Code '<short-code>' -Message '<message>'
 ```
 
-The checkpoint stage may differ from the scheduler claim stage; the defer transition clears the active claim that actually exists. Backoff remains 1 minute, 5 minutes, then 30 minutes.
+The checkpoint stage may differ from the scheduler claim stage; the defer transition clears the active claim that actually exists.
+
+**Recoverable error classification:**
+
+`transient` = temporary infrastructure/service failure
+`deterministic` = repeated job-local blocker after one recovery attempt
+
+**Retry-after rule:** `retry_after` removes only that job from runnable work. The coordinator never waits for `retry_after`.
+
+Backoff:
+- transient: 1 -> 60 sec, 2 -> 300 sec, 3+ -> 1800 sec
+- deterministic: 1 -> 300 sec, 2 -> 21600 sec, 3+ -> 86400 sec
+
+Bounded dispatch wave = 8 new actions per snapshot.
+`scripts/linkedin-governor.ps1` provides a single global LinkedIn application lease.
 
 ## Discovery ownership
 

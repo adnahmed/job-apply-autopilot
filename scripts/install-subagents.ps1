@@ -19,6 +19,8 @@ $names = @(
     'job-autopilot-resume.md',
     'job-autopilot-external-apply.md',
     'job-autopilot-email-apply.md',
+    'job-autopilot-linkedin-apply.md',
+    'job-autopilot-source-capture.md',
     'job-autopilot-linkedin-discovery.md'
 )
 

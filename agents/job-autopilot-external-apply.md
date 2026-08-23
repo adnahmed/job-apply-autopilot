@@ -266,6 +266,56 @@ dead worker -> stale claim disappears within 15 minutes
 
 If the authoritative employer/ATS page says the requisition is closed, filled, removed, or no longer accepting applications, write `skipped-closed` through the outcome writer. Do not relabel a closed vacancy as ineligible or technical.
 
+**BOUNDED REPEATED-BLOCKER HANDLING**
+
+For one page/control blocker:
+1. normal attempt
+2. one different recovery attempt
+3. same blocker still present -> stop
+
+Do not:
+- restart same application repeatedly
+- repeat same upload action endlessly
+- consume remaining steps on same page
+
+Temporary failures use:
+```
+defer-workitem.ps1 -Class transient -Code "<stable-code>"
+```
+
+Examples:
+- `browseros-unavailable`
+- `connection-reset`
+- `service-unavailable`
+- `http-5xx`
+- `temporary-page-load-failure`
+
+Repeated job-local blockers use:
+```
+defer-workitem.ps1 -Class deterministic -Code "<stable-code>"
+```
+
+Use stable codes such as:
+- `greenhouse-resume-upload-unavailable`
+- `ats-required-control-unresolvable`
+- `ats-widget-unsupported`
+- `ats-page-cannot-advance`
+
+Do not put timestamps or raw exception text in the code.
+
+Before deterministic defer, if a reservation exists and final submit has not been attempted:
+```
+application-send-guard.ps1 -Action CancelBeforeSubmit ...
+```
+
+Once side-effect-intent exists:
+- do not ordinary-retry
+- use existing verification logic.
+
+**INCOMPLETE PRE-SUBMIT APPLICATIONS**
+
+Incomplete pre-submit applications remain worker-owned. A later external-apply worker may resume when session-state makes the item runnable again.
+
 All terminal non-submission blockers must use the full installed outcome-writer command above; never write terminal results directly and never append the ledger. For transient failures call `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\defer-workitem.ps1" -WorkItemDir "<work-item>" -Stage "<checkpoint-stage>" -Code "<short-code>" -Message "<message>"`. Record security/MFA/automation signals only with `pwsh -NoProfile -ExecutionPolicy Bypass -File "$HOME\.config\opencode\skills\job-apply-autopilot\scripts\domain-circuit-breaker.ps1" -Action Record -Domain "<domain>" -Reason "<reason>" -Workspace "<workspace>"`. Follow `$HOME\.config\opencode\skills\job-apply-autopilot\references\captcha-recovery.md` once; never solve puzzles, synthesize tokens, or retry Submit.
 
 Return exactly one line from: `submitted external <proof>`, `already-submitted external <proof>`, `handoff-email <address>`, `handoff-route <target>`, `verified-absent external authenticated-ats-tracker-absence`, `quarantined external <reason>`, `deferred external <reason>`, `blocked external <status>`, or `busy <action>`.

@@ -117,7 +117,14 @@ try {
 
     # Resolve canonical resume: explicit parameter takes precedence, otherwise read from assessment
     if ([string]::IsNullOrWhiteSpace($Canonical)) {
-        $Canonical = if ($assessment -and (Has-Property $assessment 'canonical_resume')) { [string]$assessment.canonical_resume } else { '' }
+        $Canonical = if (
+            $assessment -and
+            $assessment.PSObject.Properties.Name -contains 'canonical_resume'
+        ) {
+            [string]$assessment.canonical_resume
+        } else {
+            ''
+        }
     }
     $allowedCanonicals = @('ai','backend')
     if (-not ($Canonical -in $allowedCanonicals)) {
