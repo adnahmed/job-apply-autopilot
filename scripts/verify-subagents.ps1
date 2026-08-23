@@ -45,6 +45,20 @@ $names = @(
     'job-autopilot-linkedin-discovery.md'
 )
 
+$applicators = @(
+    'job-autopilot-external-apply.md',
+    'job-autopilot-email-apply.md',
+    'job-autopilot-linkedin-apply.md'
+)
+
+$browserWorkers = @(
+    'job-autopilot-external-apply.md',
+    'job-autopilot-email-apply.md',
+    'job-autopilot-linkedin-apply.md',
+    'job-autopilot-source-capture.md',
+    'job-autopilot-linkedin-discovery.md'
+)
+
 $failed = $false
 foreach ($name in $names) {
     $path = Join-Path $targetDir $name
@@ -91,6 +105,14 @@ foreach ($name in $names) {
 
         $ok = (Require-Pattern -Content $content -Pattern '-Action\s+Acquire[\s\S]{0,500}-OwnerId[\s\S]{0,300}-LeaseMinutes\s+15\b' -Message "EXTERNAL APPLY CLAIM RENEWAL WITH EXISTING OWNER AND 15-MINUTE LEASE MISSING in $path") -and $ok
 
+        # Common setup before verification ordering
+        $commonIndex = $content.IndexOf('COMMON SETUP')
+        $verifyIndex = $content.IndexOf('EXPLICIT VERIFICATION MODE')
+        if ($commonIndex -lt 0 -or ($verifyIndex -ge 0 -and $verifyIndex -lt $commonIndex)) {
+            Write-Error "EXTERNAL WORKER: COMMON SETUP must appear before EXPLICIT VERIFICATION MODE in $path"
+            $ok = $false
+        }
+
     } elseif ($name -eq 'job-autopilot-email-apply.md') {
         foreach ($requirement in @(
             @{ Pattern = 'claim-action\.ps1'; Message = 'CLAIM SCRIPT MISSING' },
@@ -103,6 +125,14 @@ foreach ($name in $names) {
         }
 
         $ok = (Require-Pattern -Content $content -Pattern '-Action\s+Acquire[\s\S]{0,500}-OwnerId[\s\S]{0,300}-LeaseMinutes\s+15\b' -Message "EMAIL APPLY CLAIM RENEWAL WITH EXISTING OWNER AND 15-MINUTE LEASE MISSING in $path") -and $ok
+
+        # Common setup before verification ordering
+        $commonIndex = $content.IndexOf('COMMON SETUP')
+        $verifyIndex = $content.IndexOf('EXPLICIT VERIFICATION MODE')
+        if ($commonIndex -lt 0 -or ($verifyIndex -ge 0 -and $verifyIndex -lt $commonIndex)) {
+            Write-Error "EMAIL WORKER: COMMON SETUP must appear before EXPLICIT VERIFICATION MODE in $path"
+            $ok = $false
+        }
 
     } elseif ($name -eq 'job-autopilot-assessor.md') {
         if ($content -notmatch '(?m)^\s{2}edit:\s*deny\s*$' -or $content -notmatch 'commit-assessment\.ps1' -or $content -notmatch 'ExpectedPriorStatus') {
@@ -123,6 +153,7 @@ foreach ($name in $names) {
             Write-Error "LINKEDIN DISCOVERY WORKER CONTRACT MISSING in $path"
             $ok = $false
         }
+
     } elseif ($name -eq 'job-autopilot-linkedin-apply.md') {
         foreach ($requirement in @(
             @{ Pattern = 'mode:\s*subagent'; Message = 'MODE SUBAGENT MISSING' },
@@ -139,8 +170,11 @@ foreach ($name in $names) {
             @{ Pattern = 'AcquireApply'; Message = 'ACQUIREAPPLY MISSING' },
             @{ Pattern = 'RenewApply'; Message = 'RENEWAPPLY MISSING' },
             @{ Pattern = 'ReleaseApply'; Message = 'RELEASEAPPLY MISSING' },
+            @{ Pattern = '-Purpose\s+submit'; Message = 'PURPOSE SUBMIT MISSING' },
+            @{ Pattern = '-Purpose\s+maintenance'; Message = 'PURPOSE MAINTENANCE MISSING' },
             @{ Pattern = 'application-send-guard\.ps1'; Message = 'SEND GUARD MISSING' },
-            @{ Pattern = 'Reserve'; Message = 'RESERVE MISSING' },
+            @{ Pattern = '-Action\s+Reserve'; Message = 'RESERVE MISSING' },
+            @{ Pattern = '-Channel\s+linkedin-easy-apply'; Message = 'CHANNEL LINKEDIN-EASY-APPLY MISSING' },
             @{ Pattern = 'MarkSideEffectIntent'; Message = 'MARK SIDE EFFECT INTENT MISSING' },
             @{ Pattern = 'CancelBeforeSubmit'; Message = 'CANCEL BEFORE SUBMIT MISSING' },
             @{ Pattern = 'commit-application-submission\.ps1'; Message = 'COMMIT SUBMISSION MISSING' },
@@ -155,6 +189,14 @@ foreach ($name in $names) {
         $ok = (Reject-Pattern -Content $content -Pattern 'coordinator-owned' -Message "COORDINATOR-OWNED MUST NOT BE PRESENT in $path") -and $ok
         $ok = (Reject-Pattern -Content $content -Pattern 'coordinator takeover' -Message "COORDINATOR TAKEOVER MUST NOT BE PRESENT in $path") -and $ok
 
+        # Common setup before verification ordering
+        $commonIndex = $content.IndexOf('COMMON SETUP')
+        $verifyIndex = $content.IndexOf('EXPLICIT VERIFICATION MODE')
+        if ($commonIndex -lt 0 -or ($verifyIndex -ge 0 -and $verifyIndex -lt $commonIndex)) {
+            Write-Error "LINKEDIN WORKER: COMMON SETUP must appear before EXPLICIT VERIFICATION MODE in $path"
+            $ok = $false
+        }
+
     } elseif ($name -eq 'job-autopilot-source-capture.md') {
         foreach ($requirement in @(
             @{ Pattern = 'mode:\s*subagent'; Message = 'MODE SUBAGENT MISSING' },
@@ -162,8 +204,9 @@ foreach ($name in $names) {
             @{ Pattern = 'browseros-neo_\*'; Message = 'BROWSEROS ALLOW MISSING' },
             @{ Pattern = 'get-workitem-manifest\.ps1'; Message = 'MANIFEST SCRIPT MISSING' },
             @{ Pattern = 'claim-action\.ps1'; Message = 'CLAIM SCRIPT MISSING' },
-            @{ Pattern = 'Acquire'; Message = 'CLAIM ACQUIRE MISSING' },
-            @{ Pattern = 'Release'; Message = 'CLAIM RELEASE MISSING' },
+            @{ Pattern = '-Action\s+Acquire'; Message = 'CLAIM ACQUIRE MISSING' },
+            @{ Pattern = '-Scope\s+WorkItem'; Message = 'SCOPE WORKITEM MISSING' },
+            @{ Pattern = '-Action\s+Release'; Message = 'CLAIM RELEASE MISSING' },
             @{ Pattern = 'source_pending'; Message = 'SOURCE_PENDING STAGE MISSING' },
             @{ Pattern = '-LeaseMinutes\s+20\b'; Message = 'SOURCE CAPTURE LEASE MUST BE 20 MINUTES' },
             @{ Pattern = 'defer-workitem\.ps1'; Message = 'DEFER WORKITEM MISSING' },
@@ -179,6 +222,8 @@ foreach ($name in $names) {
         $ok = (Reject-Pattern -Content $content -Pattern 'commit-application-submission\.ps1' -Message "COMMIT SUBMISSION MUST NOT BE USED in $path") -and $ok
         $ok = (Reject-Pattern -Content $content -Pattern 'MarkSideEffectIntent' -Message "MARK SIDE EFFECT INTENT MUST NOT BE USED in $path") -and $ok
 
+    }
+
     if ($ok -and $content -notmatch 'Return exactly one') {
         Write-Error "WORKER PATH/RELEASE/RETURN CONTRACT INVALID in $path"
         $ok = $false
@@ -191,27 +236,16 @@ foreach ($name in $names) {
         }
     }
 
-    $applicators = @(
-        'job-autopilot-external-apply.md',
-        'job-autopilot-email-apply.md',
-        'job-autopilot-linkedin-apply.md'
-    )
-
-    $browserWorkers = @(
-        'job-autopilot-external-apply.md',
-        'job-autopilot-email-apply.md',
-        'job-autopilot-linkedin-apply.md',
-        'job-autopilot-source-capture.md',
-        'job-autopilot-linkedin-discovery.md'
-    )
-
     if ($name -in $browserWorkers) {
         if ($content -notmatch '(?m)^\s{2}"browseros-neo_\*":\s*allow\s*$') {
             Write-Error "BROWSER WORKER BROWSEROS ALLOW MISSING in $path"
             $ok = $false
         }
-        if ($name -in $applicators -and $content -notmatch 'reservation performs the final quality gate') {
-            Write-Error "APPLICATOR QUALITY GATE CONTRACT MISSING in $path"
+        if ($name -in $applicators -and ($content -notmatch 'application-send-guard\.ps1' -or
+            $content -notmatch '-Action\s+Reserve' -or
+            $content -notmatch 'MarkSideEffectIntent' -or
+            $content -notmatch 'commit-application-submission\.ps1')) {
+            Write-Error "APPLICATOR EXECUTABLE CONTRACTS MISSING in $path"
             $ok = $false
         }
         if ($name -eq 'job-autopilot-external-apply.md' -and ($content -notmatch 'resolve-application-answer\.ps1' -or $content -notmatch 'preflight-application\.ps1' -or $content -notmatch 'set-application-route\.ps1')) {

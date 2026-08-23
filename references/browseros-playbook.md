@@ -50,7 +50,7 @@ For LinkedIn only, after one tailored-upload fallback fails, an already uploaded
 - Check `linkedin-governor.ps1 -Action Status` before opening a new application.
 - A `Continue`/Draft state is resumable, not a new application.
 - Verify contact fields and the selected resume immediately before Submit.
-- Submit once, verify explicit confirmation or Job Tracker state, call the send guard `MarkSubmitted`, then call `RecordEasyApply -JobId <id>`; reconciliation writes the ledger.
+- Before final Submit, use `application-send-guard.ps1 -Action MarkSideEffectIntent`. Click Submit exactly once. After explicit success, call `commit-application-submission.ps1` with the reservation ID and proof. Never call `MarkSubmitted` directly from the browser worker. Only after commit returns `submitted` call `linkedin-governor.ps1 -Action RecordEasyApply -JobId <id>`.
 - A governor cooldown never blocks external ATS work or discovery.
 
 ## Covered controls and framework fields

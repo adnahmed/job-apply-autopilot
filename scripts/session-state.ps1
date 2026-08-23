@@ -218,6 +218,9 @@ if (Test-Path -LiteralPath $generatedRoot) {
     }
 }
 
+# Get LinkedIn governor status BEFORE constructing queue/generated actionable sets
+$linkedinStatus = Get-LinkedInGovernorStatus
+
 $queue = @()
 $queueRoot = Join-Path $root 'queue'
 if (Test-Path -LiteralPath $queueRoot) {
@@ -354,6 +357,34 @@ if (Test-Path -LiteralPath $generatedRoot) {
         $linkedinRoute = ($routeName -eq 'linkedin-easy-apply')
         $knownRoute = ($routeName -in @('external', 'linkedin-easy-apply', 'email'))
         $actionable = (-not $already -and -not $needsReconcile -and -not $terminalResult -and -not $verificationQuarantined -and -not $recoverableDeferred -and -not $verificationGraceDeferred -and -not $circuitBlocked)
+
+        # Gate LinkedIn application actions based on governor state BEFORE setting actionable
+        $linkedinGovernorDeferred = $false
+        $linkedinGovernorRetryAfter = $null
+        if ($actionable -and $linkedinRoute) {
+            $stage = [string]$stage
+            $isSubmitStage = $stage -in @('linkedin_application_ready', 'application_ready', 'application_resume')
+            $isMaintenanceStage = $stage -in @('application_verification', 'application_outcome_repair')
+
+            if ($isSubmitStage) {
+                if ($linkedinStatus.apply_in_progress -eq $true) {
+                    $linkedinGovernorDeferred = $true
+                    $linkedinGovernorRetryAfter = $linkedinStatus.active_apply_expires_at
+                } elseif ($linkedinStatus.easy_apply_allowed -eq $false) {
+                    $linkedinGovernorDeferred = $true
+                    $linkedinGovernorRetryAfter = $linkedinStatus.next_easy_apply_at
+                }
+            } elseif ($isMaintenanceStage) {
+                if ($linkedinStatus.apply_in_progress -eq $true) {
+                    $linkedinGovernorDeferred = $true
+                    $linkedinGovernorRetryAfter = $linkedinStatus.active_apply_expires_at
+                }
+            }
+
+            if ($linkedinGovernorDeferred) {
+                $actionable = $false
+            }
+        }
         $stage = if ($verificationQuarantined) { 'application_verification_quarantined' } elseif ($circuitBlocked) { 'domain_circuit_breaker' } elseif ($recoverableDeferred) { 'recoverable_cooldown' } elseif ($verificationGraceDeferred) { 'verification_grace' } else { $null }
         if ($needsReconcile) { $stage = 'reconcile_result' }
         elseif ($verificationQuarantined) { $stage = 'application_verification_quarantined' }
@@ -384,12 +415,12 @@ if (Test-Path -LiteralPath $generatedRoot) {
             needs_reconcile        = $needsReconcile
             reconcile_actionable   = ($needsReconcile -and -not $claimed)
             stage                  = $stage
-            speed                  = if ($recoverableDeferred -or $verificationGraceDeferred -or $circuitBlocked -or $verificationQuarantined -or $claimed) { 'deferred' } else { 'fast' }
+            speed                  = if ($recoverableDeferred -or $verificationGraceDeferred -or $circuitBlocked -or $verificationQuarantined -or $claimed -or $linkedinGovernorDeferred) { 'deferred' } else { 'fast' }
             claimed                = $claimed
             claim                  = $claim
             quarantine_reason      = if ($verificationQuarantined) { [string]$sendState.quarantine_reason } else { $null }
             path                   = $dir.FullName
-            retry_after            = if ($circuitBlocked) { $domainCircuit.expires_at } elseif ($recoverableDeferred) { $retryAfter.ToString('o') } elseif ($verificationGraceDeferred) { $verificationRetryAfter.ToString('o') } else { $null }
+            retry_after            = if ($circuitBlocked) { $domainCircuit.expires_at } elseif ($recoverableDeferred) { $retryAfter.ToString('o') } elseif ($verificationGraceDeferred) { $verificationRetryAfter.ToString('o') } elseif ($linkedinGovernorDeferred) { $linkedinGovernorRetryAfter } else { $null }
         }
     }
 }
@@ -490,25 +521,6 @@ function Get-DispatchTarget($Item) {
 $actions = @($selected | ForEach-Object {
         $dispatch = Get-DispatchTarget $_
 
-        # Gate LinkedIn application actions based on governor status
-        $stage = [string]$_.stage
-        $route = if ($_.route) { [string]$_.route } else { '' }
-        $isLinkedInApplyStage = $stage -in @('linkedin_application_ready', 'application_ready', 'application_resume')
-        $isLinkedInRoute = $route -eq 'linkedin-easy-apply'
-
-        if ($isLinkedInApplyStage -and $isLinkedInRoute) {
-            if ($linkedinStatus.easy_apply_allowed -eq $false) {
-                # Not actionable - will be retried when governor allows
-                $dispatch = 'coordinator'
-                $actionable = $false
-            }
-            if ($linkedinStatus.apply_in_progress -eq $true) {
-                # Another LinkedIn application is in progress - do not emit another
-                $dispatch = 'coordinator'
-                $actionable = $false
-            }
-        }
-
         $action = [ordered]@{
             action_id              = "$($_.stage):$($_.job_id)"
             job_id                 = $_.job_id
@@ -531,9 +543,6 @@ $actions = @($selected | ForEach-Object {
         }
         $action
     })
-
-# Filter out non-actionable items (gated by LinkedIn governor)
-$actions = @($actions | Where-Object { $_.dispatch -ne 'coordinator' -or $_.dispatch -eq 'coordinator-local' })
 
 # Discovery actions - independent per source
 $discoveryGroup = 'discovery:continuous'
@@ -718,11 +727,15 @@ $out = [ordered]@{
         circuit_breakers_active              = @($circuitStatus.circuits).Count
     }
     linkedin                 = [ordered]@{
-        easy_apply_allowed = $linkedinStatus.easy_apply_allowed
-        last_hour          = $linkedinStatus.easy_apply_submissions_last_hour
-        last_24h           = $linkedinStatus.easy_apply_submissions_last_24h
-        next_at            = $linkedinStatus.next_easy_apply_at
-        blocked            = @($linkedinStatus.block_reasons).Count -gt 0
+        easy_apply_allowed           = $linkedinStatus.easy_apply_allowed
+        last_hour                    = $linkedinStatus.easy_apply_submissions_last_hour
+        last_24h                     = $linkedinStatus.easy_apply_submissions_last_24h
+        next_at                      = $linkedinStatus.next_easy_apply_at
+        blocked                      = @($linkedinStatus.block_reasons).Count -gt 0
+        apply_in_progress            = $linkedinStatus.apply_in_progress
+        active_apply_job_id          = $linkedinStatus.active_apply_job_id
+        active_apply_purpose         = $linkedinStatus.active_apply_purpose
+        active_apply_expires_at      = $linkedinStatus.active_apply_expires_at
     }
     instruction              = if ($nextAction -eq 'await-active-claims') {
         'No unclaimed action is currently available. Rerun state after active claims finish or expire.'
